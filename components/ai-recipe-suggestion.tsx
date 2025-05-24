@@ -54,16 +54,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       return
     }
 
-    // Verificar que la API key esté disponible
-    if (!process.env.OPENAI_API_KEY) {
-      toast({
-        title: "Error de configuración",
-        description: "La clave de OpenAI no está configurada. Contacta al administrador.",
-        variant: "destructive",
-      })
-      return
-    }
-
     setIsGenerating(true)
     setSuggestions([])
 
@@ -190,7 +180,7 @@ Asegúrate de que las recetas sean:
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="px-3">
+        <Button variant="outline" size="sm" className="px-3" title="Sugerir receta con IA">
           <Sparkles className="h-4 w-4" />
         </Button>
       </DialogTrigger>
