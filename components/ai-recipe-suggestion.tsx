@@ -2,8 +2,6 @@
 
 import { useState } from "react"
 import { Sparkles, Loader2 } from "lucide-react"
-import { generateText } from "ai"
-import { openai } from "@ai-sdk/openai"
 
 import { getSupabaseClient } from "@/lib/supabase/client"
 import type { Recipe } from "@/lib/types"
@@ -58,61 +56,27 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     setSuggestions([])
 
     try {
-      const mealTypeText = mealType === "comida" ? "almuerzo" : "cena"
-      const dishOrderText = dishOrder ? (dishOrder === 1 ? "primer plato" : "segundo plato") : ""
-      const contextText = dishOrder ? `${dishOrderText} para ${mealTypeText}` : `plato para ${mealTypeText}`
-
-      const prompt = `Genera exactamente 3 recetas diferentes para ${contextText} del ${dayName} basadas en: "${searchQuery}".
-
-Para cada receta, proporciona:
-1. Nombre del plato
-2. Lista de ingredientes (uno por línea, con cantidades específicas)
-3. Instrucciones de preparación (paso a paso, numeradas)
-4. Breve descripción del plato (máximo 2 líneas)
-
-Responde SOLO con este formato JSON válido:
-{
-  "recipes": [
-    {
-      "name": "Nombre del plato",
-      "ingredients": "ingrediente 1\\ningrediente 2\\ningrediente 3",
-      "preparation": "1. Paso uno\\n2. Paso dos\\n3. Paso tres",
-      "description": "Descripción breve del plato"
-    }
-  ]
-}
-
-Asegúrate de que las recetas sean:
-- Prácticas y realizables en casa
-- Con ingredientes comunes y accesibles
-- Apropiadas para ${contextText}
-- Variadas entre sí
-- Tiempo de preparación razonable (30-60 minutos)`
-
-      const { text } = await generateText({
-        model: openai("gpt-4o"),
-        prompt,
-        temperature: 0.7,
+      const response = await fetch("/api/generate-recipe-suggestions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          searchQuery,
+          mealType,
+          dishOrder,
+          dayName,
+        }),
       })
 
-      // Intentar parsear la respuesta JSON
-      let parsedResponse
-      try {
-        // Limpiar la respuesta para extraer solo el JSON
-        const jsonMatch = text.match(/\{[\s\S]*\}/)
-        if (jsonMatch) {
-          parsedResponse = JSON.parse(jsonMatch[0])
-        } else {
-          throw new Error("No se encontró JSON válido en la respuesta")
-        }
-      } catch (parseError) {
-        console.error("Error parsing AI response:", parseError)
-        console.error("Raw response:", text)
-        throw new Error("Error al procesar la respuesta de la IA")
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Error al generar sugerencias")
       }
 
-      if (parsedResponse?.recipes && Array.isArray(parsedResponse.recipes)) {
-        setSuggestions(parsedResponse.recipes.slice(0, 3)) // Asegurar máximo 3 recetas
+      if (data.recipes && Array.isArray(data.recipes)) {
+        setSuggestions(data.recipes)
       } else {
         throw new Error("Formato de respuesta inválido")
       }
@@ -120,7 +84,7 @@ Asegúrate de que las recetas sean:
       console.error("Error generating suggestions:", error)
       toast({
         title: "Error al generar sugerencias",
-        description: "No se pudieron generar sugerencias. Inténtalo de nuevo.",
+        description: error instanceof Error ? error.message : "No se pudieron generar sugerencias. Inténtalo de nuevo.",
         variant: "destructive",
       })
     } finally {
