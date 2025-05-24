@@ -62,22 +62,22 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       const dishOrderText = dishOrder ? (dishOrder === 1 ? "primer plato" : "segundo plato") : ""
       const contextText = dishOrder ? `${dishOrderText} para ${mealTypeText}` : `plato para ${mealTypeText}`
 
-      const prompt = `Genera 3 recetas diferentes para ${contextText} del ${dayName} basadas en: "${searchQuery}".
+      const prompt = `Genera exactamente 3 recetas diferentes para ${contextText} del ${dayName} basadas en: "${searchQuery}".
 
 Para cada receta, proporciona:
 1. Nombre del plato
 2. Lista de ingredientes (uno por línea, con cantidades específicas)
-3. Instrucciones de preparación (paso a paso)
-4. Breve descripción del plato
+3. Instrucciones de preparación (paso a paso, numeradas)
+4. Breve descripción del plato (máximo 2 líneas)
 
-Formato de respuesta (JSON):
+Responde SOLO con este formato JSON válido:
 {
   "recipes": [
     {
       "name": "Nombre del plato",
-      "ingredients": "ingrediente 1\\ningrediente 2\\n...",
-      "preparation": "paso 1\\npaso 2\\n...",
-      "description": "Breve descripción"
+      "ingredients": "ingrediente 1\\ningrediente 2\\ningrediente 3",
+      "preparation": "1. Paso uno\\n2. Paso dos\\n3. Paso tres",
+      "description": "Descripción breve del plato"
     }
   ]
 }
@@ -86,12 +86,13 @@ Asegúrate de que las recetas sean:
 - Prácticas y realizables en casa
 - Con ingredientes comunes y accesibles
 - Apropiadas para ${contextText}
-- Variadas entre sí`
+- Variadas entre sí
+- Tiempo de preparación razonable (30-60 minutos)`
 
       const { text } = await generateText({
         model: openai("gpt-4o"),
         prompt,
-        temperature: 0.8,
+        temperature: 0.7,
       })
 
       // Intentar parsear la respuesta JSON
@@ -106,6 +107,7 @@ Asegúrate de que las recetas sean:
         }
       } catch (parseError) {
         console.error("Error parsing AI response:", parseError)
+        console.error("Raw response:", text)
         throw new Error("Error al procesar la respuesta de la IA")
       }
 
@@ -126,7 +128,7 @@ Asegúrate de que las recetas sean:
     }
   }
 
-  const saveRecipe = async (suggestion: GeneratedRecipe) => {
+  const saveAndSelectRecipe = async (suggestion: GeneratedRecipe) => {
     setIsSaving(true)
 
     try {
@@ -154,14 +156,14 @@ Asegúrate de que las recetas sean:
       if (error) throw error
 
       toast({
-        title: "Receta creada",
+        title: "¡Receta creada y seleccionada!",
         description: `"${suggestion.name}" se ha añadido a tu colección y seleccionado para el menú.`,
       })
 
-      // Llamar al callback con la nueva receta
+      // Llamar al callback con la nueva receta para que se seleccione automáticamente
       onRecipeCreated(newRecipe as Recipe)
 
-      // Cerrar el modal
+      // Cerrar el modal y limpiar
       setIsOpen(false)
       setSearchQuery("")
       setSuggestions([])
@@ -184,14 +186,14 @@ Asegúrate de que las recetas sean:
           <Sparkles className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-purple-500" />
-            Sugerencias de IA
+            Sugerencias de IA para {dayName}
           </DialogTitle>
           <DialogDescription>
-            Describe qué tipo de plato buscas para {mealType === "comida" ? "la comida" : "la cena"} del {dayName}
+            Describe qué tipo de plato buscas para {mealType === "comida" ? "la comida" : "la cena"}
             {dishOrder && ` (${dishOrder === 1 ? "primer" : "segundo"} plato)`}
           </DialogDescription>
         </DialogHeader>
@@ -202,14 +204,15 @@ Asegúrate de que las recetas sean:
             <div className="flex gap-2">
               <Input
                 id="search-query"
-                placeholder="ej: pasta italiana, pollo al horno, ensalada fresca..."
+                placeholder="ej: pasta italiana, pollo al horno, ensalada fresca, sopa de verduras..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !isGenerating) {
+                  if (e.key === "Enter" && !isGenerating && searchQuery.trim()) {
                     generateSuggestions()
                   }
                 }}
+                className="flex-1"
               />
               <Button onClick={generateSuggestions} disabled={isGenerating || !searchQuery.trim()}>
                 {isGenerating ? (
@@ -224,51 +227,61 @@ Asegúrate de que las recetas sean:
             </div>
           </div>
 
+          {isGenerating && (
+            <div className="text-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-purple-500" />
+              <p className="text-muted-foreground">Generando 3 sugerencias personalizadas...</p>
+            </div>
+          )}
+
           {suggestions.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="font-medium">Sugerencias generadas:</h3>
-              <div className="space-y-3">
+            <div className="space-y-4">
+              <h3 className="font-medium text-lg">Elige una de estas opciones:</h3>
+              <div className="grid gap-4">
                 {suggestions.map((suggestion, index) => (
-                  <Card key={index} className="cursor-pointer hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg">{suggestion.name}</CardTitle>
-                      <CardDescription>{suggestion.description}</CardDescription>
+                  <Card key={index} className="hover:shadow-md transition-shadow border-2 hover:border-purple-200">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <span className="bg-purple-100 text-purple-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">
+                          {index + 1}
+                        </span>
+                        {suggestion.name}
+                      </CardTitle>
+                      <CardDescription className="text-sm">{suggestion.description}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div>
-                        <h4 className="font-medium text-sm mb-1">Ingredientes principales:</h4>
+                        <h4 className="font-medium text-sm mb-2 text-green-700">🥘 Ingredientes principales:</h4>
                         <p className="text-sm text-muted-foreground">
-                          {suggestion.ingredients.split("\n").slice(0, 3).join(", ")}
-                          {suggestion.ingredients.split("\n").length > 3 && "..."}
+                          {suggestion.ingredients.split("\n").slice(0, 4).join(" • ")}
+                          {suggestion.ingredients.split("\n").length > 4 && " • ..."}
                         </p>
                       </div>
                       <div>
-                        <h4 className="font-medium text-sm mb-1">Preparación:</h4>
+                        <h4 className="font-medium text-sm mb-2 text-blue-700">👨‍🍳 Preparación:</h4>
                         <p className="text-sm text-muted-foreground line-clamp-2">
                           {suggestion.preparation.split("\n")[0]}...
                         </p>
                       </div>
-                      <Button onClick={() => saveRecipe(suggestion)} disabled={isSaving} className="w-full" size="sm">
+                      <Button
+                        onClick={() => saveAndSelectRecipe(suggestion)}
+                        disabled={isSaving}
+                        className="w-full mt-4"
+                        size="sm"
+                      >
                         {isSaving ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Guardando...
+                            Guardando y seleccionando...
                           </>
                         ) : (
-                          "Seleccionar esta receta"
+                          "✨ Seleccionar esta receta"
                         )}
                       </Button>
                     </CardContent>
                   </Card>
                 ))}
               </div>
-            </div>
-          )}
-
-          {isGenerating && (
-            <div className="text-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-purple-500" />
-              <p className="text-muted-foreground">Generando sugerencias personalizadas...</p>
             </div>
           )}
         </div>
