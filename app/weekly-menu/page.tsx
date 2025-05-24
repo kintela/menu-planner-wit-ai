@@ -84,7 +84,7 @@ export default async function WeeklyMenuPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-red-700 dark:text-red-300">
-              No se puede conectar a la base de datos. Esto suele ocurrir cuando las variables de entorno no están
+              No se puede connectar a la base de datos. Esto suele ocurrir cuando las variables de entorno no están
               configuradas correctamente.
             </p>
             <div className="bg-red-100 dark:bg-red-900 p-4 rounded-md">
