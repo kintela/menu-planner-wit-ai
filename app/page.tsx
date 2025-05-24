@@ -1,71 +1,73 @@
-import Link from "next/link"
-import { CalendarDays, ChefHat, PlusCircle, Settings, History } from "lucide-react"
-
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Calendar, Home, ListChecks, Settings, History } from "lucide-react"
+import Link from "next/link"
 
-export default function Home() {
+export default function HomeDashboard() {
   return (
     <div className="container py-10">
-      <div className="flex flex-col items-center text-center mb-10">
-        <h1 className="text-4xl font-bold tracking-tight">Planificador de Menús Semanales</h1>
-        <p className="text-muted-foreground mt-4 max-w-3xl">
+      <div className="text-center">
+        <h1 className="text-3xl font-semibold mb-4">Panel de Control</h1>
+        <p className="text-muted-foreground max-w-md mx-auto">
           Planifica tus comidas y cenas para toda la semana de manera sencilla. Añade tus propias recetas y organiza tu
           menú semanal.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+        {/* Planificar Semana */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <CalendarDays className="mr-2 h-5 w-5" />
-              Menú Semanal
+              <Calendar className="mr-2 h-5 w-5" />
+              Planificar Semana
             </CardTitle>
-            <CardDescription>Visualiza y planifica tu menú semanal actual</CardDescription>
+            <CardDescription>Organiza tu menú semanal</CardDescription>
           </CardHeader>
           <CardContent>
-            <p>Organiza tus comidas y cenas para cada día de la semana.</p>
+            <p>Crea un menú semanal detallado con tus recetas favoritas.</p>
           </CardContent>
           <CardFooter>
             <Button asChild className="w-full">
-              <Link href="/weekly-menu">Ver Menú Semanal</Link>
+              <Link href="/plan">Planificar Ahora</Link>
             </Button>
           </CardFooter>
         </Card>
 
+        {/* Mis Recetas */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <ChefHat className="mr-2 h-5 w-5" />
-              Recetas
+              <ListChecks className="mr-2 h-5 w-5" />
+              Mis Recetas
             </CardTitle>
-            <CardDescription>Explora tu colección de recetas</CardDescription>
+            <CardDescription>Gestiona tus recetas personales</CardDescription>
           </CardHeader>
           <CardContent>
-            <p>Busca recetas por categoría o ingredientes para añadirlas a tu menú.</p>
+            <p>Añade, edita o elimina tus recetas para personalizar tu menú.</p>
           </CardContent>
           <CardFooter>
             <Button asChild className="w-full">
-              <Link href="/recipes">Ver Recetas</Link>
+              <Link href="/recipes">Gestionar Recetas</Link>
             </Button>
           </CardFooter>
         </Card>
 
+        {/* Inicio */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
-              <PlusCircle className="mr-2 h-5 w-5" />
-              Añadir Receta
+              <Home className="mr-2 h-5 w-5" />
+              Inicio
             </CardTitle>
-            <CardDescription>Añade nuevas recetas a tu colección</CardDescription>
+            <CardDescription>Volver a la página principal</CardDescription>
           </CardHeader>
           <CardContent>
-            <p>Crea tus propias recetas con ingredientes, preparación e imágenes.</p>
+            <p>Regresa al inicio para ver un resumen de tu planificación.</p>
           </CardContent>
           <CardFooter>
             <Button asChild className="w-full">
-              <Link href="/recipes/add">Añadir Receta</Link>
+              <Link href="/">Ir al Inicio</Link>
             </Button>
           </CardFooter>
         </Card>
