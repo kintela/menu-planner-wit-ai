@@ -15,21 +15,24 @@ export default function Home() {
         </p>
       </div>
 
-      {/* Alerta de configuración */}
+      {/* Alerta de configuración actualizada */}
       <Card className="border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800 mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-red-600">
-            <AlertTriangle className="h-5 w-5" />🚨 Problema de Preview de Vercel Detectado
+            <AlertTriangle className="h-5 w-5" />🚨 Problema de Caché de Vercel Confirmado
           </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-red-700 dark:text-red-300 mb-4">
-            <strong>El Preview de Vercel tiene un problema de caché</strong> con las variables de entorno. Aunque están
-            configuradas correctamente, el Preview sigue usando valores antiguos.
+            <strong>El Preview está usando valores placeholder</strong> en lugar de las variables reales. Error
+            detectado:
           </p>
+          <div className="bg-red-100 dark:bg-red-900 p-2 rounded font-mono text-sm mb-4">
+            NEXT_PUBLIC_SUPABASE_URL contains placeholder value: "tu_url_de_supabase_aqui"
+          </div>
           <div className="flex gap-2">
             <Button asChild size="sm">
-              <Link href="/fix-preview">
+              <Link href="/fix-vercel-cache">
                 <Wrench className="mr-2 h-4 w-4" />
                 Solucionar Ahora
               </Link>
@@ -100,16 +103,16 @@ export default function Home() {
           <CardHeader>
             <CardTitle className="flex items-center text-amber-600">
               <Wrench className="mr-2 h-5 w-5" />
-              Solucionar Preview
+              Solucionar Caché
             </CardTitle>
             <CardDescription>Arreglar problema de variables en Preview</CardDescription>
           </CardHeader>
           <CardContent>
-            <p>Guía paso a paso para solucionar el problema de caché de Vercel.</p>
+            <p>Guía paso a paso para forzar que Vercel use las variables correctas.</p>
           </CardContent>
           <CardFooter>
             <Button asChild className="w-full">
-              <Link href="/fix-preview">Solucionar</Link>
+              <Link href="/fix-vercel-cache">Solucionar</Link>
             </Button>
           </CardFooter>
         </Card>

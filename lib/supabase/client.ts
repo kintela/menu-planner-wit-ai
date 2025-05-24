@@ -39,6 +39,8 @@ export const getSupabaseClient = () => {
 
     try {
       console.log("✅ Creating Supabase client")
+      console.log("URL válida:", !!supabaseUrl && supabaseUrl.startsWith("https://"))
+      console.log("Key válida:", !!supabaseAnonKey && supabaseAnonKey.length > 100)
       supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
     } catch (error) {
       throw new Error(
