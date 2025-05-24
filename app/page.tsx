@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { CalendarDays, ChefHat, PlusCircle, Settings, AlertTriangle } from "lucide-react"
+import { CalendarDays, ChefHat, PlusCircle, AlertTriangle, Wrench } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,23 +16,26 @@ export default function Home() {
       </div>
 
       {/* Alerta de configuración */}
-      <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800 mb-6">
+      <Card className="border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800 mb-6">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-amber-600">
-            <AlertTriangle className="h-5 w-5" />
-            ¿Problemas con las variables de entorno?
+          <CardTitle className="flex items-center gap-2 text-red-600">
+            <AlertTriangle className="h-5 w-5" />🚨 Problema de Preview de Vercel Detectado
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-amber-700 dark:text-amber-300 mb-4">
-            Si ves errores sobre variables de Supabase, es probable que necesites forzar un redeploy.
+          <p className="text-red-700 dark:text-red-300 mb-4">
+            <strong>El Preview de Vercel tiene un problema de caché</strong> con las variables de entorno. Aunque están
+            configuradas correctamente, el Preview sigue usando valores antiguos.
           </p>
           <div className="flex gap-2">
-            <Button asChild variant="outline" size="sm">
-              <Link href="/debug">Verificar Estado</Link>
+            <Button asChild size="sm">
+              <Link href="/fix-preview">
+                <Wrench className="mr-2 h-4 w-4" />
+                Solucionar Ahora
+              </Link>
             </Button>
             <Button asChild variant="outline" size="sm">
-              <Link href="/force-redeploy">Solucionar</Link>
+              <Link href="/debug">Verificar Estado</Link>
             </Button>
           </div>
         </CardContent>
@@ -93,20 +96,20 @@ export default function Home() {
           </CardFooter>
         </Card>
 
-        <Card>
+        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800">
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <Settings className="mr-2 h-5 w-5" />
-              Diagnóstico
+            <CardTitle className="flex items-center text-amber-600">
+              <Wrench className="mr-2 h-5 w-5" />
+              Solucionar Preview
             </CardTitle>
-            <CardDescription>Verifica la configuración del sistema</CardDescription>
+            <CardDescription>Arreglar problema de variables en Preview</CardDescription>
           </CardHeader>
           <CardContent>
-            <p>Comprueba que las variables de entorno estén configuradas correctamente.</p>
+            <p>Guía paso a paso para solucionar el problema de caché de Vercel.</p>
           </CardContent>
           <CardFooter>
-            <Button asChild className="w-full" variant="outline">
-              <Link href="/debug">Verificar Estado</Link>
+            <Button asChild className="w-full">
+              <Link href="/fix-preview">Solucionar</Link>
             </Button>
           </CardFooter>
         </Card>
