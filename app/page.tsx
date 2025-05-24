@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { CalendarDays, ChefHat, PlusCircle, AlertTriangle, Wrench } from "lucide-react"
+import { CalendarDays, ChefHat, PlusCircle, Settings, History } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,41 +10,12 @@ export default function Home() {
       <div className="flex flex-col items-center text-center mb-10">
         <h1 className="text-4xl font-bold tracking-tight">Planificador de Menús Semanales</h1>
         <p className="text-muted-foreground mt-4 max-w-3xl">
-          Planifica tus comidas y cenas para toda la semana de manera sencilla. Añade tus propias recetas o utiliza
-          sugerencias generadas por IA.
+          Planifica tus comidas y cenas para toda la semana de manera sencilla. Añade tus propias recetas y organiza tu
+          menú semanal.
         </p>
       </div>
 
-      {/* Alerta de configuración actualizada */}
-      <Card className="border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800 mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-red-600">
-            <AlertTriangle className="h-5 w-5" />🚨 Problema de Caché de Vercel Confirmado
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-red-700 dark:text-red-300 mb-4">
-            <strong>El Preview está usando valores placeholder</strong> en lugar de las variables reales. Error
-            detectado:
-          </p>
-          <div className="bg-red-100 dark:bg-red-900 p-2 rounded font-mono text-sm mb-4">
-            NEXT_PUBLIC_SUPABASE_URL contains placeholder value: "tu_url_de_supabase_aqui"
-          </div>
-          <div className="flex gap-2">
-            <Button asChild size="sm">
-              <Link href="/fix-vercel-cache">
-                <Wrench className="mr-2 h-4 w-4" />
-                Solucionar Ahora
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/debug">Verificar Estado</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -99,20 +70,38 @@ export default function Home() {
           </CardFooter>
         </Card>
 
-        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800">
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center text-amber-600">
-              <Wrench className="mr-2 h-5 w-5" />
-              Solucionar Caché
+            <CardTitle className="flex items-center">
+              <Settings className="mr-2 h-5 w-5" />
+              Categorías
             </CardTitle>
-            <CardDescription>Arreglar problema de variables en Preview</CardDescription>
+            <CardDescription>Gestiona las categorías de tus recetas</CardDescription>
           </CardHeader>
           <CardContent>
-            <p>Guía paso a paso para forzar que Vercel use las variables correctas.</p>
+            <p>Organiza tus recetas por categorías para encontrarlas fácilmente.</p>
           </CardContent>
           <CardFooter>
             <Button asChild className="w-full">
-              <Link href="/fix-vercel-cache">Solucionar</Link>
+              <Link href="/categories">Gestionar Categorías</Link>
+            </Button>
+          </CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <History className="mr-2 h-5 w-5" />
+              Historial
+            </CardTitle>
+            <CardDescription>Revisa tus menús anteriores</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p>Consulta los menús semanales que has guardado anteriormente.</p>
+          </CardContent>
+          <CardFooter>
+            <Button asChild className="w-full">
+              <Link href="/history">Ver Historial</Link>
             </Button>
           </CardFooter>
         </Card>

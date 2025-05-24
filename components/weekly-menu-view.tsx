@@ -13,7 +13,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
-import { AiRecipeSuggestion } from "@/components/ai-recipe-suggestion"
 
 interface WeeklyMenuViewProps {
   weeklyMenu: WeeklyMenu
@@ -471,33 +470,22 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
                       </Button>
                     )}
                   </div>
-                  <div className="flex gap-2">
-                    <Select
-                      value={dayMenu.meals.comida[0]?.id.toString() || ""}
-                      onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 1)}
-                      disabled={isUpdating || recipes.length === 0}
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Seleccionar receta" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {recipes.map((recipe) => (
-                          <SelectItem key={recipe.id} value={recipe.id.toString()}>
-                            {recipe.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <AiRecipeSuggestion
-                      onRecipeCreated={(newRecipe) => {
-                        setRecipes([...recipes, newRecipe])
-                        handleRecipeChange(dayMenu.day, "comida", newRecipe.id.toString(), 1)
-                      }}
-                      mealType="comida"
-                      dishOrder={1}
-                      dayName={dayMenu.dayName}
-                    />
-                  </div>
+                  <Select
+                    value={dayMenu.meals.comida[0]?.id.toString() || ""}
+                    onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 1)}
+                    disabled={isUpdating || recipes.length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar receta" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {recipes.map((recipe) => (
+                        <SelectItem key={recipe.id} value={recipe.id.toString()}>
+                          {recipe.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Segundo plato */}
@@ -515,46 +503,12 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
                       </Button>
                     )}
                   </div>
-                  <div className="flex gap-2">
-                    <Select
-                      value={dayMenu.meals.comida[1]?.id.toString() || ""}
-                      onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 2)}
-                      disabled={isUpdating || recipes.length === 0}
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Seleccionar receta" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {recipes.map((recipe) => (
-                          <SelectItem key={recipe.id} value={recipe.id.toString()}>
-                            {recipe.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <AiRecipeSuggestion
-                      onRecipeCreated={(newRecipe) => {
-                        setRecipes([...recipes, newRecipe])
-                        handleRecipeChange(dayMenu.day, "comida", newRecipe.id.toString(), 2)
-                      }}
-                      mealType="comida"
-                      dishOrder={2}
-                      dayName={dayMenu.dayName}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Cena - 1 plato */}
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium">Cena</h3>
-                <div className="flex gap-2">
                   <Select
-                    value={dayMenu.meals.cena?.id.toString() || ""}
-                    onValueChange={(value) => handleRecipeChange(dayMenu.day, "cena", value)}
+                    value={dayMenu.meals.comida[1]?.id.toString() || ""}
+                    onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 2)}
                     disabled={isUpdating || recipes.length === 0}
                   >
-                    <SelectTrigger className="flex-1">
+                    <SelectTrigger>
                       <SelectValue placeholder="Seleccionar receta" />
                     </SelectTrigger>
                     <SelectContent>
@@ -565,15 +519,28 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
                       ))}
                     </SelectContent>
                   </Select>
-                  <AiRecipeSuggestion
-                    onRecipeCreated={(newRecipe) => {
-                      setRecipes([...recipes, newRecipe])
-                      handleRecipeChange(dayMenu.day, "cena", newRecipe.id.toString())
-                    }}
-                    mealType="cena"
-                    dayName={dayMenu.dayName}
-                  />
                 </div>
+              </div>
+
+              {/* Cena - 1 plato */}
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Cena</h3>
+                <Select
+                  value={dayMenu.meals.cena?.id.toString() || ""}
+                  onValueChange={(value) => handleRecipeChange(dayMenu.day, "cena", value)}
+                  disabled={isUpdating || recipes.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar receta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {recipes.map((recipe) => (
+                      <SelectItem key={recipe.id} value={recipe.id.toString()}>
+                        {recipe.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>
