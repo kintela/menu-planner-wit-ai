@@ -1,0 +1,180 @@
+"use client"
+
+import { useState, useEffect, useRef, useCallback } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Search, X } from "lucide-react"
+
+import type { Category } from "@/lib/types"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
+
+interface CategoryWithCount extends Category {
+  recipeCount: number
+}
+
+interface RecipeSearchProps {
+  categories: CategoryWithCount[]
+}
+
+export function RecipeSearch({ categories }: RecipeSearchProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const isInitializedRef = useRef(false)
+  const searchTimeoutRef = useRef<NodeJS.Timeout>()
+
+  const [searchTerm, setSearchTerm] = useState("")
+  const [selectedCategories, setSelectedCategories] = useState<number[]>([])
+
+  // Inicializar solo una vez al montar el componente
+  useEffect(() => {
+    if (!isInitializedRef.current) {
+      const categoriesParam = searchParams.get("categories")
+      const searchParam = searchParams.get("search")
+
+      const initialCategories = categoriesParam
+        ? categoriesParam
+            .split(",")
+            .map((id) => Number.parseInt(id.trim()))
+            .filter((id) => !isNaN(id))
+        : []
+
+      setSelectedCategories(initialCategories)
+      setSearchTerm(searchParam || "")
+      isInitializedRef.current = true
+    }
+  }, [searchParams])
+
+  // Función para aplicar filtros
+  const applyFilters = useCallback(
+    (search: string, categories: number[]) => {
+      const params = new URLSearchParams()
+
+      if (search.trim()) {
+        params.set("search", search.trim())
+      }
+
+      if (categories.length > 0) {
+        params.set("categories", categories.join(","))
+      }
+
+      const newUrl = `/recipes?${params.toString()}`
+      router.push(newUrl)
+    },
+    [router],
+  )
+
+  // Aplicar filtros automáticamente cuando cambian las categorías
+  useEffect(() => {
+    if (isInitializedRef.current) {
+      applyFilters(searchTerm, selectedCategories)
+    }
+  }, [selectedCategories, applyFilters, searchTerm])
+
+  // Aplicar filtros con debounce para la búsqueda de texto
+  useEffect(() => {
+    if (isInitializedRef.current) {
+      // Limpiar timeout anterior
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+
+      // Aplicar filtros después de 500ms de inactividad
+      searchTimeoutRef.current = setTimeout(() => {
+        applyFilters(searchTerm, selectedCategories)
+      }, 500)
+
+      // Cleanup
+      return () => {
+        if (searchTimeoutRef.current) {
+          clearTimeout(searchTimeoutRef.current)
+        }
+      }
+    }
+  }, [searchTerm, applyFilters, selectedCategories])
+
+  const handleCategoryChange = (categoryId: number, checked: boolean) => {
+    let newSelectedCategories: number[]
+    if (checked) {
+      newSelectedCategories = [...selectedCategories, categoryId]
+    } else {
+      newSelectedCategories = selectedCategories.filter((id) => id !== categoryId)
+    }
+
+    setSelectedCategories(newSelectedCategories)
+  }
+
+  const clearFilters = () => {
+    setSearchTerm("")
+    setSelectedCategories([])
+    router.push("/recipes")
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            placeholder="Buscar por nombre o ingrediente..."
+            className="pl-8"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        {(searchTerm || selectedCategories.length > 0) && (
+          <Button type="button" variant="outline" onClick={clearFilters}>
+            <X className="mr-2 h-4 w-4" />
+            Limpiar
+          </Button>
+        )}
+      </div>
+
+      <div>
+        <h3 className="text-sm font-medium mb-2">Filtrar por categoría:</h3>
+        <div className="flex flex-wrap gap-4">
+          {categories && categories.length > 0 ? (
+            categories.map((category) => (
+              <div key={category.id} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`category-${category.id}`}
+                  checked={selectedCategories.includes(category.id)}
+                  onCheckedChange={(checked) => handleCategoryChange(category.id, checked as boolean)}
+                />
+                <Label htmlFor={`category-${category.id}`} className="cursor-pointer flex items-center">
+                  {category.name}
+                  <Badge variant="outline" className="ml-2 text-xs">
+                    {category.recipeCount}
+                  </Badge>
+                </Label>
+              </div>
+            ))
+          ) : (
+            <p className="text-muted-foreground">No hay categorías disponibles.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Mostrar filtros activos */}
+      {(searchTerm || selectedCategories.length > 0) && (
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="text-sm text-muted-foreground">Filtros activos:</span>
+          {searchTerm && (
+            <span className="bg-primary/10 text-primary px-2 py-1 rounded-md text-sm">Búsqueda: "{searchTerm}"</span>
+          )}
+          {selectedCategories.map((categoryId) => {
+            const category = categories.find((cat) => cat.id === categoryId)
+            return category ? (
+              <span key={categoryId} className="bg-secondary text-secondary-foreground px-2 py-1 rounded-md text-sm">
+                {category.name}
+              </span>
+            ) : null
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
