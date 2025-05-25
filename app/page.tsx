@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar, Home, ListChecks, Settings, History } from "lucide-react"
+import { Calendar, ListChecks } from "lucide-react"
 import Link from "next/link"
 
 export default function HomeDashboard() {
@@ -14,7 +14,7 @@ export default function HomeDashboard() {
         </p>
       </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+      <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-6 mt-8 max-w-2xl mx-auto">
         {/* Planificar Semana */}
         <Card>
           <CardHeader>
@@ -29,7 +29,7 @@ export default function HomeDashboard() {
           </CardContent>
           <CardFooter>
             <Button asChild className="w-full">
-              <Link href="/plan">Planificar Ahora</Link>
+              <Link href="/weekly-menu">Planificar Ahora</Link>
             </Button>
           </CardFooter>
         </Card>
@@ -49,61 +49,6 @@ export default function HomeDashboard() {
           <CardFooter>
             <Button asChild className="w-full">
               <Link href="/recipes">Gestionar Recetas</Link>
-            </Button>
-          </CardFooter>
-        </Card>
-
-        {/* Inicio */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Home className="mr-2 h-5 w-5" />
-              Inicio
-            </CardTitle>
-            <CardDescription>Volver a la página principal</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p>Regresa al inicio para ver un resumen de tu planificación.</p>
-          </CardContent>
-          <CardFooter>
-            <Button asChild className="w-full">
-              <Link href="/">Ir al Inicio</Link>
-            </Button>
-          </CardFooter>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Settings className="mr-2 h-5 w-5" />
-              Categorías
-            </CardTitle>
-            <CardDescription>Gestiona las categorías de tus recetas</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p>Organiza tus recetas por categorías para encontrarlas fácilmente.</p>
-          </CardContent>
-          <CardFooter>
-            <Button asChild className="w-full">
-              <Link href="/categories">Gestionar Categorías</Link>
-            </Button>
-          </CardFooter>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <History className="mr-2 h-5 w-5" />
-              Historial
-            </CardTitle>
-            <CardDescription>Revisa tus menús anteriores</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p>Consulta los menús semanales que has guardado anteriormente.</p>
-          </CardContent>
-          <CardFooter>
-            <Button asChild className="w-full">
-              <Link href="/history">Ver Historial</Link>
             </Button>
           </CardFooter>
         </Card>
