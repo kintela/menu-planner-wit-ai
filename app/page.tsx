@@ -30,10 +30,10 @@ export default function HomeDashboard() {
           <CardFooter>
             <Button asChild className="w-full">
               <Link href="/weekly-menu">Planificar Ahora</Link>
+
             </Button>
           </CardFooter>
         </Card>
-
         {/* Mis Recetas */}
         <Card>
           <CardHeader>
@@ -49,6 +49,7 @@ export default function HomeDashboard() {
           <CardFooter>
             <Button asChild className="w-full">
               <Link href="/recipes">Gestionar Recetas</Link>
+
             </Button>
           </CardFooter>
         </Card>
