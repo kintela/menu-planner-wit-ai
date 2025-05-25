@@ -1,6 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
-import { ChefHat, Flame } from "lucide-react"
+import { ChefHat, Flame, Users } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import type { Recipe } from "@/lib/types"
@@ -49,7 +49,9 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
           {caloriesPerServing && (
             <div className="flex items-center gap-1 text-sm">
               <Flame className="h-4 w-4 text-orange-500" />
-              <span className={calorieLevel?.color}>{caloriesPerServing} cal</span>
+              <span className={calorieLevel?.color}>{caloriesPerServing}</span>
+              <Users className="h-3 w-3 text-muted-foreground ml-1" />
+              <span className="text-xs text-muted-foreground">cal/ración</span>
             </div>
           )}
         </CardTitle>

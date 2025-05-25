@@ -6,10 +6,14 @@ export const createServerClient = () => {
 
   // Debug: Log para ver qué valores estamos recibiendo
   console.log("🔍 Debug Supabase Server:")
-  console.log("URL:", supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : "❌ MISSING")
+  console.log("URL:", supabaseUrl ? `${supabaseUrl.substring(0, 50)}...` : "❌ MISSING")
   console.log("Key:", supabaseAnonKey ? `${supabaseAnonKey.substring(0, 10)}...` : "❌ MISSING")
   console.log("Environment:", process.env.NODE_ENV)
   console.log("Vercel Env:", process.env.VERCEL_ENV)
+  console.log(
+    "All NEXT_PUBLIC vars:",
+    Object.keys(process.env).filter((key) => key.startsWith("NEXT_PUBLIC_")),
+  )
 
   // Validar que las variables existan
   if (!supabaseUrl) {
@@ -27,7 +31,17 @@ export const createServerClient = () => {
   // Verificar si son valores placeholder
   if (supabaseUrl.includes("tu_url_de_supabase_aqui") || supabaseUrl.includes("tu-proyecto")) {
     throw new Error(
-      `❌ NEXT_PUBLIC_SUPABASE_URL contains placeholder value: "${supabaseUrl}". Please update with real Supabase URL in Vercel environment variables.`,
+      `❌ PREVIEW ENVIRONMENT ISSUE: NEXT_PUBLIC_SUPABASE_URL contains placeholder value: "${supabaseUrl}". 
+      
+      This is a Vercel Preview cache issue. Solutions:
+      1. Go to https://vercel.com/dashboard → Your Project → Deployments
+      2. Find latest deployment → Click 3 dots (...) → Redeploy
+      3. UNCHECK "Use existing Build Cache" 
+      4. Click Redeploy
+      
+      OR make a small change to your code and push to trigger new deployment.
+      
+      Expected value should be: https://iqarhmetoagfjjyfztzq.supabase.co`,
     )
   }
 
