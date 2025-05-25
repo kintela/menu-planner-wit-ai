@@ -7,10 +7,10 @@ export default function HomeDashboard() {
   return (
     <div className="container py-10">
       <div className="text-center">
-        <h1 className="text-3xl font-semibold mb-4">Panel de Control</h1>
+        <h1 className="text-3xl font-semibold mb-4">Planificador de menús</h1>
         <p className="text-muted-foreground max-w-md mx-auto">
-          Planifica tus comidas y cenas para toda la semana de manera sencilla. Añade tus propias recetas y organiza tu
-          menú semanal.
+          Planifica tus comidas y cenas para toda la semana de manera sencilla. Añade tus propias recetas y si no se te
+          ocurre nada pídeselas a la IA.
         </p>
       </div>
 
