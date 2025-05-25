@@ -1,7 +1,6 @@
 "use client"
 
 import { Label } from "@/components/ui/label"
-
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, RefreshCw, X } from "lucide-react"
@@ -16,7 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { AiRecipeSuggestion } from "@/components/ai-recipe-suggestion"
 
 interface WeeklyMenuViewProps {
-  weeklyMenu: WeeklyMenu
+  weeklyMenu: WeeklyMenu | null
   menuItems: MenuItem[]
   initialRecipes: Recipe[]
   startDate: string
@@ -30,18 +29,11 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
   const [isClearing, setIsClearing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [recipes, setRecipes] = useState<Recipe[]>(initialRecipes)
-  const [refreshKey, setRefreshKey] = useState(0)
 
   // Actualizar las recetas cuando cambian las props iniciales
   useEffect(() => {
     setRecipes(initialRecipes)
-  }, [initialRecipes, refreshKey])
-
-  // Función para refrescar las recetas
-  const refreshRecipes = () => {
-    setRefreshKey((prev) => prev + 1)
-    router.refresh()
-  }
+  }, [initialRecipes])
 
   // Preparar los datos del menú por día
   const dayNames = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
