@@ -51,7 +51,7 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
               <Flame className="h-4 w-4 text-orange-500" />
               <span className={calorieLevel?.color}>{caloriesPerServing}</span>
               <Users className="h-3 w-3 text-muted-foreground ml-1" />
-              <span className="text-xs text-muted-foreground">cal/pers</span>
+              <span className="text-xs text-muted-foreground">cal/ración</span>
             </div>
           )}
         </CardTitle>
