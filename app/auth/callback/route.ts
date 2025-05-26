@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     if (!error && data.user) {
       // Crear el perfil del usuario después de confirmar el email
       try {
-        const userName = data.user.email?.split("@")[0] || "Usuario"
+        const userName = data.user.user_metadata?.full_name || data.user.email?.split("@")[0] || "Usuario"
         const userRole = data.user.email === "roberto.quintela@protonmail.com" ? "admin" : "user_full"
 
         // Verificar si el perfil ya existe
@@ -50,7 +50,11 @@ export async function GET(request: NextRequest) {
 
           if (profileError) {
             console.error("Error creating user profile:", profileError)
+          } else {
+            console.log("✅ User profile created successfully for:", data.user.email)
           }
+        } else {
+          console.log("ℹ️ User profile already exists for:", data.user.email)
         }
       } catch (profileError) {
         console.error("Failed to create user profile:", profileError)
