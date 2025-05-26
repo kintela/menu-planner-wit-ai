@@ -37,10 +37,18 @@ export async function middleware(request: NextRequest) {
   console.log("❌ Error de auth:", error?.message || "Ninguno")
 
   // Rutas que requieren autenticación
-  const protectedRoutes = ["/recipes", "/weekly-menu", "/categories", "/history", "/profile", "/admin"]
+  const protectedRoutes = ["/recipes/add", "/recipes/new", "/recipes/[id]/edit", "/weekly-menu", "/profile", "/admin"]
 
   // Verificar si la ruta actual está protegida
-  const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
+  const isProtectedRoute = protectedRoutes.some((route) => {
+    if (route.includes("[id]")) {
+      // Para rutas dinámicas como /recipes/[id]/edit
+      const pattern = route.replace("[id]", "\\d+")
+      const regex = new RegExp(`^${pattern}$`)
+      return regex.test(request.nextUrl.pathname)
+    }
+    return request.nextUrl.pathname.startsWith(route)
+  })
 
   console.log("🛡️ Ruta protegida:", isProtectedRoute)
 
@@ -50,6 +58,12 @@ export async function middleware(request: NextRequest) {
     const redirectUrl = new URL("/login", request.url)
     redirectUrl.searchParams.set("redirect", request.nextUrl.pathname)
     return NextResponse.redirect(redirectUrl)
+  }
+
+  // Permitir acceso a /recipes (solo lectura) sin autenticación
+  if (request.nextUrl.pathname === "/recipes") {
+    console.log("✅ Acceso permitido a vista de recetas")
+    return supabaseResponse
   }
 
   console.log("✅ Acceso permitido")
