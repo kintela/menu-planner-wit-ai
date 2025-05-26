@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getSupabaseClient } from "@/lib/supabase/client"
-import { Loader2 } from "lucide-react"
+import { Loader2, ArrowLeft } from "lucide-react"
+import Link from "next/link"
 
 export function LoginForm() {
   const [email, setEmail] = useState("")
@@ -44,10 +45,8 @@ export function LoginForm() {
           setMessage("¡Registro exitoso! Por favor, revisa tu email para confirmar tu cuenta.")
         } else if (data.session) {
           setMessage("¡Bienvenido! Redirigiendo...")
-          setTimeout(() => {
-            router.push("/recipes/add")
-            router.refresh()
-          }, 1500)
+          // Redirección inmediata para registro con confirmación automática
+          window.location.href = "/recipes/add"
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -61,11 +60,10 @@ export function LoginForm() {
           console.log("✅ Login successful for:", data.user.email)
           setMessage("¡Bienvenido de vuelta! Redirigiendo...")
 
-          // Pequeño delay para permitir que el estado se actualice
+          // Usar window.location.href para una redirección más directa
           setTimeout(() => {
-            router.push("/recipes/add")
-            router.refresh()
-          }, 1500)
+            window.location.href = "/recipes/add"
+          }, 1000)
         }
       }
     } catch (error: any) {
@@ -77,86 +75,108 @@ export function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">
-            {isSignUp ? "Crear cuenta" : "Iniciar sesión"}
-          </CardTitle>
-          <CardDescription className="text-center">
-            {isSignUp ? "Crea tu cuenta para comenzar a planificar tus menús" : "Ingresa a tu cuenta para continuar"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="tu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-                minLength={6}
-              />
-            </div>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md space-y-4">
+        {/* Botón de volver */}
+        <Button asChild variant="ghost" className="self-start">
+          <Link href="/">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Volver al inicio
+          </Link>
+        </Button>
 
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+        <Card className="w-full">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center">
+              {isSignUp ? "Crear cuenta" : "Iniciar sesión"}
+            </CardTitle>
+            <CardDescription className="text-center">
+              {isSignUp ? "Crea tu cuenta para comenzar a planificar tus menús" : "Ingresa a tu cuenta para continuar"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="tu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Contraseña</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                  minLength={6}
+                />
+                {isSignUp && (
+                  <p className="text-xs text-muted-foreground">La contraseña debe tener al menos 6 caracteres</p>
+                )}
+              </div>
 
-            {message && (
-              <Alert>
-                <AlertDescription className="text-green-600">{message}</AlertDescription>
-              </Alert>
-            )}
-
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {isSignUp ? "Creando cuenta..." : "Iniciando sesión..."}
-                </>
-              ) : isSignUp ? (
-                "Crear cuenta"
-              ) : (
-                "Iniciar sesión"
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
               )}
-            </Button>
 
-            <div className="text-center">
-              <Button
-                type="button"
-                variant="link"
-                onClick={() => {
-                  setIsSignUp(!isSignUp)
-                  setError(null)
-                  setMessage(null)
-                }}
-                disabled={loading}
-              >
-                {isSignUp ? "¿Ya tienes cuenta? Inicia sesión" : "¿No tienes cuenta? Regístrate"}
+              {message && (
+                <Alert>
+                  <AlertDescription className="text-green-600">{message}</AlertDescription>
+                </Alert>
+              )}
+
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {isSignUp ? "Creando cuenta..." : "Iniciando sesión..."}
+                  </>
+                ) : isSignUp ? (
+                  "Crear cuenta"
+                ) : (
+                  "Iniciar sesión"
+                )}
               </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+
+              <div className="text-center">
+                <Button
+                  type="button"
+                  variant="link"
+                  onClick={() => {
+                    setIsSignUp(!isSignUp)
+                    setError(null)
+                    setMessage(null)
+                  }}
+                  disabled={loading}
+                >
+                  {isSignUp ? "¿Ya tienes cuenta? Inicia sesión" : "¿No tienes cuenta? Regístrate"}
+                </Button>
+              </div>
+            </form>
+
+            {/* Botón de prueba para ir directamente a añadir receta */}
+            {message && (
+              <div className="mt-4 pt-4 border-t">
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/recipes/add">Ir a Añadir Receta Manualmente</Link>
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
