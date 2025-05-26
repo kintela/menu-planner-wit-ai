@@ -18,21 +18,15 @@ interface WeeklyMenuViewProps {
   menuItems: MenuItem[]
   initialRecipes: Recipe[]
   startDate: string
-  onDataUpdate: () => void
-  onWeeklyMenuUpdate: (menu: WeeklyMenu) => void
-  onMenuItemsUpdate: (items: MenuItem[]) => void
-  onRecipesUpdate: (recipes: Recipe[]) => void
+  onDataUpdate?: () => void
 }
 
 export function WeeklyMenuView({
-  weeklyMenu,
-  menuItems,
+  weeklyMenu: initialWeeklyMenu,
+  menuItems: initialMenuItems,
   initialRecipes,
   startDate,
   onDataUpdate,
-  onWeeklyMenuUpdate,
-  onMenuItemsUpdate,
-  onRecipesUpdate,
 }: WeeklyMenuViewProps) {
   const { toast } = useToast()
   const [isGenerating, setIsGenerating] = useState(false)
@@ -40,11 +34,15 @@ export function WeeklyMenuView({
   const [isClearing, setIsClearing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [recipes, setRecipes] = useState<Recipe[]>(initialRecipes)
+  const [weeklyMenu, setWeeklyMenu] = useState<WeeklyMenu | null>(initialWeeklyMenu)
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems)
 
-  // Actualizar las recetas cuando cambian las props iniciales
+  // Actualizar estados cuando cambien las props
   useEffect(() => {
     setRecipes(initialRecipes)
-  }, [initialRecipes])
+    setWeeklyMenu(initialWeeklyMenu)
+    setMenuItems(initialMenuItems)
+  }, [initialRecipes, initialWeeklyMenu, initialMenuItems])
 
   // Preparar los datos del menú por día
   const dayNames = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
@@ -114,7 +112,7 @@ export function WeeklyMenuView({
           throw createError
         }
         currentWeeklyMenu = newMenu
-        onWeeklyMenuUpdate(currentWeeklyMenu)
+        setWeeklyMenu(currentWeeklyMenu)
       }
 
       // Para comida, usar dishOrder; para cena, siempre es 1
@@ -130,21 +128,45 @@ export function WeeklyMenuView({
         .eq("dish_order", finalDishOrder)
         .maybeSingle()
 
+      // Encontrar la receta seleccionada
+      const selectedRecipe = recipes.find((r) => r.id.toString() === recipeId)
+
       if (existingItem) {
         // Actualizar el plato existente
         await supabase
           .from("menu_items")
           .update({ recipe_id: Number.parseInt(recipeId) })
           .eq("id", existingItem.id)
+
+        // Actualizar el estado local inmediatamente
+        const updatedMenuItems = menuItems.map((item) =>
+          item.id === existingItem.id
+            ? { ...item, recipe_id: Number.parseInt(recipeId), recipe: selectedRecipe }
+            : item,
+        )
+        setMenuItems(updatedMenuItems)
       } else {
         // Crear un nuevo plato
-        await supabase.from("menu_items").insert({
-          weekly_menu_id: currentWeeklyMenu.id,
-          recipe_id: Number.parseInt(recipeId),
-          day_of_week: dayOfWeek,
-          meal_type: mealType,
-          dish_order: finalDishOrder,
-        })
+        const { data: newItem } = await supabase
+          .from("menu_items")
+          .insert({
+            weekly_menu_id: currentWeeklyMenu.id,
+            recipe_id: Number.parseInt(recipeId),
+            day_of_week: dayOfWeek,
+            meal_type: mealType,
+            dish_order: finalDishOrder,
+          })
+          .select()
+          .single()
+
+        if (newItem) {
+          // Añadir al estado local inmediatamente
+          const newMenuItemWithRecipe = {
+            ...newItem,
+            recipe: selectedRecipe,
+          } as MenuItem
+          setMenuItems([...menuItems, newMenuItemWithRecipe])
+        }
       }
 
       toast({
@@ -152,8 +174,12 @@ export function WeeklyMenuView({
         description: "El menú se ha actualizado correctamente.",
       })
 
-      // Recargar datos sin router.refresh()
-      onDataUpdate()
+      // Solo recargar datos si hay callback
+      if (onDataUpdate) {
+        setTimeout(() => {
+          onDataUpdate()
+        }, 500)
+      }
     } catch (error) {
       console.error("Error updating menu:", error)
       toast({
@@ -185,12 +211,28 @@ export function WeeklyMenuView({
 
       if (error) throw error
 
+      // Actualizar estado local
+      const updatedMenuItems = menuItems.filter(
+        (item) =>
+          !(
+            item.weekly_menu_id === weeklyMenu.id &&
+            item.day_of_week === dayOfWeek &&
+            item.meal_type === "comida" &&
+            item.dish_order === dishOrder
+          ),
+      )
+      setMenuItems(updatedMenuItems)
+
       toast({
         title: "Plato eliminado",
         description: "El plato se ha eliminado del menú.",
       })
 
-      onDataUpdate()
+      if (onDataUpdate) {
+        setTimeout(() => {
+          onDataUpdate()
+        }, 500)
+      }
     } catch (error) {
       console.error("Error removing dish:", error)
       toast({
@@ -226,7 +268,7 @@ export function WeeklyMenuView({
           throw createError
         }
         currentWeeklyMenu = newMenu
-        onWeeklyMenuUpdate(currentWeeklyMenu)
+        setWeeklyMenu(currentWeeklyMenu)
       }
 
       // Eliminar los platos existentes
@@ -234,13 +276,13 @@ export function WeeklyMenuView({
 
       // Crear nuevos platos aleatorios
       if (recipes.length > 0) {
-        const menuItems = []
+        const menuItemsToInsert = []
 
         for (let day = 0; day < 7; day++) {
           // Comida - 2 platos
           for (let dishOrder = 1; dishOrder <= 2; dishOrder++) {
             const lunchIndex = Math.floor(Math.random() * recipes.length)
-            menuItems.push({
+            menuItemsToInsert.push({
               weekly_menu_id: currentWeeklyMenu.id,
               recipe_id: recipes[lunchIndex].id,
               day_of_week: day,
@@ -251,7 +293,7 @@ export function WeeklyMenuView({
 
           // Cena - 1 plato
           const dinnerIndex = Math.floor(Math.random() * recipes.length)
-          menuItems.push({
+          menuItemsToInsert.push({
             weekly_menu_id: currentWeeklyMenu.id,
             recipe_id: recipes[dinnerIndex].id,
             day_of_week: day,
@@ -260,7 +302,7 @@ export function WeeklyMenuView({
           })
         }
 
-        await supabase.from("menu_items").insert(menuItems)
+        await supabase.from("menu_items").insert(menuItemsToInsert)
       }
 
       toast({
@@ -268,7 +310,9 @@ export function WeeklyMenuView({
         description: "Se ha generado un nuevo menú semanal.",
       })
 
-      onDataUpdate()
+      if (onDataUpdate) {
+        onDataUpdate()
+      }
     } catch (error) {
       console.error("Error generating menu:", error)
       toast({
@@ -301,12 +345,17 @@ export function WeeklyMenuView({
 
       if (error) throw error
 
+      // Limpiar estado local
+      setMenuItems([])
+
       toast({
         title: "Menú limpiado",
         description: "Se han eliminado todas las recetas del menú semanal.",
       })
 
-      onDataUpdate()
+      if (onDataUpdate) {
+        onDataUpdate()
+      }
     } catch (error) {
       console.error("Error clearing menu:", error)
       toast({
@@ -355,12 +404,21 @@ export function WeeklyMenuView({
 
       if (error) throw error
 
+      // Actualizar estado local
+      setWeeklyMenu({
+        ...weeklyMenu,
+        is_saved: true,
+        saved_at: new Date().toISOString(),
+      })
+
       toast({
         title: "Menú guardado",
         description: "El menú semanal se ha guardado correctamente en tu historial.",
       })
 
-      onDataUpdate()
+      if (onDataUpdate) {
+        onDataUpdate()
+      }
     } catch (error) {
       console.error("Error saving menu:", error)
       toast({
@@ -479,6 +537,7 @@ export function WeeklyMenuView({
                   </div>
                   <div className="flex gap-2">
                     <Select
+                      key={`${dayMenu.day}-comida-1-${dayMenu.meals.comida[0]?.id || "empty"}`}
                       value={dayMenu.meals.comida[0]?.id.toString() || ""}
                       onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 1)}
                       disabled={isUpdating || recipes.length === 0}
@@ -500,7 +559,6 @@ export function WeeklyMenuView({
                       onRecipeCreated={(newRecipe) => {
                         const updatedRecipes = [...recipes, newRecipe]
                         setRecipes(updatedRecipes)
-                        onRecipesUpdate(updatedRecipes)
                         handleRecipeChange(dayMenu.day, "comida", newRecipe.id.toString(), 1)
                       }}
                       mealType="comida"
@@ -527,6 +585,7 @@ export function WeeklyMenuView({
                   </div>
                   <div className="flex gap-2">
                     <Select
+                      key={`${dayMenu.day}-comida-2-${dayMenu.meals.comida[1]?.id || "empty"}`}
                       value={dayMenu.meals.comida[1]?.id.toString() || ""}
                       onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 2)}
                       disabled={isUpdating || recipes.length === 0}
@@ -548,7 +607,6 @@ export function WeeklyMenuView({
                       onRecipeCreated={(newRecipe) => {
                         const updatedRecipes = [...recipes, newRecipe]
                         setRecipes(updatedRecipes)
-                        onRecipesUpdate(updatedRecipes)
                         handleRecipeChange(dayMenu.day, "comida", newRecipe.id.toString(), 2)
                       }}
                       mealType="comida"
@@ -564,6 +622,7 @@ export function WeeklyMenuView({
                 <h3 className="text-sm font-medium">Cena</h3>
                 <div className="flex gap-2">
                   <Select
+                    key={`${dayMenu.day}-cena-${dayMenu.meals.cena?.id || "empty"}`}
                     value={dayMenu.meals.cena?.id.toString() || ""}
                     onValueChange={(value) => handleRecipeChange(dayMenu.day, "cena", value)}
                     disabled={isUpdating || recipes.length === 0}
@@ -585,7 +644,6 @@ export function WeeklyMenuView({
                     onRecipeCreated={(newRecipe) => {
                       const updatedRecipes = [...recipes, newRecipe]
                       setRecipes(updatedRecipes)
-                      onRecipesUpdate(updatedRecipes)
                       handleRecipeChange(dayMenu.day, "cena", newRecipe.id.toString())
                     }}
                     mealType="cena"
