@@ -31,28 +31,47 @@ export function LoginForm() {
 
     try {
       if (isSignUp) {
-        // Simplemente crear el usuario sin intentar crear el perfil inmediatamente
+        console.log("Attempting to sign up with:", email)
+
+        // Registro más básico posible
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
-          },
         })
 
-        if (error) throw error
+        console.log("Sign up result:", { data, error })
+
+        if (error) {
+          console.error("Sign up error:", error)
+          throw error
+        }
 
         toast({
-          title: "¡Cuenta creada!",
-          description: "Revisa tu email para confirmar tu cuenta. El perfil se creará automáticamente al confirmar.",
+          title: "¡Registro exitoso!",
+          description: data.user?.email_confirmed_at
+            ? "Cuenta creada y confirmada automáticamente."
+            : "Cuenta creada. Revisa tu email si es necesario.",
         })
+
+        // Si el usuario se creó y está confirmado, redirigir
+        if (data.user?.email_confirmed_at) {
+          router.push(redirectTo)
+          router.refresh()
+        }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        console.log("Attempting to sign in with:", email)
+
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
 
-        if (error) throw error
+        console.log("Sign in result:", { data, error })
+
+        if (error) {
+          console.error("Sign in error:", error)
+          throw error
+        }
 
         toast({
           title: "¡Bienvenido!",
@@ -63,6 +82,7 @@ export function LoginForm() {
         router.refresh()
       }
     } catch (error: any) {
+      console.error("Auth error:", error)
       toast({
         title: "Error",
         description: error.message || "Ha ocurrido un error inesperado.",
