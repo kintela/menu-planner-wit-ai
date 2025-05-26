@@ -148,16 +148,6 @@ export function LoginForm() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Información sobre el administrador */}
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="pt-6">
-            <p className="text-sm text-blue-800">
-              <strong>Para ser administrador:</strong> Regístrate con el email{" "}
-              <code className="bg-blue-100 px-1 rounded">roberto.quintela@protonmail.com</code>
-            </p>
-          </CardContent>
-        </Card>
       </div>
     </div>
   )
