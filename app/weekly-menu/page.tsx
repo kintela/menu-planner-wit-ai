@@ -18,7 +18,6 @@ export default function WeeklyMenuPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [startDate, setStartDate] = useState<string>("")
-  const [dataKey, setDataKey] = useState(0) // Key para forzar re-render
 
   const loadData = async () => {
     try {
@@ -78,9 +77,6 @@ export default function WeeklyMenuPage() {
 
       setRecipes(recipesData || [])
       console.log("📝 Recetas cargadas:", recipesData?.length || 0, "recetas")
-
-      // Incrementar key para forzar re-render del componente hijo
-      setDataKey((prev) => prev + 1)
 
       console.log("✅ Datos cargados correctamente")
     } catch (err) {
@@ -177,7 +173,6 @@ export default function WeeklyMenuPage() {
     <div className="container py-10">
       <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
       <WeeklyMenuView
-        key={dataKey} // Forzar re-render cuando cambien los datos
         weeklyMenu={weeklyMenu}
         menuItems={menuItems}
         initialRecipes={recipes}
