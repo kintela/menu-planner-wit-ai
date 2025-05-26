@@ -1,38 +1,36 @@
-import { redirect } from "next/navigation"
+"use client"
+
+import { useAuth } from "@/components/auth/auth-provider"
+import { LoginForm } from "@/components/auth/login-form"
 import { AddRecipeForm } from "@/components/add-recipe-form"
-import { createServerClient } from "@/lib/supabase/server"
+import { Loader2 } from "lucide-react"
 
-export default async function AddRecipePage() {
-  console.log("🔍 Verificando autenticación en página de añadir receta...")
+export default function AddRecipePage() {
+  const { user, loading } = useAuth()
 
-  const supabase = createServerClient()
+  // Mostrar loading mientras se verifica la autenticación
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Cargando...</p>
+        </div>
+      </div>
+    )
+  }
 
-  // Verificar si el usuario está autenticado
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-
-  console.log("👤 Usuario en add recipe:", user ? user.email : "No autenticado")
-
-  // Si no hay usuario autenticado, redirigir a login
+  // Si no está autenticado, mostrar el formulario de login
   if (!user) {
-    console.log("🚫 Usuario no autenticado - Redirigiendo a login")
-    redirect("/login?redirect=/recipes/add")
+    return <LoginForm />
   }
 
-  // Obtener todas las categorías
-  const { data: categories, error: categoriesError } = await supabase.from("categories").select("*").order("name")
-
-  if (categoriesError) {
-    console.error("Error al obtener categorías:", categoriesError)
-  }
-
+  // Si está autenticado, mostrar el formulario de añadir recetas
   return (
-    <div className="container py-10">
+    <div className="container mx-auto py-8 px-4">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Añadir Nueva Receta</h1>
-        <AddRecipeForm categories={categories || []} />
+        <h1 className="text-3xl font-bold mb-8">Añadir Nueva Receta</h1>
+        <AddRecipeForm />
       </div>
     </div>
   )
