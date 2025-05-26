@@ -19,6 +19,71 @@ export default function WeeklyMenuPage() {
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [startDate, setStartDate] = useState<string>("")
 
+  const loadData = async () => {
+    try {
+      console.log("🔄 Cargando datos del menú semanal para usuario:", user?.email)
+      const supabase = getSupabaseClient()
+
+      // Calcular fechas de la semana
+      const today = new Date()
+      const startOfWeek = new Date(today)
+      const dayOfWeek = today.getDay()
+      const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      startOfWeek.setDate(today.getDate() - daysToSubtract)
+
+      const endOfWeek = new Date(startOfWeek)
+      endOfWeek.setDate(startOfWeek.getDate() + 6)
+
+      const startDateStr = startOfWeek.toISOString().split("T")[0]
+      const endDate = endOfWeek.toISOString().split("T")[0]
+
+      setStartDate(startDateStr)
+
+      // Buscar menú semanal existente
+      const { data: weeklyMenuData } = await supabase
+        .from("weekly_menus")
+        .select("*")
+        .eq("start_date", startDateStr)
+        .eq("end_date", endDate)
+        .maybeSingle()
+
+      setWeeklyMenu(weeklyMenuData)
+
+      // Obtener items del menú si existe
+      let menuItemsData: MenuItem[] = []
+      if (weeklyMenuData) {
+        const { data: items } = await supabase
+          .from("menu_items")
+          .select(`
+            *,
+            recipe:recipe_id (*)
+          `)
+          .eq("weekly_menu_id", weeklyMenuData.id)
+          .order("day_of_week")
+          .order("meal_type")
+          .order("dish_order")
+
+        if (items) {
+          menuItemsData = items as unknown as MenuItem[]
+        }
+      }
+
+      setMenuItems(menuItemsData)
+
+      // Obtener todas las recetas
+      const { data: recipesData } = await supabase.from("recipes").select("*").order("name")
+
+      setRecipes(recipesData || [])
+
+      console.log("✅ Datos cargados correctamente")
+    } catch (err) {
+      console.error("❌ Error cargando datos:", err)
+      setError("Error al cargar los datos del menú semanal")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (authLoading) return
 
@@ -27,73 +92,25 @@ export default function WeeklyMenuPage() {
       return
     }
 
-    const loadData = async () => {
-      try {
-        console.log("🔄 Cargando datos del menú semanal para usuario:", user.email)
-        const supabase = getSupabaseClient()
-
-        // Calcular fechas de la semana
-        const today = new Date()
-        const startOfWeek = new Date(today)
-        const dayOfWeek = today.getDay()
-        const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-        startOfWeek.setDate(today.getDate() - daysToSubtract)
-
-        const endOfWeek = new Date(startOfWeek)
-        endOfWeek.setDate(startOfWeek.getDate() + 6)
-
-        const startDateStr = startOfWeek.toISOString().split("T")[0]
-        const endDate = endOfWeek.toISOString().split("T")[0]
-
-        setStartDate(startDateStr)
-
-        // Buscar menú semanal existente
-        const { data: weeklyMenuData } = await supabase
-          .from("weekly_menus")
-          .select("*")
-          .eq("start_date", startDateStr)
-          .eq("end_date", endDate)
-          .maybeSingle()
-
-        setWeeklyMenu(weeklyMenuData)
-
-        // Obtener items del menú si existe
-        let menuItemsData: MenuItem[] = []
-        if (weeklyMenuData) {
-          const { data: items } = await supabase
-            .from("menu_items")
-            .select(`
-              *,
-              recipe:recipe_id (*)
-            `)
-            .eq("weekly_menu_id", weeklyMenuData.id)
-            .order("day_of_week")
-            .order("meal_type")
-            .order("dish_order")
-
-          if (items) {
-            menuItemsData = items as unknown as MenuItem[]
-          }
-        }
-
-        setMenuItems(menuItemsData)
-
-        // Obtener todas las recetas
-        const { data: recipesData } = await supabase.from("recipes").select("*").order("name")
-
-        setRecipes(recipesData || [])
-
-        console.log("✅ Datos cargados correctamente")
-      } catch (err) {
-        console.error("❌ Error cargando datos:", err)
-        setError("Error al cargar los datos del menú semanal")
-      } finally {
-        setLoading(false)
-      }
-    }
-
     loadData()
   }, [user, authLoading])
+
+  const handleDataUpdate = () => {
+    // Recargar datos sin cambiar el estado de loading
+    loadData()
+  }
+
+  const handleWeeklyMenuUpdate = (updatedMenu: WeeklyMenu) => {
+    setWeeklyMenu(updatedMenu)
+  }
+
+  const handleMenuItemsUpdate = (updatedItems: MenuItem[]) => {
+    setMenuItems(updatedItems)
+  }
+
+  const handleRecipesUpdate = (updatedRecipes: Recipe[]) => {
+    setRecipes(updatedRecipes)
+  }
 
   if (authLoading || loading) {
     return (
@@ -164,7 +181,16 @@ export default function WeeklyMenuPage() {
   return (
     <div className="container py-10">
       <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
-      <WeeklyMenuView weeklyMenu={weeklyMenu} menuItems={menuItems} initialRecipes={recipes} startDate={startDate} />
+      <WeeklyMenuView
+        weeklyMenu={weeklyMenu}
+        menuItems={menuItems}
+        initialRecipes={recipes}
+        startDate={startDate}
+        onDataUpdate={handleDataUpdate}
+        onWeeklyMenuUpdate={handleWeeklyMenuUpdate}
+        onMenuItemsUpdate={handleMenuItemsUpdate}
+        onRecipesUpdate={handleRecipesUpdate}
+      />
     </div>
   )
 }

@@ -2,7 +2,6 @@
 
 import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { Loader2, RefreshCw, X } from "lucide-react"
 
 import { getSupabaseClient } from "@/lib/supabase/client"
@@ -19,10 +18,22 @@ interface WeeklyMenuViewProps {
   menuItems: MenuItem[]
   initialRecipes: Recipe[]
   startDate: string
+  onDataUpdate: () => void
+  onWeeklyMenuUpdate: (menu: WeeklyMenu) => void
+  onMenuItemsUpdate: (items: MenuItem[]) => void
+  onRecipesUpdate: (recipes: Recipe[]) => void
 }
 
-export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDate }: WeeklyMenuViewProps) {
-  const router = useRouter()
+export function WeeklyMenuView({
+  weeklyMenu,
+  menuItems,
+  initialRecipes,
+  startDate,
+  onDataUpdate,
+  onWeeklyMenuUpdate,
+  onMenuItemsUpdate,
+  onRecipesUpdate,
+}: WeeklyMenuViewProps) {
   const { toast } = useToast()
   const [isGenerating, setIsGenerating] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
@@ -103,6 +114,7 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
           throw createError
         }
         currentWeeklyMenu = newMenu
+        onWeeklyMenuUpdate(currentWeeklyMenu)
       }
 
       // Para comida, usar dishOrder; para cena, siempre es 1
@@ -140,7 +152,8 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
         description: "El menú se ha actualizado correctamente.",
       })
 
-      router.refresh()
+      // Recargar datos sin router.refresh()
+      onDataUpdate()
     } catch (error) {
       console.error("Error updating menu:", error)
       toast({
@@ -177,7 +190,7 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
         description: "El plato se ha eliminado del menú.",
       })
 
-      router.refresh()
+      onDataUpdate()
     } catch (error) {
       console.error("Error removing dish:", error)
       toast({
@@ -213,6 +226,7 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
           throw createError
         }
         currentWeeklyMenu = newMenu
+        onWeeklyMenuUpdate(currentWeeklyMenu)
       }
 
       // Eliminar los platos existentes
@@ -254,7 +268,7 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
         description: "Se ha generado un nuevo menú semanal.",
       })
 
-      router.refresh()
+      onDataUpdate()
     } catch (error) {
       console.error("Error generating menu:", error)
       toast({
@@ -292,7 +306,7 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
         description: "Se han eliminado todas las recetas del menú semanal.",
       })
 
-      router.refresh()
+      onDataUpdate()
     } catch (error) {
       console.error("Error clearing menu:", error)
       toast({
@@ -346,7 +360,7 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
         description: "El menú semanal se ha guardado correctamente en tu historial.",
       })
 
-      router.refresh()
+      onDataUpdate()
     } catch (error) {
       console.error("Error saving menu:", error)
       toast({
@@ -484,7 +498,9 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
                     </Select>
                     <AiRecipeSuggestion
                       onRecipeCreated={(newRecipe) => {
-                        setRecipes([...recipes, newRecipe])
+                        const updatedRecipes = [...recipes, newRecipe]
+                        setRecipes(updatedRecipes)
+                        onRecipesUpdate(updatedRecipes)
                         handleRecipeChange(dayMenu.day, "comida", newRecipe.id.toString(), 1)
                       }}
                       mealType="comida"
@@ -530,7 +546,9 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
                     </Select>
                     <AiRecipeSuggestion
                       onRecipeCreated={(newRecipe) => {
-                        setRecipes([...recipes, newRecipe])
+                        const updatedRecipes = [...recipes, newRecipe]
+                        setRecipes(updatedRecipes)
+                        onRecipesUpdate(updatedRecipes)
                         handleRecipeChange(dayMenu.day, "comida", newRecipe.id.toString(), 2)
                       }}
                       mealType="comida"
@@ -565,7 +583,9 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
                   </Select>
                   <AiRecipeSuggestion
                     onRecipeCreated={(newRecipe) => {
-                      setRecipes([...recipes, newRecipe])
+                      const updatedRecipes = [...recipes, newRecipe]
+                      setRecipes(updatedRecipes)
+                      onRecipesUpdate(updatedRecipes)
                       handleRecipeChange(dayMenu.day, "cena", newRecipe.id.toString())
                     }}
                     mealType="cena"
