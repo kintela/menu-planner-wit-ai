@@ -20,7 +20,7 @@ import { useRouter } from "next/navigation"
 
 export function SimpleNavigation() {
   const pathname = usePathname()
-  const { user, profile } = useAuth()
+  const { user, profile, loading } = useAuth()
   const router = useRouter()
   const supabase = getSupabaseClient()
 
@@ -125,7 +125,9 @@ export function SimpleNavigation() {
 
         {/* Área de usuario en la esquina superior derecha */}
         <div className="flex items-center space-x-4">
-          {user && profile ? (
+          {loading ? (
+            <div className="animate-pulse bg-gray-200 h-8 w-8 rounded-full"></div>
+          ) : user && profile ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-8 w-8 rounded-full">

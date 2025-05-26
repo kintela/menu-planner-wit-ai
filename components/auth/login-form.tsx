@@ -58,8 +58,11 @@ export function LoginForm() {
           // Si está confirmado automáticamente, redirigir
           if (data.user.email_confirmed_at) {
             console.log("🔄 Redirecting to:", redirectTo)
-            router.push(redirectTo)
-            router.refresh()
+            // Esperar un poco para que el estado se actualice
+            setTimeout(() => {
+              router.push(redirectTo)
+              router.refresh()
+            }, 1000)
           }
         }
       } else {
@@ -79,14 +82,16 @@ export function LoginForm() {
 
         toast({
           title: "¡Bienvenido de vuelta!",
-          description: "Has iniciado sesión correctamente.",
+          description: "Has iniciado sesión correctamente. Redirigiendo...",
         })
 
         console.log("🔄 Redirecting to:", redirectTo)
 
-        // Redirigir inmediatamente después del login exitoso
-        router.push(redirectTo)
-        router.refresh()
+        // Esperar un momento para que el estado de auth se actualice
+        setTimeout(() => {
+          router.push(redirectTo)
+          router.refresh()
+        }, 1500)
       }
     } catch (error: any) {
       console.error("💥 Auth error:", error)
