@@ -1,5 +1,5 @@
-import { createServerClient } from "@/lib/supabase/server"
-import { type NextRequest, NextResponse } from "next/server"
+import { createServerClient } from "@supabase/ssr"
+import { NextResponse, type NextRequest } from "next/server"
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
@@ -7,19 +7,60 @@ export async function GET(request: NextRequest) {
   const next = searchParams.get("next") ?? "/"
 
   if (code) {
-    const supabase = createServerClient()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              request.cookies.set(name, value)
+            })
+          },
+        },
+      },
+    )
 
-    try {
-      const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
-      if (!error) {
-        return NextResponse.redirect(`${origin}${next}`)
+    if (!error && data.user) {
+      // Crear el perfil del usuario después de confirmar el email
+      try {
+        const userName = data.user.email?.split("@")[0] || "Usuario"
+        const userRole = data.user.email === "roberto.quintela@protonmail.com" ? "admin" : "user_full"
+
+        // Verificar si el perfil ya existe
+        const { data: existingProfile } = await supabase
+          .from("user_profiles")
+          .select("id")
+          .eq("id", data.user.id)
+          .single()
+
+        if (!existingProfile) {
+          // Crear el perfil solo si no existe
+          const { error: profileError } = await supabase.from("user_profiles").insert({
+            id: data.user.id,
+            email: data.user.email!,
+            full_name: userName,
+            role: userRole,
+          })
+
+          if (profileError) {
+            console.error("Error creating user profile:", profileError)
+          }
+        }
+      } catch (profileError) {
+        console.error("Failed to create user profile:", profileError)
       }
-    } catch (error) {
-      console.error("Auth callback error:", error)
+
+      // Redirigir al usuario
+      return NextResponse.redirect(`${origin}${next}`)
     }
   }
 
-  // Si hay error, redirigir al login
+  // Si hay error, redirigir a login
   return NextResponse.redirect(`${origin}/login`)
 }

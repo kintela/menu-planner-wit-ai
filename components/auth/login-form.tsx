@@ -25,34 +25,13 @@ export function LoginForm() {
 
   const redirectTo = searchParams.get("redirect") || "/"
 
-  const createUserProfile = async (userId: string, userEmail: string) => {
-    try {
-      const userName = userEmail.split("@")[0]
-      const userRole = userEmail === "roberto.quintela@protonmail.com" ? "admin" : "user_full"
-
-      const { error } = await supabase.from("user_profiles").insert({
-        id: userId,
-        email: userEmail,
-        full_name: userName,
-        role: userRole,
-      })
-
-      if (error) {
-        console.error("Error creating user profile:", error)
-        throw error
-      }
-    } catch (error) {
-      console.error("Failed to create user profile:", error)
-      throw error
-    }
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
       if (isSignUp) {
+        // Simplemente crear el usuario sin intentar crear el perfil inmediatamente
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -63,19 +42,9 @@ export function LoginForm() {
 
         if (error) throw error
 
-        // Si el usuario se creó exitosamente, crear el perfil
-        if (data.user && data.user.id) {
-          try {
-            await createUserProfile(data.user.id, email)
-          } catch (profileError) {
-            console.error("Profile creation failed, but user was created:", profileError)
-            // No lanzamos el error aquí para no bloquear el flujo
-          }
-        }
-
         toast({
           title: "¡Cuenta creada!",
-          description: "Revisa tu email para confirmar tu cuenta.",
+          description: "Revisa tu email para confirmar tu cuenta. El perfil se creará automáticamente al confirmar.",
         })
       } else {
         const { error } = await supabase.auth.signInWithPassword({
