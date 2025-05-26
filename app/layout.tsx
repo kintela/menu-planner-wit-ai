@@ -5,7 +5,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { AuthProvider } from "@/components/auth/auth-provider"
-import Navigation from "@/components/navigation"
+import { SimpleNavigation } from "@/components/simple-navigation"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -26,7 +26,7 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <AuthProvider>
             <div className="flex min-h-screen flex-col">
-              <Navigation />
+              <SimpleNavigation />
               <main className="flex-1">{children}</main>
             </div>
             <Toaster />
