@@ -30,7 +30,9 @@ export async function GET(request: NextRequest) {
       // Crear el perfil del usuario después de confirmar el email
       try {
         const userName = data.user.user_metadata?.full_name || data.user.email?.split("@")[0] || "Usuario"
-        const userRole = data.user.email === "roberto.quintela@protonmail.com" ? "admin" : "user_full"
+
+        // Solo roberto.quintela@protonmail.com será admin, todos los demás user_restricted
+        const userRole = data.user.email === "roberto.quintela@protonmail.com" ? "admin" : "user_restricted"
 
         // Verificar si el perfil ya existe
         const { data: existingProfile } = await supabase
@@ -51,7 +53,7 @@ export async function GET(request: NextRequest) {
           if (profileError) {
             console.error("Error creating user profile:", profileError)
           } else {
-            console.log("✅ User profile created successfully for:", data.user.email)
+            console.log(`✅ User profile created successfully for: ${data.user.email} with role: ${userRole}`)
           }
         } else {
           console.log("ℹ️ User profile already exists for:", data.user.email)

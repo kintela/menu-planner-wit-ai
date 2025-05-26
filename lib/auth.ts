@@ -175,9 +175,9 @@ export function getRoleDescription(role: UserRole): string {
   return descriptions[role] || ""
 }
 
-// Lista de emails de administradores (para el trigger de la base de datos)
+// Lista de emails de administradores (solo tu email)
 const ADMIN_EMAILS = [
-  "roberto.quintela@protonmail.com", // Tu email como administrador
+  "roberto.quintela@protonmail.com", // Solo tu email como administrador
 ]
 
 export function isAdminEmail(email: string): boolean {
