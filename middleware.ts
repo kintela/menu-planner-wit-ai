@@ -2,8 +2,35 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
 export async function middleware(request: NextRequest) {
-  console.log("🔒 Middleware ejecutándose para:", request.nextUrl.pathname)
+  const pathname = request.nextUrl.pathname
+  console.log("🔒 Middleware ejecutándose para:", pathname)
 
+  // Rutas que NO requieren autenticación (lista blanca)
+  const publicPaths = [
+    "/",
+    "/login",
+    "/auth/callback",
+    "/recipes", // Solo la lista de recetas
+  ]
+
+  // Permitir rutas de archivos estáticos y API
+  if (pathname.startsWith("/_next") || pathname.startsWith("/api") || pathname.includes("favicon.ico")) {
+    return NextResponse.next()
+  }
+
+  // Permitir ver recetas individuales (solo lectura)
+  if (pathname.match(/^\/recipes\/\d+$/)) {
+    console.log("✅ Permitiendo acceso a receta individual")
+    return NextResponse.next()
+  }
+
+  // Si es una ruta pública, permitir acceso
+  if (publicPaths.includes(pathname)) {
+    console.log("✅ Ruta pública permitida")
+    return NextResponse.next()
+  }
+
+  // Para todas las demás rutas, verificar autenticación
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -27,50 +54,30 @@ export async function middleware(request: NextRequest) {
     },
   )
 
-  // Obtener el usuario actual
   const {
     data: { user },
     error,
   } = await supabase.auth.getUser()
 
-  console.log("👤 Usuario encontrado:", user ? `${user.email} (${user.id})` : "No autenticado")
-  console.log("❌ Error de auth:", error?.message || "Ninguno")
+  console.log("👤 Usuario encontrado:", user ? `${user.email}` : "No autenticado")
 
-  // Rutas públicas (permitidas sin autenticación)
-  const publicRoutes = ["/", "/recipes", "/login", "/auth"]
-
-  // Verificar si es una ruta pública
-  const isPublicRoute = publicRoutes.some((route) => {
-    if (route === "/recipes") {
-      // Permitir /recipes y /recipes/[id] (solo lectura)
-      return request.nextUrl.pathname === "/recipes" || request.nextUrl.pathname.match(/^\/recipes\/\d+$/)
-    }
-    return request.nextUrl.pathname.startsWith(route)
-  })
-
-  console.log("🌍 Ruta pública:", isPublicRoute)
-
-  // Si NO es una ruta pública y no hay usuario autenticado
-  if (!isPublicRoute && !user) {
-    console.log("🚫 Acceso denegado - Redirigiendo a login")
+  // Si no hay usuario autenticado, redirigir a login
+  if (!user) {
+    console.log("🚫 Acceso denegado - Redirigiendo a login desde:", pathname)
     const redirectUrl = new URL("/login", request.url)
-    redirectUrl.searchParams.set("redirect", request.nextUrl.pathname)
+    redirectUrl.searchParams.set("redirect", pathname)
     return NextResponse.redirect(redirectUrl)
   }
 
-  console.log("✅ Acceso permitido")
+  console.log("✅ Usuario autenticado - Acceso permitido")
   return supabaseResponse
 }
 
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - api routes
+     * Match all request paths except static files
      */
-    "/((?!_next/static|_next/image|favicon.ico|api).*)",
+    "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 }
