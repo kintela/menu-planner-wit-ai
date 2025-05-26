@@ -49,3 +49,14 @@ export type DayMenu = {
     cena: Recipe | null // Sigue siendo un solo plato
   }
 }
+
+export type UserRole = "admin" | "user_full" | "user_restricted"
+
+export type UserProfile = {
+  id: string
+  email: string
+  full_name: string
+  role: UserRole
+  created_at: string
+  updated_at: string
+}
