@@ -37,7 +37,16 @@ export async function middleware(request: NextRequest) {
   console.log("❌ Error de auth:", error?.message || "Ninguno")
 
   // Rutas que requieren autenticación
-  const protectedRoutes = ["/recipes/add", "/recipes/new", "/recipes/[id]/edit", "/weekly-menu", "/profile", "/admin"]
+  const protectedRoutes = [
+    "/categories", // Ahora requiere autenticación
+    "/recipes/add",
+    "/recipes/new",
+    "/recipes/[id]/edit",
+    "/weekly-menu",
+    "/profile",
+    "/admin",
+    "/history",
+  ]
 
   // Verificar si la ruta actual está protegida
   const isProtectedRoute = protectedRoutes.some((route) => {
@@ -61,7 +70,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Permitir acceso a /recipes (solo lectura) sin autenticación
-  if (request.nextUrl.pathname === "/recipes") {
+  if (request.nextUrl.pathname === "/recipes" || request.nextUrl.pathname.match(/^\/recipes\/\d+$/)) {
     console.log("✅ Acceso permitido a vista de recetas")
     return supabaseResponse
   }
@@ -80,7 +89,8 @@ export const config = {
      * - /login (login page)
      * - /auth/* (authentication pages)
      * - api routes
+     * - root path (/)
      */
-    "/((?!_next/static|_next/image|favicon.ico|login|auth|api).*)",
+    "/((?!_next/static|_next/image|favicon.ico|login|auth|api|^/$).*)",
   ],
 }
