@@ -46,26 +46,15 @@ export function Navigation() {
 
   // Componente para enlaces que requieren autenticación
   const ProtectedNavLink = ({ href, children, icon: Icon }: { href: string; children: React.ReactNode; icon: any }) => {
-    if (user) {
-      return (
-        <NavigationMenuItem>
-          <Link href={href} legacyBehavior passHref>
-            <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer`}>
-              <Icon className="mr-2 h-4 w-4" />
-              {children}
-            </NavigationMenuLink>
-          </Link>
-        </NavigationMenuItem>
-      )
-    }
-
     return (
       <NavigationMenuItem>
-        <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer opacity-60`}>
-          <Icon className="mr-2 h-4 w-4" />
-          {children}
-          <Lock className="ml-2 h-3 w-3" />
-        </NavigationMenuLink>
+        <Link href={href} legacyBehavior passHref>
+          <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer ${!user ? "opacity-60" : ""}`}>
+            <Icon className="mr-2 h-4 w-4" />
+            {children}
+            {!user && <Lock className="ml-2 h-3 w-3" />}
+          </NavigationMenuLink>
+        </Link>
       </NavigationMenuItem>
     )
   }
