@@ -18,7 +18,6 @@ interface WeeklyMenuViewProps {
   menuItems: MenuItem[]
   initialRecipes: Recipe[]
   startDate: string
-  onDataUpdate?: () => void
 }
 
 export function WeeklyMenuView({
@@ -26,7 +25,6 @@ export function WeeklyMenuView({
   menuItems: initialMenuItems,
   initialRecipes,
   startDate,
-  onDataUpdate,
 }: WeeklyMenuViewProps) {
   const { toast } = useToast()
   const [isGenerating, setIsGenerating] = useState(false)
@@ -37,12 +35,18 @@ export function WeeklyMenuView({
   const [weeklyMenu, setWeeklyMenu] = useState<WeeklyMenu | null>(initialWeeklyMenu)
   const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems)
 
-  // Actualizar estados cuando cambien las props
+  // Actualizar estados cuando cambien las props SOLO al inicio
   useEffect(() => {
     setRecipes(initialRecipes)
+  }, [initialRecipes])
+
+  useEffect(() => {
     setWeeklyMenu(initialWeeklyMenu)
+  }, [initialWeeklyMenu])
+
+  useEffect(() => {
     setMenuItems(initialMenuItems)
-  }, [initialRecipes, initialWeeklyMenu, initialMenuItems])
+  }, [initialMenuItems])
 
   // Preparar los datos del menú por día
   const dayNames = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
@@ -118,6 +122,9 @@ export function WeeklyMenuView({
       // Para comida, usar dishOrder; para cena, siempre es 1
       const finalDishOrder = mealType === "comida" ? dishOrder || 1 : 1
 
+      // Encontrar la receta seleccionada
+      const selectedRecipe = recipes.find((r) => r.id.toString() === recipeId)
+
       // Buscar si ya existe un plato para este día, tipo de comida y orden
       const { data: existingItem } = await supabase
         .from("menu_items")
@@ -127,9 +134,6 @@ export function WeeklyMenuView({
         .eq("meal_type", mealType)
         .eq("dish_order", finalDishOrder)
         .maybeSingle()
-
-      // Encontrar la receta seleccionada
-      const selectedRecipe = recipes.find((r) => r.id.toString() === recipeId)
 
       if (existingItem) {
         // Actualizar el plato existente
@@ -174,12 +178,7 @@ export function WeeklyMenuView({
         description: "El menú se ha actualizado correctamente.",
       })
 
-      // Solo recargar datos si hay callback
-      if (onDataUpdate) {
-        setTimeout(() => {
-          onDataUpdate()
-        }, 500)
-      }
+      console.log("✅ Receta actualizada correctamente, manteniendo estado local")
     } catch (error) {
       console.error("Error updating menu:", error)
       toast({
@@ -227,12 +226,6 @@ export function WeeklyMenuView({
         title: "Plato eliminado",
         description: "El plato se ha eliminado del menú.",
       })
-
-      if (onDataUpdate) {
-        setTimeout(() => {
-          onDataUpdate()
-        }, 500)
-      }
     } catch (error) {
       console.error("Error removing dish:", error)
       toast({
@@ -242,6 +235,50 @@ export function WeeklyMenuView({
       })
     } finally {
       setIsUpdating(false)
+    }
+  }
+
+  const reloadData = async () => {
+    try {
+      const supabase = getSupabaseClient()
+
+      // Recargar menú semanal
+      const endDate = new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+      const { data: weeklyMenuData } = await supabase
+        .from("weekly_menus")
+        .select("*")
+        .eq("start_date", startDate)
+        .eq("end_date", endDate)
+        .maybeSingle()
+
+      setWeeklyMenu(weeklyMenuData)
+
+      // Recargar items del menú
+      let menuItemsData: MenuItem[] = []
+      if (weeklyMenuData) {
+        const { data: items } = await supabase
+          .from("menu_items")
+          .select(`
+            *,
+            recipe:recipe_id (*)
+          `)
+          .eq("weekly_menu_id", weeklyMenuData.id)
+          .order("day_of_week")
+          .order("meal_type")
+          .order("dish_order")
+
+        if (items) {
+          menuItemsData = items as unknown as MenuItem[]
+        }
+      }
+
+      setMenuItems(menuItemsData)
+
+      // Recargar recetas
+      const { data: recipesData } = await supabase.from("recipes").select("*").order("name")
+      setRecipes(recipesData || [])
+    } catch (error) {
+      console.error("Error reloading data:", error)
     }
   }
 
@@ -310,9 +347,8 @@ export function WeeklyMenuView({
         description: "Se ha generado un nuevo menú semanal.",
       })
 
-      if (onDataUpdate) {
-        onDataUpdate()
-      }
+      // Solo recargar para generar menú
+      await reloadData()
     } catch (error) {
       console.error("Error generating menu:", error)
       toast({
@@ -352,10 +388,6 @@ export function WeeklyMenuView({
         title: "Menú limpiado",
         description: "Se han eliminado todas las recetas del menú semanal.",
       })
-
-      if (onDataUpdate) {
-        onDataUpdate()
-      }
     } catch (error) {
       console.error("Error clearing menu:", error)
       toast({
@@ -415,10 +447,6 @@ export function WeeklyMenuView({
         title: "Menú guardado",
         description: "El menú semanal se ha guardado correctamente en tu historial.",
       })
-
-      if (onDataUpdate) {
-        onDataUpdate()
-      }
     } catch (error) {
       console.error("Error saving menu:", error)
       toast({
@@ -444,6 +472,9 @@ export function WeeklyMenuView({
           )}
         </h2>
         <div className="flex gap-2">
+          <Button onClick={reloadData} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
           {weeklyMenu && menuItems.length > 0 && !weeklyMenu.is_saved && (
             <Button onClick={handleSaveMenu} disabled={isSaving || isGenerating || isClearing}>
               {isSaving ? (
