@@ -92,9 +92,7 @@ export function LoginForm() {
             <CardDescription>
               {isSignUp
                 ? "Crea una cuenta para acceder al planificador de menús"
-                : redirectTo !== "/"
-                  ? `Inicia sesión para acceder a ${redirectTo}`
-                  : "Accede a tu planificador de menús personal"}
+                : "Inicia sesión para acceder a los servicios avanzados"}
             </CardDescription>
           </CardHeader>
           <CardContent>
