@@ -18,6 +18,7 @@ interface WeeklyMenuViewProps {
   menuItems: MenuItem[]
   initialRecipes: Recipe[]
   startDate: string
+  onDataUpdate?: () => void
 }
 
 export function WeeklyMenuView({
@@ -25,6 +26,7 @@ export function WeeklyMenuView({
   menuItems: initialMenuItems,
   initialRecipes,
   startDate,
+  onDataUpdate,
 }: WeeklyMenuViewProps) {
   const { toast } = useToast()
   const [isGenerating, setIsGenerating] = useState(false)
@@ -35,16 +37,19 @@ export function WeeklyMenuView({
   const [weeklyMenu, setWeeklyMenu] = useState<WeeklyMenu | null>(initialWeeklyMenu)
   const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems)
 
-  // Actualizar estados cuando cambien las props SOLO al inicio
+  // Actualizar estados cuando cambien las props - IMPORTANTE: Esto se ejecuta cuando vuelves a la página
   useEffect(() => {
+    console.log("🔄 Actualizando props - Recetas:", initialRecipes.length)
     setRecipes(initialRecipes)
   }, [initialRecipes])
 
   useEffect(() => {
+    console.log("🔄 Actualizando props - Menú semanal:", initialWeeklyMenu?.id)
     setWeeklyMenu(initialWeeklyMenu)
   }, [initialWeeklyMenu])
 
   useEffect(() => {
+    console.log("🔄 Actualizando props - Items del menú:", initialMenuItems.length)
     setMenuItems(initialMenuItems)
   }, [initialMenuItems])
 
@@ -238,50 +243,6 @@ export function WeeklyMenuView({
     }
   }
 
-  const reloadData = async () => {
-    try {
-      const supabase = getSupabaseClient()
-
-      // Recargar menú semanal
-      const endDate = new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-      const { data: weeklyMenuData } = await supabase
-        .from("weekly_menus")
-        .select("*")
-        .eq("start_date", startDate)
-        .eq("end_date", endDate)
-        .maybeSingle()
-
-      setWeeklyMenu(weeklyMenuData)
-
-      // Recargar items del menú
-      let menuItemsData: MenuItem[] = []
-      if (weeklyMenuData) {
-        const { data: items } = await supabase
-          .from("menu_items")
-          .select(`
-            *,
-            recipe:recipe_id (*)
-          `)
-          .eq("weekly_menu_id", weeklyMenuData.id)
-          .order("day_of_week")
-          .order("meal_type")
-          .order("dish_order")
-
-        if (items) {
-          menuItemsData = items as unknown as MenuItem[]
-        }
-      }
-
-      setMenuItems(menuItemsData)
-
-      // Recargar recetas
-      const { data: recipesData } = await supabase.from("recipes").select("*").order("name")
-      setRecipes(recipesData || [])
-    } catch (error) {
-      console.error("Error reloading data:", error)
-    }
-  }
-
   const handleGenerateMenu = async () => {
     setIsGenerating(true)
 
@@ -347,8 +308,10 @@ export function WeeklyMenuView({
         description: "Se ha generado un nuevo menú semanal.",
       })
 
-      // Solo recargar para generar menú
-      await reloadData()
+      // Recargar datos para generar menú
+      if (onDataUpdate) {
+        onDataUpdate()
+      }
     } catch (error) {
       console.error("Error generating menu:", error)
       toast({
@@ -472,9 +435,11 @@ export function WeeklyMenuView({
           )}
         </h2>
         <div className="flex gap-2">
-          <Button onClick={reloadData} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4" />
-          </Button>
+          {onDataUpdate && (
+            <Button onClick={onDataUpdate} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          )}
           {weeklyMenu && menuItems.length > 0 && !weeklyMenu.is_saved && (
             <Button onClick={handleSaveMenu} disabled={isSaving || isGenerating || isClearing}>
               {isSaving ? (

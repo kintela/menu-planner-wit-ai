@@ -18,6 +18,7 @@ export default function WeeklyMenuPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [startDate, setStartDate] = useState<string>("")
+  const [dataKey, setDataKey] = useState(0) // Key para forzar re-render
 
   const loadData = async () => {
     try {
@@ -47,6 +48,7 @@ export default function WeeklyMenuPage() {
         .eq("end_date", endDate)
         .maybeSingle()
 
+      console.log("📅 Menú semanal encontrado:", weeklyMenuData)
       setWeeklyMenu(weeklyMenuData)
 
       // Obtener items del menú si existe
@@ -65,6 +67,7 @@ export default function WeeklyMenuPage() {
 
         if (items) {
           menuItemsData = items as unknown as MenuItem[]
+          console.log("🍽️ Items del menú cargados:", menuItemsData.length, "items")
         }
       }
 
@@ -74,6 +77,10 @@ export default function WeeklyMenuPage() {
       const { data: recipesData } = await supabase.from("recipes").select("*").order("name")
 
       setRecipes(recipesData || [])
+      console.log("📝 Recetas cargadas:", recipesData?.length || 0, "recetas")
+
+      // Incrementar key para forzar re-render del componente hijo
+      setDataKey((prev) => prev + 1)
 
       console.log("✅ Datos cargados correctamente")
     } catch (err) {
@@ -96,20 +103,8 @@ export default function WeeklyMenuPage() {
   }, [user, authLoading])
 
   const handleDataUpdate = () => {
-    // Recargar datos sin cambiar el estado de loading
+    console.log("🔄 Recargando datos...")
     loadData()
-  }
-
-  const handleWeeklyMenuUpdate = (updatedMenu: WeeklyMenu) => {
-    setWeeklyMenu(updatedMenu)
-  }
-
-  const handleMenuItemsUpdate = (updatedItems: MenuItem[]) => {
-    setMenuItems(updatedItems)
-  }
-
-  const handleRecipesUpdate = (updatedRecipes: Recipe[]) => {
-    setRecipes(updatedRecipes)
   }
 
   if (authLoading || loading) {
@@ -182,14 +177,12 @@ export default function WeeklyMenuPage() {
     <div className="container py-10">
       <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
       <WeeklyMenuView
+        key={dataKey} // Forzar re-render cuando cambien los datos
         weeklyMenu={weeklyMenu}
         menuItems={menuItems}
         initialRecipes={recipes}
         startDate={startDate}
         onDataUpdate={handleDataUpdate}
-        onWeeklyMenuUpdate={handleWeeklyMenuUpdate}
-        onMenuItemsUpdate={handleMenuItemsUpdate}
-        onRecipesUpdate={handleRecipesUpdate}
       />
     </div>
   )
