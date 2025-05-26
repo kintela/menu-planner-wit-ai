@@ -10,9 +10,10 @@ export function useUserProfile() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const supabase = getSupabaseClient()
 
   useEffect(() => {
-    async function fetchProfile() {
+    const fetchProfile = async () => {
       if (!user) {
         setProfile(null)
         setLoading(false)
@@ -23,28 +24,62 @@ export function useUserProfile() {
         setLoading(true)
         setError(null)
 
-        const supabase = getSupabaseClient()
-        const { data, error: profileError } = await supabase
+        console.log("🔍 Fetching profile for user:", user.id)
+
+        const { data: profileData, error: profileError } = await supabase
           .from("user_profiles")
           .select("*")
           .eq("id", user.id)
           .single()
 
         if (profileError) {
-          throw profileError
+          console.error("❌ Error fetching profile:", profileError)
+          setError(profileError.message)
+          setProfile(null)
+        } else {
+          console.log("✅ Profile fetched successfully:", profileData)
+          setProfile(profileData as UserProfile)
         }
-
-        setProfile(data as UserProfile)
       } catch (err) {
-        console.error("Error fetching profile:", err)
-        setError(err instanceof Error ? err.message : "Error desconocido")
+        console.error("💥 Unexpected error fetching profile:", err)
+        setError("Error inesperado al cargar el perfil")
+        setProfile(null)
       } finally {
         setLoading(false)
       }
     }
 
     fetchProfile()
-  }, [user])
+  }, [user, supabase])
 
-  return { profile, loading, error }
+  const refreshProfile = async () => {
+    if (!user) return
+
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single()
+
+      if (profileError) {
+        console.error("❌ Error refreshing profile:", profileError)
+        setError(profileError.message)
+      } else {
+        console.log("🔄 Profile refreshed successfully:", profileData)
+        setProfile(profileData as UserProfile)
+        setError(null)
+      }
+    } catch (err) {
+      console.error("💥 Unexpected error refreshing profile:", err)
+      setError("Error inesperado al actualizar el perfil")
+    }
+  }
+
+  return {
+    profile,
+    loading,
+    error,
+    refreshProfile,
+  }
 }

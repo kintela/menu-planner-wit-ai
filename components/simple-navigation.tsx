@@ -1,177 +1,206 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { CalendarDays, ChefHat, History, Home, PlusCircle, Settings, User, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { ChefHat, Menu, X, User, LogOut, Settings } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
-import { getSupabaseClient } from "@/lib/supabase/client"
-import { useRouter } from "next/navigation"
+import { useUserProfile } from "@/hooks/use-user-profile"
+import { UserRoleBadge } from "@/components/user-role-badge"
+
+const navigationItems = [
+  { href: "/", label: "Inicio" },
+  { href: "/recipes", label: "Recetas" },
+  { href: "/recipes/add", label: "Añadir Receta", requiresAuth: true },
+  { href: "/weekly-menu", label: "Menú Semanal" },
+  { href: "/categories", label: "Categorías" },
+]
 
 export function SimpleNavigation() {
+  const [isOpen, setIsOpen] = useState(false)
   const pathname = usePathname()
-  const { user, profile, loading } = useAuth()
-  const router = useRouter()
-  const supabase = getSupabaseClient()
+  const { user, loading: authLoading, signOut } = useAuth()
+  const { profile, loading: profileLoading } = useUserProfile()
 
-  // Función para determinar si un enlace está activo
-  const isActive = (path: string) => {
-    if (path === "/" && pathname === "/") return true
-    if (path !== "/" && pathname.startsWith(path)) return true
-    return false
-  }
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push("/")
-    router.refresh()
-  }
-
-  const getUserInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2)
-  }
-
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case "admin":
-        return "destructive"
-      case "user_full":
-        return "default"
-      case "user_restricted":
-        return "secondary"
-      default:
-        return "secondary"
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      setIsOpen(false)
+    } catch (error) {
+      console.error("Error signing out:", error)
     }
   }
 
-  const getRoleLabel = (role: string) => {
-    switch (role) {
-      case "admin":
-        return "Administrador"
-      case "user_full":
-        return "Usuario Completo"
-      case "user_restricted":
-        return "Usuario Restringido"
-      default:
-        return "Usuario"
-    }
+  const getInitials = (email: string) => {
+    return email.charAt(0).toUpperCase()
   }
+
+  const filteredNavItems = navigationItems.filter((item) => {
+    if (item.requiresAuth && !user) {
+      return false
+    }
+    return true
+  })
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between">
-        <nav className="flex items-center space-x-2 lg:space-x-4 overflow-x-auto pb-2 pt-2">
-          <Button asChild variant={isActive("/") ? "default" : "ghost"} className="flex-shrink-0">
-            <Link href="/">
-              <Home className="mr-2 h-4 w-4" />
-              Inicio
+    <nav className="bg-white shadow-sm border-b sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
+          {/* Logo */}
+          <div className="flex items-center">
+            <Link href="/" className="flex items-center space-x-2">
+              <ChefHat className="h-8 w-8 text-primary" />
+              <span className="font-bold text-xl text-gray-900">MenuPlanner</span>
             </Link>
-          </Button>
+          </div>
 
-          <Button asChild variant={isActive("/weekly-menu") ? "default" : "ghost"} className="flex-shrink-0">
-            <Link href="/weekly-menu">
-              <CalendarDays className="mr-2 h-4 w-4" />
-              Menú Semanal
-            </Link>
-          </Button>
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center space-x-8">
+            {filteredNavItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`text-sm font-medium transition-colors hover:text-primary ${
+                  pathname === item.href ? "text-primary" : "text-gray-700"
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
 
-          <Button
-            asChild
-            variant={isActive("/recipes") && !pathname.includes("/add") ? "default" : "ghost"}
-            className="flex-shrink-0"
-          >
-            <Link href="/recipes">
-              <ChefHat className="mr-2 h-4 w-4" />
-              Recetas
-            </Link>
-          </Button>
-
-          <Button asChild variant={isActive("/recipes/add") ? "default" : "ghost"} className="flex-shrink-0">
-            <Link href="/recipes/add">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Añadir Receta
-            </Link>
-          </Button>
-
-          <Button asChild variant={isActive("/categories") ? "default" : "ghost"} className="flex-shrink-0">
-            <Link href="/categories">
-              <Settings className="mr-2 h-4 w-4" />
-              Categorías
-            </Link>
-          </Button>
-
-          <Button asChild variant={isActive("/history") ? "default" : "ghost"} className="flex-shrink-0">
-            <Link href="/history">
-              <History className="mr-2 h-4 w-4" />
-              Historial
-            </Link>
-          </Button>
-        </nav>
-
-        {/* Área de usuario en la esquina superior derecha */}
-        <div className="flex items-center space-x-4">
-          {loading ? (
-            <div className="animate-pulse bg-gray-200 h-8 w-8 rounded-full"></div>
-          ) : user && profile ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback>{getUserInitials(profile.full_name)}</AvatarFallback>
-                  </Avatar>
+            {/* User Menu */}
+            <div className="flex items-center space-x-4">
+              {authLoading ? (
+                <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
+              ) : user ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-primary text-primary-foreground">
+                          {getInitials(user.email || "U")}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <div className="flex flex-col space-y-1 p-2">
+                      <p className="text-sm font-medium leading-none">{user.email}</p>
+                      {profile && !profileLoading && (
+                        <div className="flex items-center space-x-2">
+                          <UserRoleBadge role={profile.role} />
+                        </div>
+                      )}
+                    </div>
+                    <DropdownMenuItem asChild>
+                      <Link href="/profile">
+                        <User className="mr-2 h-4 w-4" />
+                        <span>Perfil</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    {profile?.role === "admin" && (
+                      <DropdownMenuItem asChild>
+                        <Link href="/admin/users">
+                          <Settings className="mr-2 h-4 w-4" />
+                          <span>Administración</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={handleSignOut}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Cerrar sesión</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Button asChild variant="default" size="sm">
+                  <Link href="/login">Iniciar sesión</Link>
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{profile.full_name}</p>
-                    <p className="text-xs leading-none text-muted-foreground">{profile.email}</p>
-                    <Badge variant={getRoleBadgeColor(profile.role)} className="w-fit mt-1">
-                      {getRoleLabel(profile.role)}
-                    </Badge>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/profile">
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Perfil</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout}>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Cerrar sesión</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <div className="flex items-center space-x-2">
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/login">Iniciar Sesión</Link>
-              </Button>
-              <Button asChild size="sm">
-                <Link href="/login">Registrarse</Link>
-              </Button>
+              )}
             </div>
-          )}
+          </div>
+
+          {/* Mobile menu button */}
+          <div className="md:hidden flex items-center">
+            <Button variant="ghost" size="sm" onClick={() => setIsOpen(!isOpen)}>
+              {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </Button>
+          </div>
         </div>
+
+        {/* Mobile Navigation */}
+        {isOpen && (
+          <div className="md:hidden">
+            <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t">
+              {filteredNavItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`block px-3 py-2 text-base font-medium transition-colors hover:text-primary ${
+                    pathname === item.href ? "text-primary bg-primary/10" : "text-gray-700"
+                  }`}
+                  onClick={() => setIsOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              ))}
+
+              {/* Mobile User Menu */}
+              <div className="border-t pt-4 mt-4">
+                {authLoading ? (
+                  <div className="px-3 py-2">
+                    <div className="w-full h-8 bg-gray-200 rounded animate-pulse" />
+                  </div>
+                ) : user ? (
+                  <div className="space-y-2">
+                    <div className="px-3 py-2">
+                      <p className="text-sm font-medium text-gray-900">{user.email}</p>
+                      {profile && !profileLoading && (
+                        <div className="mt-1">
+                          <UserRoleBadge role={profile.role} />
+                        </div>
+                      )}
+                    </div>
+                    <Link
+                      href="/profile"
+                      className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-primary"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      Perfil
+                    </Link>
+                    {profile?.role === "admin" && (
+                      <Link
+                        href="/admin/users"
+                        className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-primary"
+                        onClick={() => setIsOpen(false)}
+                      >
+                        Administración
+                      </Link>
+                    )}
+                    <button
+                      onClick={handleSignOut}
+                      className="block w-full text-left px-3 py-2 text-base font-medium text-gray-700 hover:text-primary"
+                    >
+                      Cerrar sesión
+                    </button>
+                  </div>
+                ) : (
+                  <div className="px-3 py-2">
+                    <Button asChild variant="default" size="sm" className="w-full">
+                      <Link href="/login" onClick={() => setIsOpen(false)}>
+                        Iniciar sesión
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </header>
+    </nav>
   )
 }
