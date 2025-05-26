@@ -36,43 +36,26 @@ export async function middleware(request: NextRequest) {
   console.log("👤 Usuario encontrado:", user ? `${user.email} (${user.id})` : "No autenticado")
   console.log("❌ Error de auth:", error?.message || "Ninguno")
 
-  // Rutas que requieren autenticación
-  const protectedRoutes = [
-    "/categories", // Ahora requiere autenticación
-    "/recipes/add",
-    "/recipes/new",
-    "/recipes/[id]/edit",
-    "/weekly-menu",
-    "/profile",
-    "/admin",
-    "/history",
-  ]
+  // Rutas públicas (permitidas sin autenticación)
+  const publicRoutes = ["/", "/recipes", "/login", "/auth"]
 
-  // Verificar si la ruta actual está protegida
-  const isProtectedRoute = protectedRoutes.some((route) => {
-    if (route.includes("[id]")) {
-      // Para rutas dinámicas como /recipes/[id]/edit
-      const pattern = route.replace("[id]", "\\d+")
-      const regex = new RegExp(`^${pattern}$`)
-      return regex.test(request.nextUrl.pathname)
+  // Verificar si es una ruta pública
+  const isPublicRoute = publicRoutes.some((route) => {
+    if (route === "/recipes") {
+      // Permitir /recipes y /recipes/[id] (solo lectura)
+      return request.nextUrl.pathname === "/recipes" || request.nextUrl.pathname.match(/^\/recipes\/\d+$/)
     }
     return request.nextUrl.pathname.startsWith(route)
   })
 
-  console.log("🛡️ Ruta protegida:", isProtectedRoute)
+  console.log("🌍 Ruta pública:", isPublicRoute)
 
-  // Si es una ruta protegida y no hay usuario autenticado
-  if (isProtectedRoute && !user) {
+  // Si NO es una ruta pública y no hay usuario autenticado
+  if (!isPublicRoute && !user) {
     console.log("🚫 Acceso denegado - Redirigiendo a login")
     const redirectUrl = new URL("/login", request.url)
     redirectUrl.searchParams.set("redirect", request.nextUrl.pathname)
     return NextResponse.redirect(redirectUrl)
-  }
-
-  // Permitir acceso a /recipes (solo lectura) sin autenticación
-  if (request.nextUrl.pathname === "/recipes" || request.nextUrl.pathname.match(/^\/recipes\/\d+$/)) {
-    console.log("✅ Acceso permitido a vista de recetas")
-    return supabaseResponse
   }
 
   console.log("✅ Acceso permitido")
@@ -86,11 +69,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - /login (login page)
-     * - /auth/* (authentication pages)
      * - api routes
-     * - root path (/)
      */
-    "/((?!_next/static|_next/image|favicon.ico|login|auth|api|^/$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api).*)",
   ],
 }
