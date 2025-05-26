@@ -8,24 +8,29 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  // Por ahora, solo proteger rutas específicas de admin
-  const adminRoutes = ["/admin"]
-  const isAdminRoute = adminRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
+  // Rutas que requieren autenticación
+  const protectedRoutes = ["/recipes", "/weekly-menu", "/categories", "/history", "/admin", "/profile"]
+  const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
 
-  // Solo verificar autenticación para rutas de admin por ahora
-  if (isAdminRoute) {
+  if (isProtectedRoute) {
     try {
       const supabase = createServerClient()
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
+      // Si no hay usuario, redirigir al login
       if (!user) {
-        return NextResponse.redirect(new URL("/login", request.url))
+        const loginUrl = new URL("/login", request.url)
+        loginUrl.searchParams.set("redirect", request.nextUrl.pathname)
+        return NextResponse.redirect(loginUrl)
       }
     } catch (error) {
       console.error("Middleware error:", error)
-      // En caso de error, permitir continuar para no romper la app
+      // En caso de error de conexión, redirigir al login
+      const loginUrl = new URL("/login", request.url)
+      loginUrl.searchParams.set("redirect", request.nextUrl.pathname)
+      return NextResponse.redirect(loginUrl)
     }
   }
 
@@ -38,11 +43,13 @@ export async function middleware(request: NextRequest) {
       } = await supabase.auth.getUser()
 
       if (user) {
-        return NextResponse.redirect(new URL("/", request.url))
+        // Si hay un parámetro redirect, ir ahí, sino al inicio
+        const redirectTo = request.nextUrl.searchParams.get("redirect") || "/"
+        return NextResponse.redirect(new URL(redirectTo, request.url))
       }
     } catch (error) {
       console.error("Middleware error:", error)
-      // En caso de error, permitir continuar
+      // En caso de error, permitir continuar al login
     }
   }
 

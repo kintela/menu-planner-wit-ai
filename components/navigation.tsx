@@ -1,8 +1,10 @@
 "use client"
 
+import type React from "react"
+
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { CalendarDays, ChefHat, History, Home, PlusCircle, Settings, LogOut, User, Users } from "lucide-react"
+import { CalendarDays, ChefHat, History, Home, PlusCircle, Settings, LogOut, User, Users, Lock } from "lucide-react"
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -23,6 +25,7 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { useUserProfile } from "@/hooks/use-user-profile"
 import { UserRoleBadge } from "@/components/user-role-badge"
 import { getPermissionsByRole } from "@/lib/auth"
+import { Badge } from "@/components/ui/badge"
 
 export function Navigation() {
   const pathname = usePathname()
@@ -38,11 +41,34 @@ export function Navigation() {
     return email.split("@")[0].slice(0, 2).toUpperCase()
   }
 
-  // Si no hay usuario o perfil, mostrar navegación básica
   const permissions = profile ? getPermissionsByRole(profile.role) : []
-  const canCreateRecipes = user ? permissions.includes("create_recipes") : true // Permitir por defecto si no hay auth
-  const canManageCategories = user ? permissions.includes("manage_categories") : true
-  const canManageUsers = user ? permissions.includes("manage_users") : false // Solo admins
+  const canManageUsers = user ? permissions.includes("manage_users") : false
+
+  // Componente para enlaces que requieren autenticación
+  const ProtectedNavLink = ({ href, children, icon: Icon }: { href: string; children: React.ReactNode; icon: any }) => {
+    if (user) {
+      return (
+        <NavigationMenuItem>
+          <Link href={href} legacyBehavior passHref>
+            <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer`}>
+              <Icon className="mr-2 h-4 w-4" />
+              {children}
+            </NavigationMenuLink>
+          </Link>
+        </NavigationMenuItem>
+      )
+    }
+
+    return (
+      <NavigationMenuItem>
+        <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer opacity-60`}>
+          <Icon className="mr-2 h-4 w-4" />
+          {children}
+          <Lock className="ml-2 h-3 w-3" />
+        </NavigationMenuLink>
+      </NavigationMenuItem>
+    )
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -58,54 +84,25 @@ export function Navigation() {
               </Link>
             </NavigationMenuItem>
 
-            <NavigationMenuItem>
-              <Link href="/weekly-menu" legacyBehavior passHref>
-                <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer`}>
-                  <CalendarDays className="mr-2 h-4 w-4" />
-                  Menú Semanal
-                </NavigationMenuLink>
-              </Link>
-            </NavigationMenuItem>
+            <ProtectedNavLink href="/weekly-menu" icon={CalendarDays}>
+              Menú Semanal
+            </ProtectedNavLink>
 
-            <NavigationMenuItem>
-              <Link href="/recipes" legacyBehavior passHref>
-                <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer`}>
-                  <ChefHat className="mr-2 h-4 w-4" />
-                  Recetas
-                </NavigationMenuLink>
-              </Link>
-            </NavigationMenuItem>
+            <ProtectedNavLink href="/recipes" icon={ChefHat}>
+              Recetas
+            </ProtectedNavLink>
 
-            {canCreateRecipes && (
-              <NavigationMenuItem>
-                <Link href="/recipes/add" legacyBehavior passHref>
-                  <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer`}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Añadir Receta
-                  </NavigationMenuLink>
-                </Link>
-              </NavigationMenuItem>
-            )}
+            <ProtectedNavLink href="/recipes/add" icon={PlusCircle}>
+              Añadir Receta
+            </ProtectedNavLink>
 
-            {canManageCategories && (
-              <NavigationMenuItem>
-                <Link href="/categories" legacyBehavior passHref>
-                  <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer`}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Categorías
-                  </NavigationMenuLink>
-                </Link>
-              </NavigationMenuItem>
-            )}
+            <ProtectedNavLink href="/categories" icon={Settings}>
+              Categorías
+            </ProtectedNavLink>
 
-            <NavigationMenuItem>
-              <Link href="/history" legacyBehavior passHref>
-                <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer`}>
-                  <History className="mr-2 h-4 w-4" />
-                  Historial
-                </NavigationMenuLink>
-              </Link>
-            </NavigationMenuItem>
+            <ProtectedNavLink href="/history" icon={History}>
+              Historial
+            </ProtectedNavLink>
 
             {canManageUsers && (
               <NavigationMenuItem>
@@ -153,9 +150,15 @@ export function Navigation() {
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          <Button asChild>
-            <Link href="/login">Iniciar Sesión</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs">
+              <Lock className="mr-1 h-3 w-3" />
+              Inicia sesión para acceder
+            </Badge>
+            <Button asChild>
+              <Link href="/login">Iniciar Sesión</Link>
+            </Button>
+          </div>
         )}
       </div>
     </header>
