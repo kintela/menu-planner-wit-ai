@@ -37,7 +37,7 @@ export async function middleware(request: NextRequest) {
   console.log("❌ Error de auth:", error?.message || "Ninguno")
 
   // Rutas que requieren autenticación
-  const protectedRoutes = ["/recipes", "/menu-planner", "/users", "/profile"]
+  const protectedRoutes = ["/recipes", "/weekly-menu", "/categories", "/history", "/profile", "/admin"]
 
   // Verificar si la ruta actual está protegida
   const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
@@ -47,8 +47,8 @@ export async function middleware(request: NextRequest) {
   // Si es una ruta protegida y no hay usuario autenticado
   if (isProtectedRoute && !user) {
     console.log("🚫 Acceso denegado - Redirigiendo a login")
-    const redirectUrl = new URL("/auth/login", request.url)
-    redirectUrl.searchParams.set("redirectTo", request.nextUrl.pathname)
+    const redirectUrl = new URL("/login", request.url)
+    redirectUrl.searchParams.set("redirect", request.nextUrl.pathname)
     return NextResponse.redirect(redirectUrl)
   }
 
@@ -63,9 +63,10 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - /login (login page)
      * - /auth/* (authentication pages)
-     * Feel free to modify this pattern to include more paths.
+     * - api routes
      */
-    "/((?!_next/static|_next/image|favicon.ico|auth).*)",
+    "/((?!_next/static|_next/image|favicon.ico|login|auth|api).*)",
   ],
 }
