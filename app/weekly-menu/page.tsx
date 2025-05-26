@@ -13,6 +13,40 @@ export default async function WeeklyMenuPage() {
   try {
     const supabase = createServerClient()
 
+    // Verificar autenticación
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return (
+        <div className="container py-10">
+          <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
+          <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-yellow-600">
+                <AlertCircle className="h-5 w-5" />
+                Acceso Restringido
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-yellow-700 dark:text-yellow-300">
+                Necesitas iniciar sesión para acceder al planificador de menú semanal.
+              </p>
+              <div className="flex gap-2">
+                <Button asChild>
+                  <Link href="/login?redirect=/weekly-menu">Iniciar Sesión</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/">Volver al Inicio</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )
+    }
+
     // Obtener el menú semanal actual o crear uno nuevo
     const today = new Date()
     const startOfWeek = new Date(today)
