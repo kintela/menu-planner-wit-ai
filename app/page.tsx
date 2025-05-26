@@ -9,7 +9,8 @@ export default function HomePage() {
       <div className="text-center mb-12">
         <h1 className="text-4xl font-bold tracking-tight mb-4">Planificador de Menús Semanales</h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          Organiza tus comidas de la semana de manera sencilla y eficiente. Gestiona recetas y planifica menús.
+          Planifica tus comidas y cenas para toda la semana de manera sencilla. Añade tus propias recetas y si no se te
+          ocurre nada pídeselas a la IA.
         </p>
       </div>
 
