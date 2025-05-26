@@ -473,11 +473,13 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
                         <SelectValue placeholder="Seleccionar receta" />
                       </SelectTrigger>
                       <SelectContent>
-                        {recipes.map((recipe) => (
-                          <SelectItem key={recipe.id} value={recipe.id.toString()}>
-                            {recipe.name}
-                          </SelectItem>
-                        ))}
+                        {recipes
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .map((recipe) => (
+                            <SelectItem key={recipe.id} value={recipe.id.toString()}>
+                              {recipe.name}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                     <AiRecipeSuggestion
@@ -517,11 +519,13 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
                         <SelectValue placeholder="Seleccionar receta" />
                       </SelectTrigger>
                       <SelectContent>
-                        {recipes.map((recipe) => (
-                          <SelectItem key={recipe.id} value={recipe.id.toString()}>
-                            {recipe.name}
-                          </SelectItem>
-                        ))}
+                        {recipes
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .map((recipe) => (
+                            <SelectItem key={recipe.id} value={recipe.id.toString()}>
+                              {recipe.name}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                     <AiRecipeSuggestion
@@ -550,11 +554,13 @@ export function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDat
                       <SelectValue placeholder="Seleccionar receta" />
                     </SelectTrigger>
                     <SelectContent>
-                      {recipes.map((recipe) => (
-                        <SelectItem key={recipe.id} value={recipe.id.toString()}>
-                          {recipe.name}
-                        </SelectItem>
-                      ))}
+                      {recipes
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map((recipe) => (
+                          <SelectItem key={recipe.id} value={recipe.id.toString()}>
+                            {recipe.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   <AiRecipeSuggestion
