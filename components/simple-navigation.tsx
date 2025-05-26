@@ -3,6 +3,15 @@ import { ChefHat, Home, Settings, User, History } from "lucide-react"
 import { NavigationItem } from "@/components/navigation-item"
 
 export function SimpleNavigation() {
+  const navigationItems = [
+    { href: "/", label: "Inicio" },
+    { href: "/recipes", label: "Recetas" },
+    { href: "/recipes/add", label: "Añadir Receta", requiresAuth: true },
+    { href: "/weekly-menu", label: "Menú Semanal" },
+    { href: "/history", label: "Historial" },
+    { href: "/categories", label: "Categorías" },
+  ]
+
   return (
     <div className="space-y-4">
       <NavigationItem href="/home" icon={Home}>
