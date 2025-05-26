@@ -26,19 +26,23 @@ export function useUserProfile() {
 
         console.log("🔍 Fetching profile for user:", user.id)
 
+        // Usar una consulta más simple
         const { data: profileData, error: profileError } = await supabase
           .from("user_profiles")
-          .select("*")
+          .select("id, email, full_name, role, created_at, updated_at")
           .eq("id", user.id)
-          .single()
+          .maybeSingle()
 
         if (profileError) {
           console.error("❌ Error fetching profile:", profileError)
           setError(profileError.message)
           setProfile(null)
-        } else {
+        } else if (profileData) {
           console.log("✅ Profile fetched successfully:", profileData)
           setProfile(profileData as UserProfile)
+        } else {
+          console.log("⚠️ No profile found for user")
+          setProfile(null)
         }
       } catch (err) {
         console.error("💥 Unexpected error fetching profile:", err)
@@ -50,7 +54,7 @@ export function useUserProfile() {
     }
 
     fetchProfile()
-  }, [user, supabase])
+  }, [user, supabase]) // Updated dependency array
 
   const refreshProfile = async () => {
     if (!user) return
@@ -58,14 +62,14 @@ export function useUserProfile() {
     try {
       const { data: profileData, error: profileError } = await supabase
         .from("user_profiles")
-        .select("*")
+        .select("id, email, full_name, role, created_at, updated_at")
         .eq("id", user.id)
-        .single()
+        .maybeSingle()
 
       if (profileError) {
         console.error("❌ Error refreshing profile:", profileError)
         setError(profileError.message)
-      } else {
+      } else if (profileData) {
         console.log("🔄 Profile refreshed successfully:", profileData)
         setProfile(profileData as UserProfile)
         setError(null)
