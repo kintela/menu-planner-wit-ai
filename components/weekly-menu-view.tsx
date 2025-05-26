@@ -107,21 +107,41 @@ export function WeeklyMenuView({
       // Si no existe un menú semanal, crearlo primero
       let currentWeeklyMenu = weeklyMenu
       if (!currentWeeklyMenu) {
-        const { data: newMenu, error: createError } = await supabase
-          .from("weekly_menus")
-          .insert({
-            name: `Menú del ${startDate} al ${new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]}`,
-            start_date: startDate,
-            end_date: new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-          })
-          .select()
-          .single()
+        // Calcular la fecha de fin
+        const endDate = new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
-        if (createError) {
-          throw createError
+        // Primero intentar encontrar un menú existente para estas fechas
+        const { data: existingMenu } = await supabase
+          .from("weekly_menus")
+          .select("*")
+          .eq("start_date", startDate)
+          .eq("end_date", endDate)
+          .maybeSingle()
+
+        if (existingMenu) {
+          // Usar el menú existente
+          currentWeeklyMenu = existingMenu
+          setWeeklyMenu(currentWeeklyMenu)
+          console.log("📅 Usando menú existente:", existingMenu.id)
+        } else {
+          // Solo crear uno nuevo si no existe
+          const { data: newMenu, error: createError } = await supabase
+            .from("weekly_menus")
+            .insert({
+              name: `Menú del ${startDate} al ${endDate}`,
+              start_date: startDate,
+              end_date: endDate,
+            })
+            .select()
+            .single()
+
+          if (createError) {
+            throw createError
+          }
+          currentWeeklyMenu = newMenu
+          setWeeklyMenu(currentWeeklyMenu)
+          console.log("📅 Creado nuevo menú:", newMenu.id)
         }
-        currentWeeklyMenu = newMenu
-        setWeeklyMenu(currentWeeklyMenu)
       }
 
       // Para comida, usar dishOrder; para cena, siempre es 1
@@ -252,21 +272,41 @@ export function WeeklyMenuView({
       // Si no existe un menú semanal, crearlo primero
       let currentWeeklyMenu = weeklyMenu
       if (!currentWeeklyMenu) {
-        const { data: newMenu, error: createError } = await supabase
-          .from("weekly_menus")
-          .insert({
-            name: `Menú del ${startDate} al ${new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]}`,
-            start_date: startDate,
-            end_date: new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-          })
-          .select()
-          .single()
+        // Calcular la fecha de fin
+        const endDate = new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
-        if (createError) {
-          throw createError
+        // Primero intentar encontrar un menú existente para estas fechas
+        const { data: existingMenu } = await supabase
+          .from("weekly_menus")
+          .select("*")
+          .eq("start_date", startDate)
+          .eq("end_date", endDate)
+          .maybeSingle()
+
+        if (existingMenu) {
+          // Usar el menú existente
+          currentWeeklyMenu = existingMenu
+          setWeeklyMenu(currentWeeklyMenu)
+          console.log("📅 Usando menú existente para generar:", existingMenu.id)
+        } else {
+          // Solo crear uno nuevo si no existe
+          const { data: newMenu, error: createError } = await supabase
+            .from("weekly_menus")
+            .insert({
+              name: `Menú del ${startDate} al ${endDate}`,
+              start_date: startDate,
+              end_date: endDate,
+            })
+            .select()
+            .single()
+
+          if (createError) {
+            throw createError
+          }
+          currentWeeklyMenu = newMenu
+          setWeeklyMenu(currentWeeklyMenu)
+          console.log("📅 Creado nuevo menú para generar:", newMenu.id)
         }
-        currentWeeklyMenu = newMenu
-        setWeeklyMenu(currentWeeklyMenu)
       }
 
       // Eliminar los platos existentes
