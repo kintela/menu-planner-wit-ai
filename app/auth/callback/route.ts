@@ -89,3 +89,4 @@ export async function GET(request: NextRequest) {
   console.log("🔄 Redirecting to login due to error")
   return NextResponse.redirect(`${origin}/login`)
 }
+
