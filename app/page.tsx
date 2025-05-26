@@ -1,16 +1,37 @@
+"use client"
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar, ListChecks } from "lucide-react"
+import { Calendar, ListChecks, User } from "lucide-react"
 import Link from "next/link"
+import { useAuth } from "@/components/auth/auth-provider"
 
 export default function HomeDashboard() {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="container py-10">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Cargando...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="container py-10">
       <div className="text-center">
-        <h1 className="text-3xl font-semibold mb-4">Planificador de menús</h1>
-        <p className="text-muted-foreground max-w-md mx-auto">
-          Planifica tus comidas y cenas para toda la semana de manera sencilla. Añade tus propias recetas y si no se te
-          ocurre nada pídeselas a la IA.
+        <h1 className="text-3xl font-semibold mb-2">
+          {user ? `¡Hola, ${user.email?.split("@")[0]}!` : "Planificador de menús"}
+        </h1>
+        <p className="text-muted-foreground max-w-md mx-auto mb-8">
+          {user
+            ? "Bienvenido de vuelta. Planifica tus comidas y cenas para toda la semana de manera sencilla."
+            : "Planifica tus comidas y cenas para toda la semana de manera sencilla. Añade tus propias recetas y si no se te ocurre nada pídeselas a la IA."}
         </p>
       </div>
 
@@ -30,10 +51,10 @@ export default function HomeDashboard() {
           <CardFooter>
             <Button asChild className="w-full">
               <Link href="/weekly-menu">Planificar Ahora</Link>
-
             </Button>
           </CardFooter>
         </Card>
+
         {/* Mis Recetas */}
         <Card>
           <CardHeader>
@@ -49,11 +70,28 @@ export default function HomeDashboard() {
           <CardFooter>
             <Button asChild className="w-full">
               <Link href="/recipes">Gestionar Recetas</Link>
-
             </Button>
           </CardFooter>
         </Card>
       </div>
+
+      {user && (
+        <div className="mt-8 text-center">
+          <Card className="max-w-md mx-auto">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-center">
+                <User className="mr-2 h-5 w-5" />
+                Tu cuenta
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Conectado como: <span className="font-medium">{user.email}</span>
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
