@@ -24,7 +24,8 @@ export function LoginForm() {
   const searchParams = useSearchParams()
   const supabase = getSupabaseClient()
 
-  const redirectTo = searchParams.get("redirect") || "/recipes/add"
+  // Solo redirigir a una página específica si viene de un redirect, sino ir a inicio
+  const redirectTo = searchParams.get("redirect") || "/"
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -62,6 +63,7 @@ export function LoginForm() {
 
         if (data.session) {
           console.log("✅ Login successful for:", data.user.email)
+          console.log("🔄 Redirecting to:", redirectTo)
           setMessage("¡Bienvenido de vuelta! Redirigiendo...")
 
           setTimeout(() => {
@@ -168,13 +170,6 @@ export function LoginForm() {
                 </Button>
               </div>
             </form>
-
-            {/* Botón de emergencia para ir directamente */}
-            <div className="mt-6 pt-4 border-t">
-              <Button asChild variant="outline" className="w-full">
-                <Link href="/recipes/add">Ir directamente a Añadir Receta</Link>
-              </Button>
-            </div>
           </CardContent>
         </Card>
       </div>

@@ -10,7 +10,7 @@ export default function LoginPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get("redirect") || "/recipes/add"
+  const redirectTo = searchParams.get("redirect") || "/"
 
   useEffect(() => {
     if (!loading && user) {
