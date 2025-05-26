@@ -4,163 +4,190 @@ import type React from "react"
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { CalendarDays, ChefHat, History, Home, PlusCircle, Settings, LogOut, User, Users, Lock } from "lucide-react"
-import {
-  NavigationMenu,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  navigationMenuTriggerStyle,
-} from "@/components/ui/navigation-menu"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { useAuth } from "@/components/auth/auth-provider"
-import { useUserProfile } from "@/hooks/use-user-profile"
-import { UserRoleBadge } from "@/components/user-role-badge"
-import { getPermissionsByRole } from "@/lib/auth"
-import { Badge } from "@/components/ui/badge"
+import { createClient } from "@/lib/supabase/client"
+import { useEffect, useState } from "react"
+import type { User } from "@supabase/supabase-js"
+import { Lock, LogOut, Users, ChefHat, Calendar } from "lucide-react"
 
-export function Navigation() {
+interface UserProfile {
+  role: string
+  full_name: string
+}
+
+export default function Navigation() {
   const pathname = usePathname()
-  const { user, signOut } = useAuth()
-  const { profile } = useUserProfile()
+  const [user, setUser] = useState<User | null>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [loading, setLoading] = useState(true)
+  const supabase = createClient()
 
-  // No mostrar navegación en la página de login
-  if (pathname === "/login") {
-    return null
-  }
+  useEffect(() => {
+    async function getUser() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      setUser(user)
 
-  const getUserInitials = (email: string) => {
-    return email.split("@")[0].slice(0, 2).toUpperCase()
-  }
+      if (user) {
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("role, full_name")
+          .eq("id", user.id)
+          .single()
 
-  const permissions = profile ? getPermissionsByRole(profile.role) : []
-  const canManageUsers = user ? permissions.includes("manage_users") : false
-
-  // Componente para enlaces que requieren autenticación
-  const ProtectedNavLink = ({ href, children, icon: Icon }: { href: string; children: React.ReactNode; icon: any }) => {
-    const handleClick = (e: React.MouseEvent) => {
-      if (!user) {
-        e.preventDefault()
-        // Redirigir al login con la ruta de destino
-        window.location.href = `/login?redirect=${encodeURIComponent(href)}`
+        setUserProfile(profile)
       }
+      setLoading(false)
     }
 
+    getUser()
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setUser(session?.user ?? null)
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("role, full_name")
+          .eq("id", session.user.id)
+          .single()
+
+        setUserProfile(profile)
+      } else {
+        setUserProfile(null)
+      }
+      setLoading(false)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [supabase])
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    window.location.href = "/auth/login"
+  }
+
+  const handleProtectedClick = (e: React.MouseEvent, href: string) => {
+    if (!user) {
+      e.preventDefault()
+      window.location.href = "/auth/login"
+    }
+  }
+
+  if (loading) {
     return (
-      <NavigationMenuItem>
-        <Link href={href} legacyBehavior passHref>
-          <NavigationMenuLink
-            className={`${navigationMenuTriggerStyle()} cursor-pointer ${!user ? "opacity-60" : ""}`}
-            onClick={handleClick}
-          >
-            <Icon className="mr-2 h-4 w-4" />
-            {children}
-            {!user && <Lock className="ml-2 h-3 w-3" />}
-          </NavigationMenuLink>
-        </Link>
-      </NavigationMenuItem>
+      <nav className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16">
+            <div className="flex items-center">
+              <span className="text-xl font-bold text-gray-900">Menu Planner</span>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="animate-pulse bg-gray-200 h-8 w-20 rounded"></div>
+            </div>
+          </div>
+        </div>
+      </nav>
     )
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between">
-        <NavigationMenu>
-          <NavigationMenuList>
-            <NavigationMenuItem>
-              <Link href="/" legacyBehavior passHref>
-                <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer`}>
-                  <Home className="mr-2 h-4 w-4" />
-                  Inicio
-                </NavigationMenuLink>
-              </Link>
-            </NavigationMenuItem>
+    <nav className="bg-white shadow-sm border-b">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
+          <div className="flex items-center space-x-8">
+            <Link href="/" className="text-xl font-bold text-gray-900">
+              Menu Planner
+            </Link>
 
-            <ProtectedNavLink href="/weekly-menu" icon={CalendarDays}>
-              Menú Semanal
-            </ProtectedNavLink>
-
-            <ProtectedNavLink href="/recipes" icon={ChefHat}>
-              Recetas
-            </ProtectedNavLink>
-
-            <ProtectedNavLink href="/recipes/add" icon={PlusCircle}>
-              Añadir Receta
-            </ProtectedNavLink>
-
-            <ProtectedNavLink href="/categories" icon={Settings}>
-              Categorías
-            </ProtectedNavLink>
-
-            <ProtectedNavLink href="/history" icon={History}>
-              Historial
-            </ProtectedNavLink>
-
-            {canManageUsers && (
-              <NavigationMenuItem>
-                <Link href="/admin/users" legacyBehavior passHref>
-                  <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer`}>
-                    <Users className="mr-2 h-4 w-4" />
-                    Usuarios
-                  </NavigationMenuLink>
+            {user && (
+              <div className="hidden md:flex items-center space-x-4">
+                <Link
+                  href="/recipes"
+                  className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${
+                    pathname === "/recipes" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <ChefHat className="h-4 w-4" />
+                  <span>Recetas</span>
                 </Link>
-              </NavigationMenuItem>
-            )}
-          </NavigationMenuList>
-        </NavigationMenu>
 
-        {/* User Menu o Login Button */}
-        {user ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback>{getUserInitials(user.email || "")}</AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
-              <div className="flex items-center justify-start gap-2 p-2">
-                <div className="flex flex-col space-y-1 leading-none">
-                  <p className="font-medium">{profile?.full_name || user.email}</p>
-                  <p className="w-[200px] truncate text-sm text-muted-foreground">{user.email}</p>
-                  {profile && <UserRoleBadge role={profile.role} />}
-                </div>
+                <Link
+                  href="/menu-planner"
+                  className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${
+                    pathname === "/menu-planner" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <Calendar className="h-4 w-4" />
+                  <span>Planificador</span>
+                </Link>
+
+                {userProfile?.role === "admin" && (
+                  <Link
+                    href="/users"
+                    className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${
+                      pathname === "/users" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    <Users className="h-4 w-4" />
+                    <span>Usuarios</span>
+                  </Link>
+                )}
               </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/profile">
-                  <User className="mr-2 h-4 w-4" />
-                  Perfil
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={signOut}>
-                <LogOut className="mr-2 h-4 w-4" />
-                Cerrar sesión
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs">
-              <Lock className="mr-1 h-3 w-3" />
-              Inicia sesión para acceder
-            </Badge>
-            <Button asChild>
-              <Link href="/login">Iniciar Sesión</Link>
-            </Button>
+            )}
+
+            {!user && (
+              <div className="hidden md:flex items-center space-x-4">
+                <button
+                  onClick={(e) => handleProtectedClick(e, "/recipes")}
+                  className="flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-gray-700"
+                >
+                  <Lock className="h-4 w-4" />
+                  <span>Recetas</span>
+                </button>
+
+                <button
+                  onClick={(e) => handleProtectedClick(e, "/menu-planner")}
+                  className="flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-gray-700"
+                >
+                  <Lock className="h-4 w-4" />
+                  <span>Planificador</span>
+                </button>
+              </div>
+            )}
           </div>
-        )}
+
+          <div className="flex items-center space-x-4">
+            {user ? (
+              <>
+                <span className="text-sm text-gray-700">
+                  Hola, {userProfile?.full_name || user.email}
+                  {userProfile?.role === "admin" && (
+                    <span className="ml-1 px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Admin</span>
+                  )}
+                </span>
+                <Button variant="ghost" size="sm" onClick={handleSignOut} className="flex items-center space-x-1">
+                  <LogOut className="h-4 w-4" />
+                  <span>Salir</span>
+                </Button>
+              </>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Link href="/auth/login">
+                  <Button variant="ghost" size="sm">
+                    Iniciar Sesión
+                  </Button>
+                </Link>
+                <Link href="/auth/register">
+                  <Button size="sm">Registrarse</Button>
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-    </header>
+    </nav>
   )
 }

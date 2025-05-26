@@ -1,90 +1,59 @@
-import { createServerClient } from "@/lib/supabase/server"
+import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
 export async function middleware(request: NextRequest) {
-  const response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+  console.log("🔒 Middleware ejecutándose para:", request.nextUrl.pathname)
+
+  let supabaseResponse = NextResponse.next({
+    request,
   })
 
-  // Rutas que requieren autenticación
-  const protectedRoutes = ["/recipes", "/weekly-menu", "/categories", "/history", "/admin", "/profile"]
-  const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
-
-  // Rutas públicas que no requieren autenticación
-  const publicRoutes = ["/", "/login", "/auth"]
-  const isPublicRoute = publicRoutes.some(
-    (route) => request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(route),
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({
+            request,
+          })
+          cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
+        },
+      },
+    },
   )
 
-  console.log("🔍 Middleware Debug:")
-  console.log("Path:", request.nextUrl.pathname)
-  console.log("Is Protected:", isProtectedRoute)
-  console.log("Is Public:", isPublicRoute)
+  // Obtener el usuario actual
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser()
 
-  if (isProtectedRoute) {
-    try {
-      const supabase = createServerClient()
+  console.log("👤 Usuario encontrado:", user ? `${user.email} (${user.id})` : "No autenticado")
+  console.log("❌ Error de auth:", error?.message || "Ninguno")
 
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser()
+  // Rutas que requieren autenticación
+  const protectedRoutes = ["/recipes", "/menu-planner", "/users", "/profile"]
 
-      console.log("User check result:", { user: !!user, error: !!error })
+  // Verificar si la ruta actual está protegida
+  const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
 
-      // Si no hay usuario o hay error, redirigir al login
-      if (error || !user) {
-        console.log("❌ No authenticated user, redirecting to login")
-        const loginUrl = new URL("/login", request.url)
-        loginUrl.searchParams.set("redirect", request.nextUrl.pathname)
-        return NextResponse.redirect(loginUrl)
-      }
+  console.log("🛡️ Ruta protegida:", isProtectedRoute)
 
-      console.log("✅ User authenticated:", user.email)
-
-      // Para rutas de admin, verificar que sea administrador
-      if (request.nextUrl.pathname.startsWith("/admin")) {
-        const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
-
-        if (!profile || profile.role !== "admin") {
-          console.log("❌ User is not admin, redirecting to home")
-          return NextResponse.redirect(new URL("/", request.url))
-        }
-
-        console.log("✅ Admin access granted")
-      }
-    } catch (error) {
-      console.error("❌ Middleware error:", error)
-      // En caso de error de conexión, redirigir al login
-      const loginUrl = new URL("/login", request.url)
-      loginUrl.searchParams.set("redirect", request.nextUrl.pathname)
-      return NextResponse.redirect(loginUrl)
-    }
+  // Si es una ruta protegida y no hay usuario autenticado
+  if (isProtectedRoute && !user) {
+    console.log("🚫 Acceso denegado - Redirigiendo a login")
+    const redirectUrl = new URL("/auth/login", request.url)
+    redirectUrl.searchParams.set("redirectTo", request.nextUrl.pathname)
+    return NextResponse.redirect(redirectUrl)
   }
 
-  // Si está en login y ya está autenticado, redirigir al dashboard
-  if (request.nextUrl.pathname === "/login") {
-    try {
-      const supabase = createServerClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (user) {
-        console.log("✅ User already authenticated, redirecting from login")
-        // Si hay un parámetro redirect, ir ahí, sino al inicio
-        const redirectTo = request.nextUrl.searchParams.get("redirect") || "/"
-        return NextResponse.redirect(new URL(redirectTo, request.url))
-      }
-    } catch (error) {
-      console.error("Login redirect error:", error)
-      // En caso de error, permitir continuar al login
-    }
-  }
-
-  return response
+  console.log("✅ Acceso permitido")
+  return supabaseResponse
 }
 
 export const config = {
@@ -94,9 +63,9 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - api (API routes)
-     * - public assets
+     * - /auth/* (authentication pages)
+     * Feel free to modify this pattern to include more paths.
      */
-    "/((?!_next/static|_next/image|favicon.ico|api|.*\\..*|_next).*)",
+    "/((?!_next/static|_next/image|favicon.ico|auth).*)",
   ],
 }
