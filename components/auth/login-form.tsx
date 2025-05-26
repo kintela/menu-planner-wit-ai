@@ -10,13 +10,14 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getSupabaseClient } from "@/lib/supabase/client"
-import { Loader2, ArrowLeft } from "lucide-react"
+import { Loader2, ArrowLeft, Github, Mail } from "lucide-react"
 import Link from "next/link"
 
 export function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [oauthLoading, setOauthLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [isSignUp, setIsSignUp] = useState(false)
@@ -27,7 +28,7 @@ export function LoginForm() {
   // Solo redirigir a una página específica si viene de un redirect, sino ir a inicio
   const redirectTo = searchParams.get("redirect") || "/"
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
@@ -79,6 +80,30 @@ export function LoginForm() {
     }
   }
 
+  const handleOAuthLogin = async (provider: "github" | "google") => {
+    setOauthLoading(provider)
+    setError(null)
+    setMessage(null)
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
+        },
+      })
+
+      if (error) {
+        setError(`Error al iniciar sesión con ${provider}: ${error.message}`)
+      }
+    } catch (error: any) {
+      console.error("❌ OAuth error:", error)
+      setError(`Error al iniciar sesión con ${provider}`)
+    } finally {
+      setOauthLoading(null)
+    }
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-md space-y-4">
@@ -99,8 +124,50 @@ export function LoginForm() {
               {isSignUp ? "Crea tu cuenta para comenzar a planificar tus menús" : "Ingresa a tu cuenta para continuar"}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+          <CardContent className="space-y-4">
+            {/* OAuth Buttons */}
+            <div className="space-y-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => handleOAuthLogin("github")}
+                disabled={loading || oauthLoading !== null}
+              >
+                {oauthLoading === "github" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Github className="mr-2 h-4 w-4" />
+                )}
+                Continuar con GitHub
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => handleOAuthLogin("google")}
+                disabled={loading || oauthLoading !== null}
+              >
+                {oauthLoading === "google" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Mail className="mr-2 h-4 w-4" />
+                )}
+                Continuar con Google
+              </Button>
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">O continúa con email</span>
+              </div>
+            </div>
+
+            {/* Email Form */}
+            <form onSubmit={handleEmailAuth} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -110,7 +177,7 @@ export function LoginForm() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  disabled={loading}
+                  disabled={loading || oauthLoading !== null}
                 />
               </div>
               <div className="space-y-2">
@@ -122,7 +189,7 @@ export function LoginForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  disabled={loading}
+                  disabled={loading || oauthLoading !== null}
                   minLength={6}
                 />
                 {isSignUp && (
@@ -142,7 +209,7 @@ export function LoginForm() {
                 </Alert>
               )}
 
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full" disabled={loading || oauthLoading !== null}>
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -164,7 +231,7 @@ export function LoginForm() {
                     setError(null)
                     setMessage(null)
                   }}
-                  disabled={loading}
+                  disabled={loading || oauthLoading !== null}
                 >
                   {isSignUp ? "¿Ya tienes cuenta? Inicia sesión" : "¿No tienes cuenta? Regístrate"}
                 </Button>
