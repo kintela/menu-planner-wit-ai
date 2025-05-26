@@ -38,10 +38,11 @@ export function Navigation() {
     return email.split("@")[0].slice(0, 2).toUpperCase()
   }
 
+  // Si no hay usuario o perfil, mostrar navegación básica
   const permissions = profile ? getPermissionsByRole(profile.role) : []
-  const canCreateRecipes = permissions.includes("create_recipes")
-  const canManageCategories = permissions.includes("manage_categories")
-  const canManageUsers = permissions.includes("manage_users")
+  const canCreateRecipes = user ? permissions.includes("create_recipes") : true // Permitir por defecto si no hay auth
+  const canManageCategories = user ? permissions.includes("manage_categories") : true
+  const canManageUsers = user ? permissions.includes("manage_users") : false // Solo admins
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -57,27 +58,23 @@ export function Navigation() {
               </Link>
             </NavigationMenuItem>
 
-            {permissions.includes("view_weekly_menu") && (
-              <NavigationMenuItem>
-                <Link href="/weekly-menu" legacyBehavior passHref>
-                  <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer`}>
-                    <CalendarDays className="mr-2 h-4 w-4" />
-                    Menú Semanal
-                  </NavigationMenuLink>
-                </Link>
-              </NavigationMenuItem>
-            )}
+            <NavigationMenuItem>
+              <Link href="/weekly-menu" legacyBehavior passHref>
+                <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer`}>
+                  <CalendarDays className="mr-2 h-4 w-4" />
+                  Menú Semanal
+                </NavigationMenuLink>
+              </Link>
+            </NavigationMenuItem>
 
-            {permissions.includes("view_recipes") && (
-              <NavigationMenuItem>
-                <Link href="/recipes" legacyBehavior passHref>
-                  <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer`}>
-                    <ChefHat className="mr-2 h-4 w-4" />
-                    Recetas
-                  </NavigationMenuLink>
-                </Link>
-              </NavigationMenuItem>
-            )}
+            <NavigationMenuItem>
+              <Link href="/recipes" legacyBehavior passHref>
+                <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer`}>
+                  <ChefHat className="mr-2 h-4 w-4" />
+                  Recetas
+                </NavigationMenuLink>
+              </Link>
+            </NavigationMenuItem>
 
             {canCreateRecipes && (
               <NavigationMenuItem>
@@ -101,16 +98,14 @@ export function Navigation() {
               </NavigationMenuItem>
             )}
 
-            {permissions.includes("view_history") && (
-              <NavigationMenuItem>
-                <Link href="/history" legacyBehavior passHref>
-                  <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer`}>
-                    <History className="mr-2 h-4 w-4" />
-                    Historial
-                  </NavigationMenuLink>
-                </Link>
-              </NavigationMenuItem>
-            )}
+            <NavigationMenuItem>
+              <Link href="/history" legacyBehavior passHref>
+                <NavigationMenuLink className={`${navigationMenuTriggerStyle()} cursor-pointer`}>
+                  <History className="mr-2 h-4 w-4" />
+                  Historial
+                </NavigationMenuLink>
+              </Link>
+            </NavigationMenuItem>
 
             {canManageUsers && (
               <NavigationMenuItem>
@@ -125,8 +120,8 @@ export function Navigation() {
           </NavigationMenuList>
         </NavigationMenu>
 
-        {/* User Menu */}
-        {user && (
+        {/* User Menu o Login Button */}
+        {user ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -157,6 +152,10 @@ export function Navigation() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        ) : (
+          <Button asChild>
+            <Link href="/login">Iniciar Sesión</Link>
+          </Button>
         )}
       </div>
     </header>

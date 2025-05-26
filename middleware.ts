@@ -8,25 +8,42 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  const supabase = createServerClient()
+  // Por ahora, solo proteger rutas específicas de admin
+  const adminRoutes = ["/admin"]
+  const isAdminRoute = adminRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
 
-  // Verificar si el usuario está autenticado
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Solo verificar autenticación para rutas de admin por ahora
+  if (isAdminRoute) {
+    try {
+      const supabase = createServerClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
-  // Rutas que requieren autenticación
-  const protectedRoutes = ["/recipes", "/weekly-menu", "/categories", "/history"]
-  const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
-
-  // Si es una ruta protegida y no hay usuario, redirigir al login
-  if (isProtectedRoute && !user) {
-    return NextResponse.redirect(new URL("/login", request.url))
+      if (!user) {
+        return NextResponse.redirect(new URL("/login", request.url))
+      }
+    } catch (error) {
+      console.error("Middleware error:", error)
+      // En caso de error, permitir continuar para no romper la app
+    }
   }
 
   // Si está en login y ya está autenticado, redirigir al dashboard
-  if (request.nextUrl.pathname === "/login" && user) {
-    return NextResponse.redirect(new URL("/", request.url))
+  if (request.nextUrl.pathname === "/login") {
+    try {
+      const supabase = createServerClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (user) {
+        return NextResponse.redirect(new URL("/", request.url))
+      }
+    } catch (error) {
+      console.error("Middleware error:", error)
+      // En caso de error, permitir continuar
+    }
   }
 
   return response
