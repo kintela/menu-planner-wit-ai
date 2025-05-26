@@ -60,8 +60,14 @@ export async function GET(request: NextRequest) {
         console.error("Failed to create user profile:", profileError)
       }
 
+      // Detectar si estamos en preview de Vercel
+      const isVercelPreview = origin.includes(".vercel.app")
+      const redirectPath = isVercelPreview ? "/" : next
+
+      console.log(`🔄 Redirecting to: ${origin}${redirectPath} (Preview: ${isVercelPreview})`)
+
       // Redirigir al usuario
-      return NextResponse.redirect(`${origin}${next}`)
+      return NextResponse.redirect(`${origin}${redirectPath}`)
     }
   }
 
