@@ -28,13 +28,12 @@ export default async function AddRecipePage() {
     console.error("Error al obtener categorías:", categoriesError)
   }
 
-  // Generar un timestamp único para forzar el remontaje del componente
-  const timestamp = Date.now()
-
   return (
     <div className="container py-10">
-      <h1 className="text-3xl font-bold mb-6">Añadir Nueva Receta</h1>
-      <AddRecipeForm key={`add-recipe-form-${timestamp}`} categories={categories || []} />
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold mb-6">Añadir Nueva Receta</h1>
+        <AddRecipeForm categories={categories || []} />
+      </div>
     </div>
   )
 }
