@@ -33,7 +33,6 @@ export function LoginForm() {
       if (isSignUp) {
         console.log("🚀 Attempting to sign up with:", email)
 
-        // Registro básico sin complicaciones
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -84,6 +83,8 @@ export function LoginForm() {
         })
 
         console.log("🔄 Redirecting to:", redirectTo)
+
+        // Redirigir inmediatamente después del login exitoso
         router.push(redirectTo)
         router.refresh()
       }
