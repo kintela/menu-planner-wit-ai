@@ -31,61 +31,67 @@ export function LoginForm() {
 
     try {
       if (isSignUp) {
-        console.log("Attempting to sign up with:", email)
+        console.log("🚀 Attempting to sign up with:", email)
 
-        // Registro más básico posible
+        // Registro básico sin complicaciones
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
         })
 
-        console.log("Sign up result:", { data, error })
+        console.log("✅ Sign up result:", { data, error })
 
         if (error) {
-          console.error("Sign up error:", error)
+          console.error("❌ Sign up error:", error)
           throw error
         }
 
-        toast({
-          title: "¡Registro exitoso!",
-          description: data.user?.email_confirmed_at
-            ? "Cuenta creada y confirmada automáticamente."
-            : "Cuenta creada. Revisa tu email si es necesario.",
-        })
+        if (data.user) {
+          console.log("🎉 User created successfully:", data.user.id)
 
-        // Si el usuario se creó y está confirmado, redirigir
-        if (data.user?.email_confirmed_at) {
-          router.push(redirectTo)
-          router.refresh()
+          toast({
+            title: "¡Cuenta creada exitosamente!",
+            description: data.user.email_confirmed_at
+              ? "Tu cuenta está lista para usar."
+              : "Revisa tu email para confirmar tu cuenta.",
+          })
+
+          // Si está confirmado automáticamente, redirigir
+          if (data.user.email_confirmed_at) {
+            console.log("🔄 Redirecting to:", redirectTo)
+            router.push(redirectTo)
+            router.refresh()
+          }
         }
       } else {
-        console.log("Attempting to sign in with:", email)
+        console.log("🔑 Attempting to sign in with:", email)
 
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
 
-        console.log("Sign in result:", { data, error })
+        console.log("✅ Sign in result:", { data, error })
 
         if (error) {
-          console.error("Sign in error:", error)
+          console.error("❌ Sign in error:", error)
           throw error
         }
 
         toast({
-          title: "¡Bienvenido!",
+          title: "¡Bienvenido de vuelta!",
           description: "Has iniciado sesión correctamente.",
         })
 
+        console.log("🔄 Redirecting to:", redirectTo)
         router.push(redirectTo)
         router.refresh()
       }
     } catch (error: any) {
-      console.error("Auth error:", error)
+      console.error("💥 Auth error:", error)
       toast({
-        title: "Error",
-        description: error.message || "Ha ocurrido un error inesperado.",
+        title: "Error de autenticación",
+        description: error.message || "Ha ocurrido un error inesperado. Inténtalo de nuevo.",
         variant: "destructive",
       })
     } finally {
@@ -123,7 +129,7 @@ export function LoginForm() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="tu@email.com"
+                  placeholder="roberto.quintela@protonmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
