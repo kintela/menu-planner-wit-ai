@@ -47,11 +47,10 @@ export function LoginForm() {
         if (data.user && !data.session) {
           setMessage("¡Registro exitoso! Por favor, revisa tu email para confirmar tu cuenta.")
         } else if (data.session) {
-          setMessage("¡Bienvenido! La página se actualizará automáticamente...")
-          // Forzar recarga de la página para que detecte la nueva sesión
+          setMessage("¡Bienvenido! Redirigiendo...")
           setTimeout(() => {
-            window.location.reload()
-          }, 1500)
+            router.push(redirectTo)
+          }, 1000)
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -63,12 +62,11 @@ export function LoginForm() {
 
         if (data.session) {
           console.log("✅ Login successful for:", data.user.email)
-          setMessage("¡Bienvenido de vuelta! La página se actualizará automáticamente...")
+          setMessage("¡Bienvenido de vuelta! Redirigiendo...")
 
-          // Forzar recarga de la página para que detecte la nueva sesión
           setTimeout(() => {
-            window.location.reload()
-          }, 1500)
+            router.push(redirectTo)
+          }, 1000)
         }
       }
     } catch (error: any) {
@@ -170,6 +168,13 @@ export function LoginForm() {
                 </Button>
               </div>
             </form>
+
+            {/* Botón de emergencia para ir directamente */}
+            <div className="mt-6 pt-4 border-t">
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/recipes/add">Ir directamente a Añadir Receta</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
