@@ -57,17 +57,3 @@
     @apply bg-background text-foreground;
   }
 }
-
-@layer utilities {
-  .cursor-pointer {
-    cursor: pointer !important;
-  }
-
-  /* Asegurar que todos los enlaces y botones tengan el cursor correcto */
-  a,
-  button,
-  [role="button"],
-  .clickable {
-    cursor: pointer;
-  }
-}
