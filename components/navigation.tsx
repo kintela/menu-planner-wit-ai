@@ -1,193 +1,135 @@
 "use client"
 
-import type React from "react"
-
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { User, LogOut, Menu, X, Home, Book, Calendar, Plus, Search, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { createClient } from "@/lib/supabase/client"
-import { useEffect, useState } from "react"
-import type { User } from "@supabase/supabase-js"
-import { Lock, LogOut, Users, ChefHat, Calendar } from "lucide-react"
+import { getSupabaseClient } from "@/lib/supabase/client"
 
-interface UserProfile {
-  role: string
-  full_name: string
-}
-
-export default function Navigation() {
-  const pathname = usePathname()
-  const [user, setUser] = useState<User | null>(null)
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
-  const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+export function Navigation() {
+  // ... resto del código del componente
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const router = useRouter()
+  const [user, setUser] = useState<any>(null)
 
   useEffect(() => {
-    async function getUser() {
+    const fetchUser = async () => {
+      const supabase = getSupabaseClient()
       const {
         data: { user },
       } = await supabase.auth.getUser()
       setUser(user)
-
-      if (user) {
-        const { data: profile } = await supabase
-          .from("user_profiles")
-          .select("role, full_name")
-          .eq("id", user.id)
-          .single()
-
-        setUserProfile(profile)
-      }
-      setLoading(false)
     }
 
-    getUser()
+    fetchUser()
+  }, [])
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from("user_profiles")
-          .select("role, full_name")
-          .eq("id", session.user.id)
-          .single()
-
-        setUserProfile(profile)
-      } else {
-        setUserProfile(null)
-      }
-      setLoading(false)
-    })
-
-    return () => subscription.unsubscribe()
-  }, [supabase])
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen)
+  }
 
   const handleSignOut = async () => {
+    const supabase = getSupabaseClient()
     await supabase.auth.signOut()
-    window.location.href = "/auth/login"
-  }
-
-  const handleProtectedClick = (e: React.MouseEvent, href: string) => {
-    if (!user) {
-      e.preventDefault()
-      window.location.href = "/auth/login"
-    }
-  }
-
-  if (loading) {
-    return (
-      <nav className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <span className="text-xl font-bold text-gray-900">Menu Planner</span>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="animate-pulse bg-gray-200 h-8 w-20 rounded"></div>
-            </div>
-          </div>
-        </div>
-      </nav>
-    )
+    router.push("/login")
   }
 
   return (
-    <nav className="bg-white shadow-sm border-b">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center space-x-8">
-            <Link href="/" className="text-xl font-bold text-gray-900">
-              Menu Planner
+    <nav className="bg-gray-800 text-white py-4">
+      <div className="container mx-auto flex items-center justify-between">
+        <Link href="/" className="text-2xl font-bold">
+          Taskify
+        </Link>
+
+        <div className="hidden md:flex items-center space-x-4">
+          <Link href="/" className="hover:text-gray-300 flex items-center">
+            <Home className="mr-1 h-5 w-5" />
+            Home
+          </Link>
+          <Link href="/projects" className="hover:text-gray-300 flex items-center">
+            <Book className="mr-1 h-5 w-5" />
+            Projects
+          </Link>
+          <Link href="/calendar" className="hover:text-gray-300 flex items-center">
+            <Calendar className="mr-1 h-5 w-5" />
+            Calendar
+          </Link>
+          <Link href="/create" className="hover:text-gray-300 flex items-center">
+            <Plus className="mr-1 h-5 w-5" />
+            Create Task
+          </Link>
+          <Link href="/search" className="hover:text-gray-300 flex items-center">
+            <Search className="mr-1 h-5 w-5" />
+            Search
+          </Link>
+          {user ? (
+            <>
+              <Link href="/settings" className="hover:text-gray-300 flex items-center">
+                <Settings className="mr-1 h-5 w-5" />
+                Settings
+              </Link>
+              <Button variant="ghost" className="hover:text-gray-300 flex items-center" onClick={handleSignOut}>
+                <LogOut className="mr-1 h-5 w-5" />
+                Logout
+              </Button>
+            </>
+          ) : (
+            <Link href="/login" className="hover:text-gray-300 flex items-center">
+              <User className="mr-1 h-5 w-5" />
+              Login
             </Link>
+          )}
+        </div>
 
-            {user && (
-              <div className="hidden md:flex items-center space-x-4">
-                <Link
-                  href="/recipes"
-                  className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${
-                    pathname === "/recipes" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <ChefHat className="h-4 w-4" />
-                  <span>Recetas</span>
-                </Link>
+        <div className="md:hidden">
+          <button onClick={toggleMenu}>{isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}</button>
+        </div>
+      </div>
 
-                <Link
-                  href="/menu-planner"
-                  className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${
-                    pathname === "/menu-planner" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <Calendar className="h-4 w-4" />
-                  <span>Planificador</span>
-                </Link>
-
-                {userProfile?.role === "admin" && (
-                  <Link
-                    href="/users"
-                    className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium ${
-                      pathname === "/users" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    <Users className="h-4 w-4" />
-                    <span>Usuarios</span>
-                  </Link>
-                )}
-              </div>
-            )}
-
-            {!user && (
-              <div className="hidden md:flex items-center space-x-4">
-                <button
-                  onClick={(e) => handleProtectedClick(e, "/recipes")}
-                  className="flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-gray-700"
-                >
-                  <Lock className="h-4 w-4" />
-                  <span>Recetas</span>
-                </button>
-
-                <button
-                  onClick={(e) => handleProtectedClick(e, "/menu-planner")}
-                  className="flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-gray-700"
-                >
-                  <Lock className="h-4 w-4" />
-                  <span>Planificador</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center space-x-4">
+      {isMenuOpen && (
+        <div className="md:hidden bg-gray-700 py-2">
+          <div className="container mx-auto flex flex-col space-y-2">
+            <Link href="/" className="hover:text-gray-300 flex items-center">
+              <Home className="mr-1 h-5 w-5" />
+              Home
+            </Link>
+            <Link href="/projects" className="hover:text-gray-300 flex items-center">
+              <Book className="mr-1 h-5 w-5" />
+              Projects
+            </Link>
+            <Link href="/calendar" className="hover:text-gray-300 flex items-center">
+              <Calendar className="mr-1 h-5 w-5" />
+              Calendar
+            </Link>
+            <Link href="/create" className="hover:text-gray-300 flex items-center">
+              <Plus className="mr-1 h-5 w-5" />
+              Create Task
+            </Link>
+            <Link href="/search" className="hover:text-gray-300 flex items-center">
+              <Search className="mr-1 h-5 w-5" />
+              Search
+            </Link>
             {user ? (
               <>
-                <span className="text-sm text-gray-700">
-                  Hola, {userProfile?.full_name || user.email}
-                  {userProfile?.role === "admin" && (
-                    <span className="ml-1 px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Admin</span>
-                  )}
-                </span>
-                <Button variant="ghost" size="sm" onClick={handleSignOut} className="flex items-center space-x-1">
-                  <LogOut className="h-4 w-4" />
-                  <span>Salir</span>
+                <Link href="/settings" className="hover:text-gray-300 flex items-center">
+                  <Settings className="mr-1 h-5 w-5" />
+                  Settings
+                </Link>
+                <Button variant="ghost" className="hover:text-gray-300 flex items-center" onClick={handleSignOut}>
+                  <LogOut className="mr-1 h-5 w-5" />
+                  Logout
                 </Button>
               </>
             ) : (
-              <div className="flex items-center space-x-2">
-                <Link href="/auth/login">
-                  <Button variant="ghost" size="sm">
-                    Iniciar Sesión
-                  </Button>
-                </Link>
-                <Link href="/auth/register">
-                  <Button size="sm">Registrarse</Button>
-                </Link>
-              </div>
+              <Link href="/login" className="hover:text-gray-300 flex items-center">
+                <User className="mr-1 h-5 w-5" />
+                Login
+              </Link>
             )}
           </div>
         </div>
-      </div>
+      )}
     </nav>
   )
 }

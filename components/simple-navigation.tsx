@@ -2,162 +2,324 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { CalendarDays, ChefHat, PlusCircle, Home, History, Settings, User, LogOut, LogIn } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { useAuth } from "@/components/auth/auth-provider"
-import { useUserProfile } from "@/hooks/use-user-profile"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
+import { createClient } from "@/lib/supabase/client"
+import { useEffect, useState } from "react"
+import type { User } from "@supabase/supabase-js"
+import { ChefHat, Calendar, LogOut, Menu, X, Home, History, Settings, PlusCircle } from "lucide-react"
+
+interface UserProfile {
+  role: string
+  full_name: string
+}
 
 export function SimpleNavigation() {
   const pathname = usePathname()
-  const { user, loading, signOut } = useAuth()
-  const { profile } = useUserProfile()
+  const [user, setUser] = useState<User | null>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const supabase = createClient()
 
-  const isActive = (path: string) => {
-    if (path === "/" && pathname === "/") return true
-    if (path !== "/" && pathname.startsWith(path)) return true
-    return false
-  }
+  useEffect(() => {
+    async function getUser() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      setUser(user)
 
-  const navigationItems = [
-    { href: "/", label: "Inicio", icon: Home },
-    { href: "/recipes", label: "Recetas", icon: ChefHat },
-    { href: "/recipes/add", label: "Añadir Receta", icon: PlusCircle },
-    { href: "/weekly-menu", label: "Menú Semanal", icon: CalendarDays },
-    { href: "/categories", label: "Categorías", icon: Settings },
-    { href: "/history", label: "Historial", icon: History },
-  ]
+      if (user) {
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("role, full_name")
+          .eq("id", user.id)
+          .single()
+
+        setUserProfile(profile)
+      }
+      setLoading(false)
+    }
+
+    getUser()
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setUser(session?.user ?? null)
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("role, full_name")
+          .eq("id", session.user.id)
+          .single()
+
+        setUserProfile(profile)
+      } else {
+        setUserProfile(null)
+      }
+      setLoading(false)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [supabase])
 
   const handleSignOut = async () => {
-    await signOut()
+    await supabase.auth.signOut()
     window.location.href = "/"
   }
 
-  const getUserInitials = () => {
-    if (profile?.full_name) {
-      return profile.full_name
-        .split(" ")
-        .map((name) => name[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
+  // Función para verificar si el usuario puede ver una opción del menú
+  const canViewMenuItem = (menuItem: string) => {
+    // Si no hay usuario autenticado, ocultar Categorías e Historial
+    if (!user || !userProfile) {
+      if (menuItem === "categories" || menuItem === "history") {
+        return false
+      }
+      return true
     }
-    if (user?.email) {
-      return user.email[0].toUpperCase()
+
+    // Si hay usuario autenticado, verificar el rol
+    if (userProfile.role === "user_restricted") {
+      // Los usuarios restringidos no pueden ver Categorías e Historial
+      if (menuItem === "categories" || menuItem === "history") {
+        return false
+      }
     }
-    return "U"
+
+    return true
   }
 
-  const getUserDisplayName = () => {
-    if (profile?.full_name) return profile.full_name
-    if (user?.email) return user.email.split("@")[0]
-    return "Usuario"
+  if (loading) {
+    return (
+      <nav className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16">
+            <div className="flex items-center">
+              <span className="text-xl font-bold text-gray-900">Menu Planner</span>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="animate-pulse bg-gray-200 h-8 w-20 rounded"></div>
+            </div>
+          </div>
+        </div>
+      </nav>
+    )
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 items-center justify-between">
-        <div className="flex items-center">
-          <div className="mr-4 hidden md:flex">
-            <Link href="/" className="mr-6 flex items-center space-x-2">
-              <ChefHat className="h-6 w-6" />
-              <span className="hidden font-bold sm:inline-block">Menu Planner</span>
+    <nav className="bg-white shadow-sm border-b">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
+          <div className="flex items-center space-x-4">
+            <Link href="/" className="text-xl font-bold text-gray-900">
+              Menu Planner
             </Link>
+
+            <div className="hidden md:flex items-center space-x-2">
+              <Link
+                href="/"
+                className={`flex items-center space-x-1 px-2 py-1 rounded-md text-sm font-medium ${
+                  pathname === "/" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <Home className="h-4 w-4" />
+                <span>Inicio</span>
+              </Link>
+
+              <Link
+                href="/recipes"
+                className={`flex items-center space-x-1 px-2 py-1 rounded-md text-sm font-medium ${
+                  pathname === "/recipes" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <ChefHat className="h-4 w-4" />
+                <span>Recetas</span>
+              </Link>
+
+              <Link
+                href="/recipes/add"
+                className={`flex items-center space-x-1 px-2 py-1 rounded-md text-sm font-medium ${
+                  pathname === "/recipes/add" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <PlusCircle className="h-4 w-4" />
+                <span>Añadir</span>
+              </Link>
+
+              <Link
+                href="/weekly-menu"
+                className={`flex items-center space-x-1 px-2 py-1 rounded-md text-sm font-medium ${
+                  pathname === "/weekly-menu" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <Calendar className="h-4 w-4" />
+                <span>Menú Semanal</span>
+              </Link>
+
+              {canViewMenuItem("categories") && (
+                <Link
+                  href="/categories"
+                  className={`flex items-center space-x-1 px-2 py-1 rounded-md text-sm font-medium ${
+                    pathname === "/categories" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Categorías</span>
+                </Link>
+              )}
+
+              {canViewMenuItem("history") && (
+                <Link
+                  href="/history"
+                  className={`flex items-center space-x-1 px-2 py-1 rounded-md text-sm font-medium ${
+                    pathname === "/history" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <History className="h-4 w-4" />
+                  <span>Historial</span>
+                </Link>
+              )}
+            </div>
           </div>
 
-          <nav className="flex items-center space-x-6 text-sm font-medium overflow-x-auto">
-            {navigationItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center space-x-2 transition-colors hover:text-foreground/80 whitespace-nowrap",
-                    isActive(item.href) ? "text-foreground" : "text-foreground/60",
+          <div className="flex items-center space-x-4">
+            {user ? (
+              <>
+                <span className="hidden md:block text-sm text-gray-700">
+                  Hola, {userProfile?.full_name || user.email}
+                  {userProfile?.role === "admin" && (
+                    <span className="ml-1 px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Admin</span>
                   )}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSignOut}
+                  className="flex items-center space-x-1 text-red-600 border-red-300 hover:bg-red-100 hover:text-red-700 hover:border-red-400 transition-colors"
                 >
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline-block">{item.label}</span>
+                  <LogOut className="h-4 w-4" />
+                  <span>Cerrar Sesión</span>
+                </Button>
+              </>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Link href="/login">
+                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                    Iniciar Sesión
+                  </Button>
                 </Link>
-              )
-            })}
-          </nav>
+              </div>
+            )}
+
+            {/* Mobile menu button */}
+            <div className="md:hidden">
+              <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </Button>
+            </div>
+          </div>
         </div>
 
-        {/* Sección de usuario */}
-        <div className="flex items-center space-x-4">
-          {loading ? (
-            <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
-          ) : user ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="text-xs">{getUserInitials()}</AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{getUserDisplayName()}</p>
-                    <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
-                    {profile?.role && (
-                      <div className="pt-1">
-                        <Badge variant={profile.role === "admin" ? "destructive" : "secondary"} className="text-xs">
-                          {profile.role === "admin"
-                            ? "Administrador"
-                            : profile.role === "user_full"
-                              ? "Usuario Completo"
-                              : "Usuario Restringido"}
-                        </Badge>
-                      </div>
-                    )}
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/profile" className="cursor-pointer">
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Mi Perfil</span>
-                  </Link>
-                </DropdownMenuItem>
-                {profile?.role === "admin" && (
-                  <DropdownMenuItem asChild>
-                    <Link href="/admin/users" className="cursor-pointer">
-                      <Settings className="mr-2 h-4 w-4" />
-                      <span>Gestión de Usuarios</span>
-                    </Link>
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Cerrar Sesión</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <Button asChild size="sm">
-              <Link href="/login">
-                <LogIn className="mr-2 h-4 w-4" />
-                Iniciar Sesión
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden">
+            <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+              <Link
+                href="/"
+                className={`flex items-center space-x-1 px-3 py-2 rounded-md text-base font-medium ${
+                  pathname === "/" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                }`}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Home className="h-4 w-4" />
+                <span>Inicio</span>
               </Link>
-            </Button>
-          )}
-        </div>
+
+              <Link
+                href="/recipes"
+                className={`flex items-center space-x-1 px-3 py-2 rounded-md text-base font-medium ${
+                  pathname === "/recipes" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                }`}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <ChefHat className="h-4 w-4" />
+                <span>Recetas</span>
+              </Link>
+
+              <Link
+                href="/recipes/add"
+                className={`flex items-center space-x-1 px-3 py-2 rounded-md text-base font-medium ${
+                  pathname === "/recipes/add" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                }`}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <PlusCircle className="h-4 w-4" />
+                <span>Añadir Receta</span>
+              </Link>
+
+              <Link
+                href="/weekly-menu"
+                className={`flex items-center space-x-1 px-3 py-2 rounded-md text-base font-medium ${
+                  pathname === "/weekly-menu" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                }`}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Calendar className="h-4 w-4" />
+                <span>Menú Semanal</span>
+              </Link>
+
+              {canViewMenuItem("categories") && (
+                <Link
+                  href="/categories"
+                  className={`flex items-center space-x-1 px-3 py-2 rounded-md text-base font-medium ${
+                    pathname === "/categories" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Categorías</span>
+                </Link>
+              )}
+
+              {canViewMenuItem("history") && (
+                <Link
+                  href="/history"
+                  className={`flex items-center space-x-1 px-3 py-2 rounded-md text-base font-medium ${
+                    pathname === "/history" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <History className="h-4 w-4" />
+                  <span>Historial</span>
+                </Link>
+              )}
+
+              {user && (
+                <button
+                  onClick={() => {
+                    handleSignOut()
+                    setMobileMenuOpen(false)
+                  }}
+                  className="flex items-center space-x-1 px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-red-50 w-full text-left"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Cerrar Sesión</span>
+                </button>
+              )}
+
+              {!user && (
+                <Link
+                  href="/login"
+                  className="flex items-center space-x-1 px-3 py-2 rounded-md text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span>Iniciar Sesión</span>
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
       </div>
-    </header>
+    </nav>
   )
 }

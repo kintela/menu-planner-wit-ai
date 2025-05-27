@@ -11,6 +11,11 @@ export async function middleware(request: NextRequest) {
     "/login",
     "/auth/callback",
     "/recipes", // Solo la lista de recetas
+    "/history", // Permitir que la página maneje su propia autenticación
+    "/categories", // Permitir que la página maneje su propia autenticación
+    "/weekly-menu", // Permitir que la página maneje su propia autenticación
+    "/recipes/add", // Permitir que la página maneje su propia autenticación
+    "/recipes/new", // Permitir que la página maneje su propia autenticación
   ]
 
   // Permitir rutas de archivos estáticos y API
@@ -21,6 +26,12 @@ export async function middleware(request: NextRequest) {
   // Permitir ver recetas individuales (solo lectura)
   if (pathname.match(/^\/recipes\/\d+$/)) {
     console.log("✅ Permitiendo acceso a receta individual")
+    return NextResponse.next()
+  }
+
+  // Permitir editar recetas (para que la página maneje su propia autenticación)
+  if (pathname.match(/^\/recipes\/\d+\/edit$/)) {
+    console.log("✅ Permitiendo acceso a editar receta")
     return NextResponse.next()
   }
 

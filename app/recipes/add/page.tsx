@@ -1,12 +1,14 @@
 "use client"
 
 import { useAuth } from "@/components/auth/auth-provider"
-import { LoginForm } from "@/components/auth/login-form"
 import { AddRecipeForm } from "@/components/add-recipe-form"
-import { Loader2 } from "lucide-react"
+import { Loader2, AlertCircle } from "lucide-react"
 import { useEffect, useState } from "react"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import type { Category } from "@/lib/types"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import Link from "next/link"
 
 export default function AddRecipePage() {
   const { user, loading } = useAuth()
@@ -52,9 +54,36 @@ export default function AddRecipePage() {
     )
   }
 
-  // Si no está autenticado, mostrar el formulario de login
+  // Si no está autenticado, mostrar mensaje de acceso restringido
   if (!user) {
-    return <LoginForm />
+    return (
+      <div className="container mx-auto py-8 px-4">
+        <div className="max-w-2xl mx-auto">
+          <h1 className="text-3xl font-bold mb-8">Añadir Nueva Receta</h1>
+          <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-yellow-600">
+                <AlertCircle className="h-5 w-5" />
+                Acceso Restringido
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-yellow-700 dark:text-yellow-300">
+                Necesitas iniciar sesión para añadir nuevas recetas.
+              </p>
+              <div className="flex gap-2">
+                <Button asChild>
+                  <Link href="/login?redirect=/recipes/add">Iniciar Sesión</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/">Volver al Inicio</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
   }
 
   // Mostrar loading mientras se cargan las categorías
