@@ -29,6 +29,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const router = useRouter()
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
+  const [isImageUploading, setIsImageUploading] = useState(false)
   const [selectedCategories, setSelectedCategories] = useState<number[]>(selectedCategoryIds)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(recipe.image_url)
@@ -39,6 +40,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const [estimatedCalories, setEstimatedCalories] = useState<number | null>(null)
   const [manualCalories, setManualCalories] = useState<string>(recipe.calories?.toString() || "")
   const [useManualCalories, setUseManualCalories] = useState(!!recipe.calories)
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
 
   // Calcular calorías cuando cambian los ingredientes
   useEffect(() => {
@@ -50,7 +52,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     }
   }, [ingredients, useManualCalories])
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -83,12 +85,80 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       setImagePreview(reader.result as string)
     }
     reader.readAsDataURL(file)
+
+    // Subir la imagen inmediatamente
+    try {
+      setIsImageUploading(true)
+
+      toast({
+        title: "Subiendo imagen",
+        description: "Por favor espera mientras se sube la imagen...",
+      })
+
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Error al subir la imagen: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      if (data.url) {
+        setUploadedImageUrl(data.url)
+
+        // Guardar inmediatamente la URL en la base de datos
+        const supabase = getSupabaseClient()
+        const { error: updateError } = await supabase
+          .from("recipes")
+          .update({ image_url: data.url })
+          .eq("id", recipe.id)
+
+        if (updateError) {
+          console.error("Error saving image URL to database:", updateError)
+          throw new Error("Error al asociar la imagen a la receta")
+        }
+
+        toast({
+          title: "Imagen subida y asociada",
+          description: "La imagen se ha subido y asociado a la receta correctamente.",
+        })
+      } else {
+        throw new Error("No se recibió URL de la imagen")
+      }
+    } catch (error) {
+      console.error("Error uploading image:", error)
+      toast({
+        title: "Error al subir la imagen",
+        description: `No se pudo subir la imagen: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        variant: "destructive",
+      })
+    } finally {
+      setIsImageUploading(false)
+    }
   }
 
-  const handleRemoveImage = () => {
+  const handleRemoveImage = async () => {
+    // Si hay una imagen subida, también removerla de la base de datos
+    if (uploadedImageUrl) {
+      try {
+        const supabase = getSupabaseClient()
+        await supabase.from("recipes").update({ image_url: null }).eq("id", recipe.id)
+      } catch (error) {
+        console.error("Error removing image URL from database:", error)
+      }
+    }
+
     setImageFile(null)
     setImagePreview(null)
     setImageUrl("")
+    setUploadedImageUrl(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -98,6 +168,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     setImageUrl(e.target.value)
     setImageFile(null)
     setImagePreview(e.target.value)
+    setUploadedImageUrl(null)
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -123,71 +194,46 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
     try {
       // Determinar la URL de la imagen
-      let finalImageUrl = null
+      let finalImageUrl = recipe.image_url // Mantener la imagen actual por defecto
 
-      if (imageTab === "url" && imageUrl) {
-        finalImageUrl = imageUrl
-      } else if (imageTab === "upload" && imageFile) {
-        try {
-          // Intentar subir la imagen usando FormData y fetch
-          const uploadFormData = new FormData()
-          uploadFormData.append("file", imageFile)
-
-          const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
-            method: "POST",
-            body: uploadFormData,
-          })
-
-          if (!response.ok) {
-            throw new Error(`Error al subir la imagen: ${response.statusText}`)
-          }
-
-          const data = await response.json()
-          finalImageUrl = data.url
-        } catch (uploadError) {
-          console.error("Error uploading image:", uploadError)
-          toast({
-            title: "Error al subir la imagen",
-            description: "No se pudo subir la imagen. La receta se actualizará sin imagen.",
-            variant: "destructive",
-          })
-        }
+      if (imageTab === "url" && imageUrl.trim()) {
+        finalImageUrl = imageUrl.trim()
+      } else if (uploadedImageUrl) {
+        finalImageUrl = uploadedImageUrl
       }
 
       // Determinar las calorías finales
       let finalCalories = null
 
       if (useManualCalories && manualCalories) {
-        // Si el usuario eligió calorías manuales, usar esas
         finalCalories = Number.parseInt(manualCalories)
       } else if (estimatedCalories) {
-        // Si no usa calorías manuales, usar las calculadas
         finalCalories = estimatedCalories
       }
 
       const supabase = getSupabaseClient()
 
       // Actualizar la receta
-      const { error } = await supabase
-        .from("recipes")
-        .update({
-          name,
-          ingredients: ingredients || "",
-          preparation: preparation || "",
-          image_url: finalImageUrl,
-          video_url: video_url,
-          source_url: source_url,
-          calories: finalCalories,
-        })
-        .eq("id", recipe.id)
+      const updateData = {
+        name,
+        ingredients: ingredients || "",
+        preparation: preparation || "",
+        image_url: finalImageUrl,
+        video_url: video_url,
+        source_url: source_url,
+        calories: finalCalories,
+      }
 
-      if (error) throw error
+      const { error } = await supabase.from("recipes").update(updateData).eq("id", recipe.id)
+
+      if (error) {
+        console.error("Database update error:", error)
+        throw error
+      }
 
       // Actualizar las categorías
-      // Primero, eliminar todas las relaciones existentes
       await supabase.from("recipe_categories").delete().eq("recipe_id", recipe.id)
 
-      // Luego, insertar las nuevas relaciones
       if (selectedCategories.length > 0) {
         const categoryRelations = selectedCategories.map((categoryId) => ({
           recipe_id: recipe.id,
@@ -199,16 +245,14 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         if (categoryError) throw categoryError
       }
 
-      // Mostrar toast de éxito
       toast({
         title: "Receta actualizada",
         description: "La receta se ha actualizado correctamente. Redirigiendo...",
       })
 
-      // Esperar un momento para que el toast se muestre y luego redirigir
       setTimeout(() => {
-        console.log("Ejecutando redirección a /recipes desde edición")
         router.push("/recipes")
+        router.refresh()
       }, 1000)
     } catch (error) {
       console.error("Error updating recipe:", error)
@@ -359,6 +403,19 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
                   >
                     <X className="h-4 w-4" />
                   </Button>
+                  {uploadedImageUrl && (
+                    <div className="absolute bottom-2 right-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-md">
+                      ✅ Imagen guardada
+                    </div>
+                  )}
+                  {isImageUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <div className="bg-white p-4 rounded-md flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Subiendo y guardando imagen...</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center justify-center w-full">
@@ -380,6 +437,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
                       accept="image/*"
                       className="hidden"
                       onChange={handleImageChange}
+                      disabled={isImageUploading}
                     />
                   </label>
                 </div>
@@ -432,7 +490,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         <div className="text-sm text-muted-foreground mb-4">* Los campos marcados con asterisco son obligatorios</div>
 
         <div className="flex gap-4">
-          <Button type="submit" className="flex-1" disabled={isLoading}>
+          <Button type="submit" className="flex-1" disabled={isLoading || isImageUploading}>
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
