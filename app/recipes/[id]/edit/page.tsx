@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams } from "next/navigation"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { EditRecipeForm } from "@/components/edit-recipe-form"
 import type { Category, Recipe } from "@/lib/types"
@@ -13,7 +13,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 export default function EditRecipePage() {
   const params = useParams()
-  const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
@@ -125,13 +124,7 @@ export default function EditRecipePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button
-              asChild
-              className="w-full"
-              onClick={() => {
-                router.push(`/login?redirect=/recipes/${params.id}/edit`)
-              }}
-            >
+            <Button asChild className="w-full">
               <Link href={`/login?redirect=/recipes/${params.id}/edit`}>Iniciar Sesión</Link>
             </Button>
             <Button asChild variant="outline" className="w-full">
