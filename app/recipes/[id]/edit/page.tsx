@@ -19,8 +19,7 @@ export default function EditRecipePage() {
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isAuthor, setIsAuthor] = useState<boolean | null>(null)
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
+  const [canEdit, setCanEdit] = useState<boolean | null>(null)
 
   useEffect(() => {
     async function checkPermissionsAndLoadData() {
@@ -50,28 +49,30 @@ export default function EditRecipePage() {
         setRecipe(recipeData)
 
         // Verificar si es el autor
-        const userIsAuthor = recipeData.user_id === user.id
-        setIsAuthor(userIsAuthor)
+        const isAuthor = recipeData.user_id === user.id
 
         // Verificar si es admin
+        let isAdmin = false
         try {
           const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
-          const userIsAdmin = profile?.role === "admin"
-          setIsAdmin(userIsAdmin)
+          isAdmin = profile?.role === "admin"
         } catch (err) {
           // Intentar con la tabla profiles si user_profiles falla
           try {
             const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
-            const userIsAdmin = profile?.role === "admin"
-            setIsAdmin(userIsAdmin)
+            isAdmin = profile?.role === "admin"
           } catch (err2) {
             console.error("Error checking admin status:", err2)
-            setIsAdmin(false)
+            isAdmin = false
           }
         }
 
+        // Determinar si puede editar
+        const hasPermission = isAuthor || isAdmin
+        setCanEdit(hasPermission)
+
         // Si tiene permisos, cargar categorías
-        if (userIsAuthor || isAdmin) {
+        if (hasPermission) {
           // Obtener las categorías de la receta
           const { data: recipeCategories } = await supabase
             .from("recipe_categories")
@@ -95,7 +96,7 @@ export default function EditRecipePage() {
     }
 
     checkPermissionsAndLoadData()
-  }, [params.id, user, authLoading, isAdmin])
+  }, [params.id, user, authLoading])
 
   // Mostrar loading mientras se verifica la autenticación
   if (authLoading) {
@@ -166,7 +167,7 @@ export default function EditRecipePage() {
   }
 
   // Si no tiene permisos para editar, mostrar mensaje de acceso restringido
-  if (isAuthor === false && isAdmin === false) {
+  if (canEdit === false) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
         <Card className="w-full max-w-md">
@@ -190,7 +191,7 @@ export default function EditRecipePage() {
   }
 
   // Si tiene permisos y la receta existe, mostrar el formulario de edición
-  if ((isAuthor === true || isAdmin === true) && recipe) {
+  if (canEdit === true && recipe) {
     return (
       <div className="container py-10">
         <h1 className="text-3xl font-bold mb-6">Editar Receta</h1>
