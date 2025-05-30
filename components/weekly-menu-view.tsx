@@ -359,7 +359,11 @@ export function WeeklyMenuView({
                       onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 1)}
                       disabled={isUpdating || recipes.length === 0}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger
+                        className={
+                          dayMenu.meals.comida[0] ? "font-semibold text-green-700 border-green-300 bg-green-50" : ""
+                        }
+                      >
                         <SelectValue placeholder="Seleccionar receta" />
                       </SelectTrigger>
                       <SelectContent>
@@ -400,7 +404,11 @@ export function WeeklyMenuView({
                       onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 2)}
                       disabled={isUpdating || recipes.length === 0}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger
+                        className={
+                          dayMenu.meals.comida[1] ? "font-semibold text-green-700 border-green-300 bg-green-50" : ""
+                        }
+                      >
                         <SelectValue placeholder="Seleccionar receta" />
                       </SelectTrigger>
                       <SelectContent>
@@ -442,7 +450,9 @@ export function WeeklyMenuView({
                     onValueChange={(value) => handleRecipeChange(dayMenu.day, "cena", value)}
                     disabled={isUpdating || recipes.length === 0}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger
+                      className={dayMenu.meals.cena ? "font-semibold text-green-700 border-green-300 bg-green-50" : ""}
+                    >
                       <SelectValue placeholder="Seleccionar receta" />
                     </SelectTrigger>
                     <SelectContent>
