@@ -17,7 +17,7 @@ interface RecipesPageProps {
   }
 }
 
-export const dynamic = "force-dynamic"
+export const dynamic = "force_dynamic"
 
 export default async function RecipesPage({ searchParams }: RecipesPageProps) {
   try {
@@ -25,6 +25,15 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
 
     // Determinar si mostrar solo las recetas del usuario o todas
     const showOnlyMyRecipes = searchParams.my === "true"
+
+    // Obtener el usuario actual si necesitamos filtrar por "mis recetas"
+    let currentUserId: string | null = null
+    if (showOnlyMyRecipes) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      currentUserId = user?.id || null
+    }
 
     // Obtener todas las categorías para el filtro
     const { data: categories } = await supabase.from("categories").select("*").order("name")
@@ -115,6 +124,11 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
 
     // Aplicar filtros
     let filteredRecipes = [...recipesWithCategories]
+
+    // Filtrar por usuario si está activado "Solo mis recetas"
+    if (showOnlyMyRecipes && currentUserId) {
+      filteredRecipes = filteredRecipes.filter((recipe) => recipe.user_id === currentUserId)
+    }
 
     // Filtrar por término de búsqueda
     if (searchParams.search && searchParams.search.trim()) {
