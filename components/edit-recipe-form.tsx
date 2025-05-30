@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Upload, X, Calculator, TestTube } from "lucide-react"
+import { Loader2, Upload, X, Calculator } from "lucide-react"
 import Image from "next/image"
 
 import { getSupabaseClient } from "@/lib/supabase/client"
@@ -52,59 +52,9 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     }
   }, [ingredients, useManualCalories])
 
-  const testDbUpdate = async () => {
-    if (!uploadedImageUrl) {
-      toast({
-        title: "No hay imagen subida",
-        description: "Primero sube una imagen para probar la actualización de BD",
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      const response = await fetch("/api/test-db-update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          recipeId: recipe.id,
-          imageUrl: uploadedImageUrl,
-        }),
-      })
-
-      const data = await response.json()
-      console.log("Test DB update result:", data)
-
-      if (data.success) {
-        toast({
-          title: "Test completado",
-          description: "Revisa la consola para ver los resultados del test",
-        })
-      } else {
-        toast({
-          title: "Test falló",
-          description: "Revisa la consola para ver los errores",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("Error testing DB update:", error)
-      toast({
-        title: "Error en test",
-        description: "Error al probar la actualización de BD",
-        variant: "destructive",
-      })
-    }
-  }
-
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
-    console.log("=== IMAGE CHANGE HANDLER ===")
-    console.log("File selected:", file.name, file.size, file.type)
 
     // Validar que sea una imagen
     if (!file.type.startsWith("image/")) {
@@ -133,14 +83,12 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     const reader = new FileReader()
     reader.onloadend = () => {
       setImagePreview(reader.result as string)
-      console.log("Preview URL created")
     }
     reader.readAsDataURL(file)
 
     // Subir la imagen inmediatamente
     try {
       setIsImageUploading(true)
-      console.log("Starting image upload...")
 
       toast({
         title: "Subiendo imagen",
@@ -150,31 +98,36 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       const formData = new FormData()
       formData.append("file", file)
 
-      console.log("Making fetch request to upload API...")
       const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
         method: "POST",
         body: formData,
       })
 
-      console.log("Upload response status:", response.status)
-      console.log("Upload response ok:", response.ok)
-
       if (!response.ok) {
         const errorText = await response.text()
-        console.error("Upload response error:", errorText)
         throw new Error(`Error al subir la imagen: ${response.statusText}`)
       }
 
       const data = await response.json()
-      console.log("Upload response data:", data)
 
       if (data.url) {
         setUploadedImageUrl(data.url)
-        console.log("✅ Image uploaded successfully, URL:", data.url)
+
+        // Guardar inmediatamente la URL en la base de datos
+        const supabase = getSupabaseClient()
+        const { error: updateError } = await supabase
+          .from("recipes")
+          .update({ image_url: data.url })
+          .eq("id", recipe.id)
+
+        if (updateError) {
+          console.error("Error saving image URL to database:", updateError)
+          throw new Error("Error al asociar la imagen a la receta")
+        }
 
         toast({
-          title: "Imagen subida",
-          description: "La imagen se ha subido correctamente. Ahora puedes probar guardarla en BD.",
+          title: "Imagen subida y asociada",
+          description: "La imagen se ha subido y asociado a la receta correctamente.",
         })
       } else {
         throw new Error("No se recibió URL de la imagen")
@@ -191,7 +144,17 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     }
   }
 
-  const handleRemoveImage = () => {
+  const handleRemoveImage = async () => {
+    // Si hay una imagen subida, también removerla de la base de datos
+    if (uploadedImageUrl) {
+      try {
+        const supabase = getSupabaseClient()
+        await supabase.from("recipes").update({ image_url: null }).eq("id", recipe.id)
+      } catch (error) {
+        console.error("Error removing image URL from database:", error)
+      }
+    }
+
     setImageFile(null)
     setImagePreview(null)
     setImageUrl("")
@@ -235,13 +198,9 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
       if (imageTab === "url" && imageUrl.trim()) {
         finalImageUrl = imageUrl.trim()
-        console.log("Using URL image:", finalImageUrl)
       } else if (uploadedImageUrl) {
         finalImageUrl = uploadedImageUrl
-        console.log("Using previously uploaded image:", finalImageUrl)
       }
-
-      console.log("Final image URL to save:", finalImageUrl)
 
       // Determinar las calorías finales
       let finalCalories = null
@@ -265,33 +224,11 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         calories: finalCalories,
       }
 
-      console.log("Updating recipe with data:", updateData)
-
-      const { data: updateResult, error } = await supabase
-        .from("recipes")
-        .update(updateData)
-        .eq("id", recipe.id)
-        .select()
+      const { error } = await supabase.from("recipes").update(updateData).eq("id", recipe.id)
 
       if (error) {
         console.error("Database update error:", error)
         throw error
-      }
-
-      console.log("Recipe updated successfully:", updateResult)
-
-      // Verificar que la receta se actualizó correctamente
-      const { data: updatedRecipe, error: fetchError } = await supabase
-        .from("recipes")
-        .select("id, name, image_url")
-        .eq("id", recipe.id)
-        .single()
-
-      if (fetchError) {
-        console.error("Error fetching updated recipe:", fetchError)
-      } else {
-        console.log("✅ Recipe after update:", updatedRecipe)
-        console.log("✅ Image URL in database:", updatedRecipe.image_url)
       }
 
       // Actualizar las categorías
@@ -314,7 +251,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       })
 
       setTimeout(() => {
-        console.log("Ejecutando redirección a /recipes desde edición")
         router.push("/recipes")
         router.refresh()
       }, 1000)
@@ -468,19 +404,15 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
                     <X className="h-4 w-4" />
                   </Button>
                   {uploadedImageUrl && (
-                    <div className="absolute bottom-2 left-2 space-x-2">
-                      <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-md">✅ Imagen subida</span>
-                      <Button type="button" size="sm" variant="outline" onClick={testDbUpdate} className="text-xs">
-                        <TestTube className="h-3 w-3 mr-1" />
-                        Test BD
-                      </Button>
+                    <div className="absolute bottom-2 right-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-md">
+                      ✅ Imagen guardada
                     </div>
                   )}
                   {isImageUploading && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                       <div className="bg-white p-4 rounded-md flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Subiendo imagen...</span>
+                        <span>Subiendo y guardando imagen...</span>
                       </div>
                     </div>
                   )}
