@@ -163,6 +163,9 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     const video_url = (formData.get("video_url") as string) || null
     const source_url = (formData.get("source_url") as string) || null
 
+    // Usar el estado local para ingredientes
+    const finalIngredients = ingredients.trim()
+
     console.log("Datos del formulario:", {
       name,
       ingredients,
@@ -173,6 +176,9 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       imageUrl,
       uploadedImageUrl,
     })
+
+    console.log("Ingredientes del estado local:", ingredients)
+    console.log("Ingredientes finales:", finalIngredients)
 
     // Validación del nombre (único campo obligatorio)
     if (!name.trim()) {
@@ -213,7 +219,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       // Preparar datos para actualizar
       const updateData = {
         name: name.trim(),
-        ingredients: ingredients.trim(),
+        ingredients: finalIngredients,
         preparation: preparation.trim(),
         image_url: finalImageUrl,
         video_url: video_url?.trim() || null,
