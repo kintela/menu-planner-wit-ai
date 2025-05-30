@@ -26,10 +26,14 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     // Obtener el usuario actual
     const {
       data: { user },
+      error: userError,
     } = await supabase.auth.getUser()
+
+    console.log("Usuario detectado:", user ? "SÍ" : "NO", user?.email, user?.id)
 
     // Determinar si mostrar solo las recetas del usuario o todas
     const showOnlyMyRecipes = searchParams.my === "true"
+    console.log("Mostrar solo mis recetas:", showOnlyMyRecipes)
 
     // Obtener todas las categorías para el filtro
     const { data: categories } = await supabase.from("categories").select("*").order("name")
@@ -47,7 +51,8 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       .order("created_at", { ascending: false })
 
     // Filtrar por usuario solo si está autenticado y solicita ver solo sus recetas
-    if (showOnlyMyRecipes && user) {
+    if (showOnlyMyRecipes && user?.id) {
+      console.log("Aplicando filtro por usuario:", user.id)
       recipesQuery = recipesQuery.eq("user_id", user.id)
     }
 
@@ -58,6 +63,8 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       console.error("Error fetching recipes:", recipesError)
       throw new Error(`Error fetching recipes: ${recipesError.message}`)
     }
+
+    console.log("Recetas obtenidas:", allRecipes?.length || 0)
 
     if (!allRecipes) {
       return (
@@ -162,7 +169,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     // Obtener conteos para mostrar estadísticas
     const { count: totalRecipesCount } = await supabase.from("recipes").select("*", { count: "exact", head: true })
 
-    const userRecipesCount = user
+    const userRecipesCount = user?.id
       ? await supabase.from("recipes").select("*", { count: "exact", head: true }).eq("user_id", user.id)
       : null
 
@@ -177,6 +184,12 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
 
               {/* Checkbox SIEMPRE visible para prueba */}
               <SimpleCheckbox />
+
+              {/* Debug info */}
+              <div className="bg-blue-100 p-2 rounded text-xs">
+                Usuario: {user?.id ? "✓" : "✗"} | Filtro: {showOnlyMyRecipes ? "SÍ" : "NO"} | Recetas:{" "}
+                {displayedRecipes.length}
+              </div>
             </div>
 
             <div className="flex items-center gap-4 mt-2">
@@ -185,8 +198,8 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
                   <>Mostrando {displayedRecipes.length} recetas</>
                 ) : (
                   <>
-                    Total: {displayedRecipes.length} recetas
-                    {showOnlyMyRecipes && userRecipesCount && <> (de {totalRecipesCount} en total)</>}
+                    {showOnlyMyRecipes ? "Mis recetas" : "Total"}: {displayedRecipes.length} recetas
+                    {showOnlyMyRecipes && totalRecipesCount && <> (de {totalRecipesCount} en total)</>}
                   </>
                 )}
               </Badge>
