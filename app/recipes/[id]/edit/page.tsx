@@ -9,37 +9,25 @@ import { Loader2, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { RestrictedAccessMessage } from "@/components/restricted-access-message"
+import { useAuth } from "@/components/auth/auth-provider"
 
 export default function EditRecipePage() {
   const params = useParams()
-  const router = useRouter()
+  const { user, loading } = useAuth()
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
+
+  const router = useRouter()
 
   useEffect(() => {
-    async function checkAuthAndLoadData() {
+    async function loadData() {
       try {
         const supabase = getSupabaseClient()
-
-        // Verificar si el usuario está autenticado
-        const {
-          data: { user: currentUser },
-          error: authError,
-        } = await supabase.auth.getUser()
-
-        if (authError || !currentUser) {
-          // Redirigir al login con la URL de retorno
-          const returnUrl = encodeURIComponent(`/recipes/${params.id}/edit`)
-          router.push(`/login?returnUrl=${returnUrl}`)
-          return
-        }
-
-        setUser(currentUser)
 
         // Obtener la receta
         const { data: recipeData, error: recipeError } = await supabase
@@ -54,13 +42,9 @@ export default function EditRecipePage() {
         }
 
         // Verificar si el usuario es el autor de la receta
-        if (recipeData.user_id !== currentUser.id) {
+        if (recipeData.user_id !== user.id) {
           // Verificar si es admin
-          const { data: profile } = await supabase
-            .from("user_profiles")
-            .select("role")
-            .eq("id", currentUser.id)
-            .single()
+          const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
 
           if (!profile || profile.role !== "admin") {
             setAuthError("Solo puedes editar tus propias recetas. Esta receta pertenece a otro usuario.")
@@ -95,17 +79,37 @@ export default function EditRecipePage() {
       }
     }
 
-    if (params.id) {
-      checkAuthAndLoadData()
+    if (user && params.id) {
+      loadData()
     }
-  }, [params.id, router])
+  }, [params.id, user])
+
+  if (loading) {
+    return (
+      <div className="container py-10">
+        <div className="flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <span className="ml-2">Verificando autenticación...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <RestrictedAccessMessage
+        message="Necesitas iniciar sesión para poder editar únicamente tus recetas"
+        redirectPath={`/recipes/${params.id}/edit`}
+      />
+    )
+  }
 
   if (isLoading) {
     return (
       <div className="container py-10">
         <div className="flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Verificando permisos y cargando receta...</span>
+          <span className="ml-2">Cargando receta...</span>
         </div>
       </div>
     )
