@@ -1,6 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
-import { ChefHat, ExternalLink, Video, Flame, Users } from "lucide-react"
+import { ChefHat, ExternalLink, Video, Flame, Users, ChevronLeft } from "lucide-react"
 import { createServerClient } from "@/lib/supabase/server"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -53,6 +53,15 @@ export default async function RecipePage({ params }: RecipePageProps) {
 
   return (
     <div className="container py-10">
+      <div className="mb-6">
+        <Button variant="outline" asChild>
+          <Link href="/weekly-menu">
+            <ChevronLeft className="mr-2 h-4 w-4" />
+            Volver a Menú Semanal
+          </Link>
+        </Button>
+      </div>
+
       <div className="flex flex-col md:flex-row gap-6">
         <div className="md:w-1/2">
           <div className="aspect-video relative rounded-lg overflow-hidden">
