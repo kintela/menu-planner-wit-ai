@@ -1,7 +1,7 @@
 import { createServerClient } from "@/lib/supabase/server"
 import { RecipeCard } from "@/components/recipe-card"
 import { RecipeSearch } from "@/components/recipe-search"
-import { SimpleCheckbox } from "@/components/simple-checkbox"
+import { MyRecipesFilter } from "@/components/my-recipes-filter"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,51 +23,28 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
   try {
     const supabase = createServerClient()
 
-    // Obtener el usuario actual
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
-
-    console.log("Usuario detectado:", user ? "SÍ" : "NO", user?.email, user?.id)
-
     // Determinar si mostrar solo las recetas del usuario o todas
     const showOnlyMyRecipes = searchParams.my === "true"
-    console.log("Mostrar solo mis recetas:", showOnlyMyRecipes)
 
     // Obtener todas las categorías para el filtro
     const { data: categories } = await supabase.from("categories").select("*").order("name")
 
-    // Construir la consulta paso a paso
-    let recipesQuery = supabase.from("recipes")
-
-    // PRIMERO aplicar el filtro de usuario si es necesario
-    if (showOnlyMyRecipes && user?.id) {
-      console.log("Aplicando filtro por usuario:", user.id)
-      recipesQuery = recipesQuery.eq("user_id", user.id)
-    }
-
-    // DESPUÉS aplicar el select con las relaciones
-    recipesQuery = recipesQuery.select(`
+    // Obtener TODAS las recetas primero (sin filtrar por usuario en servidor)
+    const { data: allRecipes, error: recipesError } = await supabase
+      .from("recipes")
+      .select(`
         *,
         user_profiles (
           full_name,
           email
         )
       `)
-
-    // FINALMENTE aplicar el orden
-    recipesQuery = recipesQuery.order("created_at", { ascending: false })
-
-    // Ejecutar la consulta
-    const { data: allRecipes, error: recipesError } = await recipesQuery
+      .order("created_at", { ascending: false })
 
     if (recipesError) {
       console.error("Error fetching recipes:", recipesError)
       throw new Error(`Error fetching recipes: ${recipesError.message}`)
     }
-
-    console.log("Recetas obtenidas después del filtro:", allRecipes?.length || 0)
 
     if (!allRecipes) {
       return (
@@ -136,7 +113,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       }
     })
 
-    // Aplicar filtros adicionales
+    // Aplicar filtros
     let filteredRecipes = [...recipesWithCategories]
 
     // Filtrar por término de búsqueda
@@ -172,10 +149,6 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     // Obtener conteos para mostrar estadísticas
     const { count: totalRecipesCount } = await supabase.from("recipes").select("*", { count: "exact", head: true })
 
-    const userRecipesCount = user?.id
-      ? await supabase.from("recipes").select("*", { count: "exact", head: true }).eq("user_id", user.id)
-      : null
-
     return (
       <div className="container py-10">
         <div className="flex justify-between items-center mb-6">
@@ -185,14 +158,8 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
                 {hasActiveFilters ? "Resultados de búsqueda" : showOnlyMyRecipes ? "Mis Recetas" : "Todas las Recetas"}
               </h1>
 
-              {/* Checkbox SIEMPRE visible para prueba */}
-              <SimpleCheckbox />
-
-              {/* Debug info */}
-              <div className="bg-green-100 p-2 rounded text-xs">
-                Usuario: {user?.id ? "✓" : "✗"} | Filtro: {showOnlyMyRecipes ? "SÍ" : "NO"} | Recetas:{" "}
-                {displayedRecipes.length}
-              </div>
+              {/* Componente cliente para el checkbox */}
+              <MyRecipesFilter />
             </div>
 
             <div className="flex items-center gap-4 mt-2">
