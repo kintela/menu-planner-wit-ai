@@ -1,8 +1,7 @@
-"use client"
-
 import { createServerClient } from "@/lib/supabase/server"
 import { RecipeCard } from "@/components/recipe-card"
 import { RecipeSearch } from "@/components/recipe-search"
+import { MyRecipesFilter } from "@/components/my-recipes-filter"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,9 +31,6 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     // Determinar si mostrar solo las recetas del usuario o todas
     const showOnlyMyRecipes = searchParams.my === "true"
 
-    // Verificar si el usuario está autenticado de manera más específica
-    const isUserAuthenticated = user && user.id
-
     // Obtener todas las categorías para el filtro
     const { data: categories } = await supabase.from("categories").select("*").order("name")
 
@@ -51,7 +47,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       .order("created_at", { ascending: false })
 
     // Filtrar por usuario solo si está autenticado y solicita ver solo sus recetas
-    if (showOnlyMyRecipes && isUserAuthenticated) {
+    if (showOnlyMyRecipes && user) {
       recipesQuery = recipesQuery.eq("user_id", user.id)
     }
 
@@ -166,7 +162,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     // Obtener conteos para mostrar estadísticas
     const { count: totalRecipesCount } = await supabase.from("recipes").select("*", { count: "exact", head: true })
 
-    const userRecipesCount = isUserAuthenticated
+    const userRecipesCount = user
       ? await supabase.from("recipes").select("*", { count: "exact", head: true }).eq("user_id", user.id)
       : null
 
@@ -179,29 +175,8 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
                 {hasActiveFilters ? "Resultados de búsqueda" : showOnlyMyRecipes ? "Mis Recetas" : "Todas las Recetas"}
               </h1>
 
-              {/* Checkbox "Solo las mías" - solo visible si el usuario está logueado */}
-              {isUserAuthenticated && (
-                <div className="flex items-center space-x-2 ml-4">
-                  <input
-                    type="checkbox"
-                    id="show-my-recipes"
-                    checked={showOnlyMyRecipes}
-                    onChange={(e) => {
-                      const params = new URLSearchParams(window.location.search)
-                      if (e.target.checked) {
-                        params.set("my", "true")
-                      } else {
-                        params.delete("my")
-                      }
-                      window.location.href = `/recipes?${params.toString()}`
-                    }}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <label htmlFor="show-my-recipes" className="text-sm font-medium cursor-pointer">
-                    Solo las mías
-                  </label>
-                </div>
-              )}
+              {/* Componente cliente para el checkbox */}
+              <MyRecipesFilter />
             </div>
 
             <div className="flex items-center gap-4 mt-2">
