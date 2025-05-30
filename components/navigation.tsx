@@ -56,8 +56,7 @@ export function Navigation() {
             Calendar
           </Link>
           <Link href="/create" className="hover:text-gray-300 flex items-center">
-            <Plus className="mr-1 h-5 w-5" />
-            Create Task
+            <Plus className="h-5 w-5" />
           </Link>
           <Link href="/search" className="hover:text-gray-300 flex items-center">
             <Search className="mr-1 h-5 w-5" />
@@ -103,8 +102,7 @@ export function Navigation() {
               Calendar
             </Link>
             <Link href="/create" className="hover:text-gray-300 flex items-center">
-              <Plus className="mr-1 h-5 w-5" />
-              Create Task
+              <Plus className="h-5 w-5" />
             </Link>
             <Link href="/search" className="hover:text-gray-300 flex items-center">
               <Search className="mr-1 h-5 w-5" />
