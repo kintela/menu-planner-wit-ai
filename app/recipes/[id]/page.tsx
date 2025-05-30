@@ -4,7 +4,6 @@ import { createServerClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { getCurrentUserProfile } from "@/lib/auth"
 
 interface Recipe {
   id: string
@@ -36,22 +35,14 @@ async function getRecipe(id: string): Promise<Recipe> {
 export default async function RecipePage({ params }: { params: { id: string } }) {
   const { id } = params
   const recipe = await getRecipe(id)
-  const userProfile = await getCurrentUserProfile()
-
-  // Check if the current user is the creator of the recipe or an admin
-  const isCreator = userProfile && userProfile.id === recipe.user_id
-  const isAdmin = userProfile?.role === "admin"
-  const canEdit = isCreator || isAdmin
 
   return (
     <div className="container mx-auto py-8">
       <div className="mb-6 flex justify-between items-center">
         <h1 className="text-3xl font-bold">{recipe?.title}</h1>
-        {canEdit && (
-          <Button asChild variant="outline">
-            <Link href={`/recipes/${id}/edit`}>Editar receta</Link>
-          </Button>
-        )}
+        <Button asChild variant="outline">
+          <Link href={`/recipes/${id}/edit`}>Editar receta</Link>
+        </Button>
       </div>
 
       <img
