@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -15,9 +13,9 @@ import { useState } from "react"
 import type { Recipe } from "@/types"
 import { useRouter } from "next/navigation"
 import { useSupabaseClient } from "@supabase/auth-helpers-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, Upload, X } from "lucide-react"
-import Image from "next/image"
+// import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+// import { Loader2, Upload, X } from 'lucide-react'
+// import Image from "next/image"
 
 const formSchema = z.object({
   title: z.string().min(2, {
@@ -50,11 +48,11 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
   const supabase = useSupabaseClient()
 
   // Estado para la imagen
-  const [imageTab, setImageTab] = useState<string>(recipe.image_url ? "url" : "upload")
-  const [imageUrl, setImageUrl] = useState<string>(recipe.image_url || "")
-  const [imagePreview, setImagePreview] = useState<string | null>(recipe.image_url)
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
+  // const [imageTab, setImageTab] = useState<string>(recipe.image_url ? "url" : "upload")
+  // const [imageUrl, setImageUrl] = useState<string>(recipe.image_url || "")
+  // const [imagePreview, setImagePreview] = useState<string | null>(recipe.image_url)
+  // const [imageFile, setImageFile] = useState<File | null>(null)
+  // const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -68,100 +66,100 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
     },
   })
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  // const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  //   const file = e.target.files?.[0]
+  //   if (!file) return
 
-    // Validar que sea una imagen
-    if (!file.type.startsWith("image/")) {
-      toast({
-        title: "Formato no válido",
-        description: "Por favor, selecciona un archivo de imagen (JPEG, PNG, etc.)",
-        variant: "destructive",
-      })
-      return
-    }
+  //   // Validar que sea una imagen
+  //   if (!file.type.startsWith("image/")) {
+  //     toast({
+  //       title: "Formato no válido",
+  //       description: "Por favor, selecciona un archivo de imagen (JPEG, PNG, etc.)",
+  //       variant: "destructive",
+  //     })
+  //     return
+  //   }
 
-    // Validar tamaño (máximo 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "Archivo demasiado grande",
-        description: "La imagen no debe superar los 5MB",
-        variant: "destructive",
-      })
-      return
-    }
+  //   // Validar tamaño (máximo 5MB)
+  //   if (file.size > 5 * 1024 * 1024) {
+  //     toast({
+  //       title: "Archivo demasiado grande",
+  //       description: "La imagen no debe superar los 5MB",
+  //       variant: "destructive",
+  //     })
+  //     return
+  //   }
 
-    setImageFile(file)
-    setImageUrl("")
+  //   setImageFile(file)
+  //   setImageUrl("")
 
-    // Crear una URL para la vista previa
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string)
-    }
-    reader.readAsDataURL(file)
+  //   // Crear una URL para la vista previa
+  //   const reader = new FileReader()
+  //   reader.onloadend = () => {
+  //     setImagePreview(reader.result as string)
+  //   }
+  //   reader.readAsDataURL(file)
 
-    // Subir la imagen inmediatamente
-    try {
-      setIsImageUploading(true)
+  //   // Subir la imagen inmediatamente
+  //   try {
+  //     setIsImageUploading(true)
 
-      toast({
-        title: "Subiendo imagen",
-        description: "Por favor espera mientras se sube la imagen...",
-      })
+  //     toast({
+  //       title: "Subiendo imagen",
+  //       description: "Por favor espera mientras se sube la imagen...",
+  //     })
 
-      const formData = new FormData()
-      formData.append("file", file)
+  //     const formData = new FormData()
+  //     formData.append("file", file)
 
-      const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
-        method: "POST",
-        body: formData,
-      })
+  //     const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
+  //       method: "POST",
+  //       body: formData,
+  //     })
 
-      if (!response.ok) {
-        throw new Error(`Error al subir la imagen: ${response.statusText}`)
-      }
+  //     if (!response.ok) {
+  //       throw new Error(`Error al subir la imagen: ${response.statusText}`)
+  //     }
 
-      const data = await response.json()
+  //     const data = await response.json()
 
-      if (data.url) {
-        setUploadedImageUrl(data.url)
-        form.setValue("image_url", data.url)
+  //     if (data.url) {
+  //       setUploadedImageUrl(data.url)
+  //       form.setValue("image_url", data.url)
 
-        toast({
-          title: "Imagen subida",
-          description: "La imagen se ha subido correctamente.",
-        })
-      } else {
-        throw new Error("No se recibió URL de la imagen")
-      }
-    } catch (error) {
-      console.error("Error uploading image:", error)
-      toast({
-        title: "Error al subir la imagen",
-        description: `No se pudo subir la imagen: ${error instanceof Error ? error.message : "Error desconocido"}`,
-        variant: "destructive",
-      })
-    } finally {
-      setIsImageUploading(false)
-    }
-  }
+  //       toast({
+  //         title: "Imagen subida",
+  //         description: "La imagen se ha subido correctamente.",
+  //       })
+  //     } else {
+  //       throw new Error("No se recibió URL de la imagen")
+  //     }
+  //   } catch (error) {
+  //     console.error("Error uploading image:", error)
+  //     toast({
+  //       title: "Error al subir la imagen",
+  //       description: `No se pudo subir la imagen: ${error instanceof Error ? error.message : "Error desconocido"}`,
+  //       variant: "destructive",
+  //     })
+  //   } finally {
+  //     setIsImageUploading(false)
+  //   }
+  // }
 
-  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const url = e.target.value
-    setImageUrl(url)
-    setImagePreview(url)
-    form.setValue("image_url", url)
-  }
+  // const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  //   const url = e.target.value
+  //   setImageUrl(url)
+  //   setImagePreview(url)
+  //   form.setValue("image_url", url)
+  // }
 
-  const handleRemoveImage = () => {
-    setImageFile(null)
-    setImagePreview(null)
-    setImageUrl("")
-    setUploadedImageUrl(null)
-    form.setValue("image_url", "")
-  }
+  // const handleRemoveImage = () => {
+  //   setImageFile(null)
+  //   setImagePreview(null)
+  //   setImageUrl("")
+  //   setUploadedImageUrl(null)
+  //   form.setValue("image_url", "")
+  // }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true)
@@ -199,10 +197,10 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
       }
 
       // Determinar la URL final de la imagen
-      let finalImageUrl = values.image_url
-      if (uploadedImageUrl) {
-        finalImageUrl = uploadedImageUrl
-      }
+      const finalImageUrl = values.image_url
+      // if (uploadedImageUrl) {
+      //   finalImageUrl = uploadedImageUrl
+      // }
 
       const { error } = await supabase
         .from("recipes")
@@ -337,110 +335,11 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Recipe Image</FormLabel>
+
               <FormControl>
-                <div className="space-y-4">
-                  <Tabs value={imageTab} onValueChange={setImageTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="url">Image URL</TabsTrigger>
-                      <TabsTrigger value="upload">Upload Image</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="url" className="space-y-4">
-                      <div className="space-y-2">
-                        <Input
-                          type="url"
-                          placeholder="https://example.com/image.jpg"
-                          value={imageUrl}
-                          onChange={handleUrlChange}
-                        />
-                      </div>
-                      {imageUrl && (
-                        <div className="relative w-full aspect-video">
-                          <Image
-                            src={imageUrl || "/placeholder.svg"}
-                            alt="Recipe preview"
-                            fill
-                            className="object-cover rounded-md"
-                            onError={() => {
-                              toast({
-                                title: "Error loading image",
-                                description: "The URL provided is not valid or not accessible.",
-                                variant: "destructive",
-                              })
-                              setImagePreview(null)
-                            }}
-                          />
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="icon"
-                            className="absolute top-2 right-2"
-                            onClick={handleRemoveImage}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </TabsContent>
-                    <TabsContent value="upload">
-                      {imagePreview && imageTab === "upload" ? (
-                        <div className="relative w-full aspect-video mb-4">
-                          <Image
-                            src={imagePreview || "/placeholder.svg"}
-                            alt="Recipe preview"
-                            fill
-                            className="object-cover rounded-md"
-                          />
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="icon"
-                            className="absolute top-2 right-2"
-                            onClick={handleRemoveImage}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                          {uploadedImageUrl && (
-                            <div className="absolute bottom-2 right-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-md">
-                              ✅ Image saved
-                            </div>
-                          )}
-                          {isImageUploading && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                              <div className="bg-white p-4 rounded-md flex items-center gap-2">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                <span>Uploading image...</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center w-full">
-                          <label
-                            htmlFor="image-upload"
-                            className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted"
-                          >
-                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                              <Upload className="w-8 h-8 mb-4 text-muted-foreground" />
-                              <p className="mb-2 text-sm text-muted-foreground">
-                                <span className="font-semibold">Click to upload</span> or drag and drop
-                              </p>
-                              <p className="text-xs text-muted-foreground">PNG, JPG or GIF (max. 5MB)</p>
-                            </div>
-                            <input
-                              id="image-upload"
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={handleImageChange}
-                              disabled={isImageUploading}
-                            />
-                          </label>
-                        </div>
-                      )}
-                    </TabsContent>
-                  </Tabs>
-                </div>
+                <Input type="url" placeholder="Enter image URL" {...field} value={field.value || ""} />
               </FormControl>
+
               <FormMessage />
             </FormItem>
           )}
@@ -449,7 +348,7 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
         <Button type="submit" disabled={isLoading || isImageUploading}>
           {isLoading ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {/* <Loader2 className="mr-2 h-4 w-4 animate-spin" /> */}
               Updating...
             </>
           ) : (
