@@ -1,67 +1,68 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useState, useEffect } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 export function MyRecipesFilter() {
-  const [user, setUser] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [debugInfo, setDebugInfo] = useState("")
   const router = useRouter()
   const searchParams = useSearchParams()
-  const supabase = createClientComponentClient()
+  const [user, setUser] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  const isChecked = searchParams.get("my") === "true"
+  // Obtener el estado actual del checkbox desde la URL
+  const isMyRecipes = searchParams.get("my") === "true"
 
+  // Obtener el usuario al cargar el componente
   useEffect(() => {
     const getUser = async () => {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        setUser(user)
-        setDebugInfo(`Usuario: ${user ? "✓" : "✗"} | Email: ${user?.email || "N/A"}`)
-        console.log("Usuario en cliente:", user ? "SÍ" : "NO", user?.email)
-      } catch (error) {
-        console.error("Error getting user:", error)
-        setDebugInfo(`Error: ${error}`)
-      } finally {
-        setIsLoading(false)
-      }
+      const supabase = createClientComponentClient()
+      const { data } = await supabase.auth.getUser()
+      setUser(data.user)
+      setIsLoading(false)
     }
 
     getUser()
-  }, [supabase])
+  }, [])
 
-  const handleChange = (checked: boolean) => {
+  // Función para manejar el cambio del checkbox
+  function toggleMyRecipes() {
+    // Crear una nueva instancia de URLSearchParams para no mutar la original
     const params = new URLSearchParams(searchParams.toString())
 
-    if (checked) {
-      params.set("my", "true")
-    } else {
+    // Invertir el estado actual
+    if (isMyRecipes) {
       params.delete("my")
+    } else {
+      params.set("my", "true")
     }
 
-    router.push(`/recipes?${params.toString()}`)
+    // Navegar a la nueva URL
+    const newUrl = `/recipes?${params.toString()}`
+    console.log("Navegando a:", newUrl)
+    router.push(newUrl)
   }
 
-  // SIEMPRE mostrar para debug
+  // Si no hay usuario, no mostrar nada
+  if (isLoading) {
+    return <div className="bg-yellow-100 p-2 rounded text-xs">Cargando...</div>
+  }
+
+  if (!user) {
+    return <div className="bg-yellow-100 p-2 rounded text-xs">No hay usuario logueado</div>
+  }
+
   return (
-    <div className="bg-yellow-200 p-2 rounded text-xs">
-      <div className="flex items-center space-x-2">
-        <input
-          type="checkbox"
-          id="my-recipes"
-          checked={isChecked}
-          onChange={(e) => handleChange(e.target.checked)}
-          disabled={!user}
-        />
-        <label htmlFor="my-recipes" className="text-sm font-medium">
-          Solo las mías
-        </label>
+    <div className="bg-yellow-100 p-2 rounded">
+      <button onClick={toggleMyRecipes} className="flex items-center space-x-2 text-sm">
+        <div className={`w-4 h-4 border rounded ${isMyRecipes ? "bg-blue-500" : "bg-white"}`}>
+          {isMyRecipes && <span className="text-white flex justify-center items-center">✓</span>}
+        </div>
+        <span>Solo mis recetas</span>
+      </button>
+      <div className="text-xs mt-1">
+        Usuario: {user.email} | ID: {user.id?.substring(0, 8)}...
       </div>
-      <div className="text-xs mt-1">{isLoading ? "Cargando..." : debugInfo}</div>
     </div>
   )
 }
