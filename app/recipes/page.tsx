@@ -29,10 +29,11 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       data: { user },
     } = await supabase.auth.getUser()
 
-    console.log("Usuario detectado:", user ? "SÍ" : "NO", user?.email)
-
     // Determinar si mostrar solo las recetas del usuario o todas
     const showOnlyMyRecipes = searchParams.my === "true"
+
+    // Verificar si el usuario está autenticado de manera más específica
+    const isUserAuthenticated = user && user.id
 
     // Obtener todas las categorías para el filtro
     const { data: categories } = await supabase.from("categories").select("*").order("name")
@@ -50,7 +51,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       .order("created_at", { ascending: false })
 
     // Filtrar por usuario solo si está autenticado y solicita ver solo sus recetas
-    if (showOnlyMyRecipes && user) {
+    if (showOnlyMyRecipes && isUserAuthenticated) {
       recipesQuery = recipesQuery.eq("user_id", user.id)
     }
 
@@ -165,7 +166,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     // Obtener conteos para mostrar estadísticas
     const { count: totalRecipesCount } = await supabase.from("recipes").select("*", { count: "exact", head: true })
 
-    const userRecipesCount = user
+    const userRecipesCount = isUserAuthenticated
       ? await supabase.from("recipes").select("*", { count: "exact", head: true }).eq("user_id", user.id)
       : null
 
@@ -178,31 +179,29 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
                 {hasActiveFilters ? "Resultados de búsqueda" : showOnlyMyRecipes ? "Mis Recetas" : "Todas las Recetas"}
               </h1>
 
-              {/* Debug: Mostrar siempre para verificar */}
-              <div className="flex items-center space-x-2 ml-4 bg-yellow-200 p-2 rounded">
-                <span className="text-xs">DEBUG: Usuario: {user ? "✓" : "✗"}</span>
-              </div>
-
-              {/* Checkbox SIEMPRE visible para debug */}
-              <div className="flex items-center space-x-2 ml-4 bg-green-100 p-2 rounded">
-                <input
-                  type="checkbox"
-                  id="show-my-recipes"
-                  checked={showOnlyMyRecipes}
-                  onChange={(e) => {
-                    const params = new URLSearchParams(window.location.search)
-                    if (e.target.checked) {
-                      params.set("my", "true")
-                    } else {
-                      params.delete("my")
-                    }
-                    window.location.href = `/recipes?${params.toString()}`
-                  }}
-                />
-                <label htmlFor="show-my-recipes" className="text-sm font-medium cursor-pointer">
-                  Solo las mías (DEBUG: {user ? "user OK" : "no user"})
-                </label>
-              </div>
+              {/* Checkbox "Solo las mías" - solo visible si el usuario está logueado */}
+              {isUserAuthenticated && (
+                <div className="flex items-center space-x-2 ml-4">
+                  <input
+                    type="checkbox"
+                    id="show-my-recipes"
+                    checked={showOnlyMyRecipes}
+                    onChange={(e) => {
+                      const params = new URLSearchParams(window.location.search)
+                      if (e.target.checked) {
+                        params.set("my", "true")
+                      } else {
+                        params.delete("my")
+                      }
+                      window.location.href = `/recipes?${params.toString()}`
+                    }}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="show-my-recipes" className="text-sm font-medium cursor-pointer">
+                    Solo las mías
+                  </label>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-4 mt-2">
