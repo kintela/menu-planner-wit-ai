@@ -123,11 +123,27 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
       if (data.url) {
         setUploadedImageUrl(data.url)
-        console.log("Image uploaded successfully, URL:", data.url)
+        console.log("✅ Image uploaded successfully, URL:", data.url)
+
+        // Guardar inmediatamente la URL en la base de datos
+        const supabase = getSupabaseClient()
+        console.log("🔄 Saving image URL to database immediately...")
+
+        const { error: updateError } = await supabase
+          .from("recipes")
+          .update({ image_url: data.url })
+          .eq("id", recipe.id)
+
+        if (updateError) {
+          console.error("❌ Error saving image URL to database:", updateError)
+          throw new Error("Error al asociar la imagen a la receta")
+        }
+
+        console.log("✅ Image URL saved to database successfully")
 
         toast({
-          title: "Imagen subida",
-          description: "La imagen se ha subido correctamente.",
+          title: "Imagen subida y asociada",
+          description: "La imagen se ha subido y asociado a la receta correctamente.",
         })
       } else {
         throw new Error("No se recibió URL de la imagen")
@@ -144,7 +160,19 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     }
   }
 
-  const handleRemoveImage = () => {
+  const handleRemoveImage = async () => {
+    // Si hay una imagen subida, también removerla de la base de datos
+    if (uploadedImageUrl) {
+      try {
+        const supabase = getSupabaseClient()
+        await supabase.from("recipes").update({ image_url: null }).eq("id", recipe.id)
+
+        console.log("Image URL removed from database")
+      } catch (error) {
+        console.error("Error removing image URL from database:", error)
+      }
+    }
+
     setImageFile(null)
     setImagePreview(null)
     setImageUrl("")
@@ -189,46 +217,38 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       if (imageTab === "url" && imageUrl.trim()) {
         finalImageUrl = imageUrl.trim()
         console.log("Using URL image:", finalImageUrl)
-      } else if (imageTab === "upload" && uploadedImageUrl) {
-        // Si ya subimos la imagen previamente, usar esa URL
+      } else if (uploadedImageUrl) {
+        // Si ya subimos una imagen, usar esa URL (ya está guardada en la DB)
         finalImageUrl = uploadedImageUrl
         console.log("Using previously uploaded image:", finalImageUrl)
-      } else if (imageTab === "upload" && !uploadedImageUrl && !imageFile) {
-        // Si estamos en la pestaña de upload pero no hay imagen subida ni archivo, mantener la original
-        console.log("No new image selected, keeping original:", finalImageUrl)
       }
 
       console.log("Final image URL to save:", finalImageUrl)
-
-      // Verificar que tenemos una URL válida antes de guardar
-      if (finalImageUrl && finalImageUrl.trim() !== "") {
-        console.log("✅ Valid image URL to save:", finalImageUrl)
-      } else {
-        console.log("⚠️ No valid image URL to save")
-      }
 
       // Determinar las calorías finales
       let finalCalories = null
 
       if (useManualCalories && manualCalories) {
-        // Si el usuario eligió calorías manuales, usar esas
         finalCalories = Number.parseInt(manualCalories)
       } else if (estimatedCalories) {
-        // Si no usa calorías manuales, usar las calculadas
         finalCalories = estimatedCalories
       }
 
       const supabase = getSupabaseClient()
 
-      // Actualizar la receta
-      const updateData = {
+      // Actualizar la receta (sin la imagen si ya se guardó antes)
+      const updateData: any = {
         name,
         ingredients: ingredients || "",
         preparation: preparation || "",
-        image_url: finalImageUrl,
         video_url: video_url,
         source_url: source_url,
         calories: finalCalories,
+      }
+
+      // Solo actualizar image_url si es diferente de la que ya está guardada
+      if (finalImageUrl !== recipe.image_url) {
+        updateData.image_url = finalImageUrl
       }
 
       console.log("Updating recipe with data:", updateData)
@@ -257,10 +277,8 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       }
 
       // Actualizar las categorías
-      // Primero, eliminar todas las relaciones existentes
       await supabase.from("recipe_categories").delete().eq("recipe_id", recipe.id)
 
-      // Luego, insertar las nuevas relaciones
       if (selectedCategories.length > 0) {
         const categoryRelations = selectedCategories.map((categoryId) => ({
           recipe_id: recipe.id,
@@ -272,17 +290,15 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         if (categoryError) throw categoryError
       }
 
-      // Mostrar toast de éxito
       toast({
         title: "Receta actualizada",
         description: "La receta se ha actualizado correctamente. Redirigiendo...",
       })
 
-      // Esperar un momento para que el toast se muestre y luego redirigir
       setTimeout(() => {
         console.log("Ejecutando redirección a /recipes desde edición")
         router.push("/recipes")
-        router.refresh() // Forzar actualización para ver los cambios
+        router.refresh()
       }, 1000)
     } catch (error) {
       console.error("Error updating recipe:", error)
@@ -435,14 +451,14 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
                   </Button>
                   {uploadedImageUrl && (
                     <div className="absolute bottom-2 right-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-md">
-                      Imagen subida ✓
+                      ✅ Imagen guardada en BD
                     </div>
                   )}
                   {isImageUploading && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                       <div className="bg-white p-4 rounded-md flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Subiendo imagen...</span>
+                        <span>Subiendo y guardando imagen...</span>
                       </div>
                     </div>
                   )}
