@@ -215,32 +215,28 @@ export function SimpleNavigation() {
               </div>
             )}
 
-            {/* Mobile navigation icons - solo mostrar si hay usuario */}
-            {user && (
-              <div className="md:hidden flex items-center space-x-1">
-                <Link href="/recipes" className="p-2" title="Recetas">
-                  <ChefHat className="h-5 w-5 text-gray-600" />
-                </Link>
-                <Link href="/recipes/add" className="p-2" title="Añadir Receta">
-                  <PlusCircle className="h-5 w-5 text-gray-600" />
-                </Link>
-                <Link href="/weekly-menu" className="p-2" title="Menú Semanal">
-                  <Calendar className="h-5 w-5 text-gray-600" />
-                </Link>
-                <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                  {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-                </Button>
-              </div>
-            )}
+            {/* Mobile navigation */}
+            <div className="md:hidden flex items-center space-x-1">
+              {/* Iconos de acceso rápido solo para usuarios autenticados */}
+              {user && (
+                <>
+                  <Link href="/recipes" className="p-2" title="Recetas">
+                    <ChefHat className="h-5 w-5 text-gray-600" />
+                  </Link>
+                  <Link href="/recipes/add" className="p-2" title="Añadir Receta">
+                    <PlusCircle className="h-5 w-5 text-gray-600" />
+                  </Link>
+                  <Link href="/weekly-menu" className="p-2" title="Menú Semanal">
+                    <Calendar className="h-5 w-5 text-gray-600" />
+                  </Link>
+                </>
+              )}
 
-            {/* Mobile menu button para usuarios no autenticados */}
-            {!user && (
-              <div className="md:hidden">
-                <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                  {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-                </Button>
-              </div>
-            )}
+              {/* Botón de menú hamburguesa siempre visible en móvil */}
+              <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </Button>
+            </div>
           </div>
         </div>
 
