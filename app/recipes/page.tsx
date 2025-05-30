@@ -4,10 +4,10 @@ import { RecipeSearch } from "@/components/recipe-search"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { MyRecipesCheckbox } from "@/components/my-recipes-checkbox"
 import Link from "next/link"
 import { PlusCircle, AlertCircle } from "lucide-react"
 import type { Category } from "@/lib/types"
-import { Checkbox } from "@/components/ui/checkbox"
 
 interface RecipesPageProps {
   searchParams: {
@@ -24,7 +24,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
   try {
     const supabase = createServerClient()
 
-    // Obtener el usuario actual (opcional)
+    // Obtener el usuario actual
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -180,21 +180,6 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       ? await supabase.from("recipes").select("*", { count: "exact", head: true }).eq("user_id", user.id)
       : null
 
-    // Construir la URL base para el checkbox "Solo las mías"
-    const baseUrl = "/recipes"
-    const searchParamsWithoutMy = { ...searchParams }
-    delete searchParamsWithoutMy.my
-
-    // Construir la URL con los parámetros actuales (excepto 'my')
-    const urlParams = new URLSearchParams()
-    Object.entries(searchParamsWithoutMy).forEach(([key, value]) => {
-      if (value) urlParams.append(key, value)
-    })
-
-    // URLs para los enlaces del checkbox
-    const myRecipesUrl = `${baseUrl}?${urlParams.toString()}${urlParams.toString() ? "&" : ""}my=true`
-    const allRecipesUrl = `${baseUrl}?${urlParams.toString()}`
-
     return (
       <div className="container py-10">
         <div className="flex justify-between items-center mb-6">
@@ -205,27 +190,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
               </h1>
 
               {/* Checkbox "Solo las mías" - solo visible si el usuario está logueado */}
-              {user && (
-                <div className="flex items-center space-x-2 ml-4">
-                  <Checkbox
-                    id="show-my-recipes"
-                    checked={showOnlyMyRecipes}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        window.location.href = myRecipesUrl
-                      } else {
-                        window.location.href = allRecipesUrl
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="show-my-recipes"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                  >
-                    Solo las mías
-                  </label>
-                </div>
-              )}
+              {user && <MyRecipesCheckbox isChecked={showOnlyMyRecipes} />}
             </div>
 
             <div className="flex items-center gap-4 mt-2">
@@ -241,7 +206,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
               </Badge>
               {hasActiveFilters && (
                 <Button asChild variant="ghost" size="sm">
-                  <Link href={showOnlyMyRecipes ? myRecipesUrl : allRecipesUrl}>Limpiar filtros</Link>
+                  <Link href="/recipes">Limpiar filtros</Link>
                 </Button>
               )}
             </div>
