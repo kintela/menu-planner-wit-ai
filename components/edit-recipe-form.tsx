@@ -123,27 +123,32 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
     try {
       // Determinar la URL de la imagen
-      let finalImageUrl = null
+      let finalImageUrl = recipe.image_url // Mantener la imagen actual por defecto
 
       if (imageTab === "url" && imageUrl) {
         finalImageUrl = imageUrl
+        console.log("Using URL image:", finalImageUrl)
       } else if (imageTab === "upload" && imageFile) {
         try {
           // Intentar subir la imagen usando FormData y fetch
           const uploadFormData = new FormData()
           uploadFormData.append("file", imageFile)
 
+          console.log("Uploading image file:", imageFile.name)
           const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
             method: "POST",
             body: uploadFormData,
           })
 
           if (!response.ok) {
+            const errorText = await response.text()
+            console.error("Upload response error:", errorText)
             throw new Error(`Error al subir la imagen: ${response.statusText}`)
           }
 
           const data = await response.json()
           finalImageUrl = data.url
+          console.log("Image uploaded successfully:", finalImageUrl)
         } catch (uploadError) {
           console.error("Error uploading image:", uploadError)
           toast({
@@ -151,8 +156,11 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
             description: "No se pudo subir la imagen. La receta se actualizará sin imagen.",
             variant: "destructive",
           })
+          // No cambiar finalImageUrl si hay error
         }
       }
+
+      console.log("Final image URL to save:", finalImageUrl)
 
       // Determinar las calorías finales
       let finalCalories = null
@@ -168,20 +176,26 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       const supabase = getSupabaseClient()
 
       // Actualizar la receta
-      const { error } = await supabase
-        .from("recipes")
-        .update({
-          name,
-          ingredients: ingredients || "",
-          preparation: preparation || "",
-          image_url: finalImageUrl,
-          video_url: video_url,
-          source_url: source_url,
-          calories: finalCalories,
-        })
-        .eq("id", recipe.id)
+      const updateData = {
+        name,
+        ingredients: ingredients || "",
+        preparation: preparation || "",
+        image_url: finalImageUrl,
+        video_url: video_url,
+        source_url: source_url,
+        calories: finalCalories,
+      }
 
-      if (error) throw error
+      console.log("Updating recipe with data:", updateData)
+
+      const { error } = await supabase.from("recipes").update(updateData).eq("id", recipe.id)
+
+      if (error) {
+        console.error("Database update error:", error)
+        throw error
+      }
+
+      console.log("Recipe updated successfully in database")
 
       // Actualizar las categorías
       // Primero, eliminar todas las relaciones existentes

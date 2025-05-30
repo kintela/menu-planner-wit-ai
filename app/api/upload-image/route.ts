@@ -2,18 +2,23 @@ import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
 export async function POST(request: Request) {
+  console.log("=== UPLOAD IMAGE API CALLED ===")
   try {
     // Obtener el ID de la receta de los parámetros de consulta
     const url = new URL(request.url)
     const recipeId = url.searchParams.get("recipeId") || "new"
+    console.log("Recipe ID:", recipeId)
 
     // Obtener el archivo de la solicitud
     const formData = await request.formData()
     const file = formData.get("file") as File
 
     if (!file) {
+      console.error("No file provided")
       return NextResponse.json({ error: "No se proporcionó ningún archivo" }, { status: 400 })
     }
+
+    console.log("File received:", file.name, "Size:", file.size, "Type:", file.type)
 
     // Validar que sea una imagen
     if (!file.type.startsWith("image/")) {
@@ -81,6 +86,10 @@ export async function POST(request: Request) {
     const {
       data: { publicUrl },
     } = supabase.storage.from(bucketName).getPublicUrl(filePath)
+
+    console.log("=== UPLOAD SUCCESSFUL ===")
+    console.log("File path:", filePath)
+    console.log("Public URL:", publicUrl)
 
     return NextResponse.json({ url: publicUrl })
   } catch (error) {
