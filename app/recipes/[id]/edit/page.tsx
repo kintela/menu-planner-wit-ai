@@ -1,12 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams } from "next/navigation"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { EditRecipeForm } from "@/components/edit-recipe-form"
 import type { Category, Recipe } from "@/lib/types"
 import { Loader2, AlertCircle } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { RestrictedAccessMessage } from "@/components/restricted-access-message"
@@ -15,23 +14,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 export default function EditRecipePage() {
   const params = useParams()
-  const { user, loading } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [authError, setAuthError] = useState<string | null>(null)
-  const [isAuthorChecked, setIsAuthorChecked] = useState(false)
-
-  const router = useRouter()
+  const [canEdit, setCanEdit] = useState<boolean | null>(null)
 
   useEffect(() => {
-    async function loadData() {
+    async function checkPermissionsAndLoadData() {
+      if (authLoading) return
+
+      if (!user) {
+        setLoading(false)
+        return
+      }
+
       try {
         const supabase = getSupabaseClient()
 
-        // Obtener la receta
+        // Primero obtener la receta
         const { data: recipeData, error: recipeError } = await supabase
           .from("recipes")
           .select("*")
@@ -40,55 +43,58 @@ export default function EditRecipePage() {
 
         if (recipeError || !recipeData) {
           setError("Receta no encontrada")
+          setLoading(false)
           return
         }
 
         setRecipe(recipeData)
 
-        // Verificar si el usuario es el autor de la receta
-        if (recipeData.user_id !== user.id) {
+        // Verificar permisos
+        let hasPermission = false
+
+        // Verificar si es el autor
+        if (recipeData.user_id === user.id) {
+          hasPermission = true
+        } else {
           // Verificar si es admin
           const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
 
-          if (!profile || profile.role !== "admin") {
-            setAuthError("Solo puedes editar tus propias recetas. Esta receta pertenece a otro usuario.")
-            setIsAuthorChecked(true)
-            return
+          if (profile?.role === "admin") {
+            hasPermission = true
           }
         }
 
-        // Obtener las categorías de la receta
-        const { data: recipeCategories } = await supabase
-          .from("recipe_categories")
-          .select("category_id")
-          .eq("recipe_id", recipeData.id)
+        setCanEdit(hasPermission)
 
-        const categoryIds = recipeCategories?.map((rc) => rc.category_id) || []
-        setSelectedCategoryIds(categoryIds)
+        // Si tiene permisos, cargar categorías
+        if (hasPermission) {
+          // Obtener las categorías de la receta
+          const { data: recipeCategories } = await supabase
+            .from("recipe_categories")
+            .select("category_id")
+            .eq("recipe_id", recipeData.id)
 
-        // Obtener todas las categorías
-        const { data: categoriesData } = await supabase.from("categories").select("*").order("name")
+          const categoryIds = recipeCategories?.map((rc) => rc.category_id) || []
+          setSelectedCategoryIds(categoryIds)
 
-        setCategories(categoriesData || [])
-        setIsAuthorChecked(true)
+          // Obtener todas las categorías
+          const { data: categoriesData } = await supabase.from("categories").select("*").order("name")
 
-        console.log("Recipe loaded:", recipeData)
-        console.log("Selected Category IDs:", categoryIds)
-        console.log("All Categories:", categoriesData)
+          setCategories(categoriesData || [])
+        }
       } catch (err) {
         console.error("Error loading data:", err)
         setError("Error al cargar los datos")
       } finally {
-        setIsLoading(false)
+        setLoading(false)
       }
     }
 
-    if (user && params.id) {
-      loadData()
-    }
-  }, [params.id, user])
+    checkPermissionsAndLoadData()
+  }, [params.id, user, authLoading])
 
-  if (loading) {
+  // Mostrar loading mientras se verifica la autenticación
+  if (authLoading) {
     return (
       <div className="container py-10">
         <div className="flex items-center justify-center">
@@ -99,6 +105,7 @@ export default function EditRecipePage() {
     )
   }
 
+  // Si no está autenticado, mostrar mensaje de login
   if (!user) {
     return (
       <RestrictedAccessMessage
@@ -108,18 +115,37 @@ export default function EditRecipePage() {
     )
   }
 
-  if (isLoading) {
+  // Mostrar loading mientras se cargan los datos
+  if (loading) {
     return (
       <div className="container py-10">
         <div className="flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Cargando receta...</span>
+          <span className="ml-2">Verificando permisos...</span>
         </div>
       </div>
     )
   }
 
-  if (authError && isAuthorChecked) {
+  // Si hay error, mostrar mensaje de error
+  if (error) {
+    return (
+      <div className="container py-10">
+        <div className="max-w-md mx-auto">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h2 className="text-lg font-semibold text-red-800 mb-2">Error</h2>
+            <p className="text-red-700">{error}</p>
+            <Button asChild className="mt-4">
+              <Link href="/recipes">Ver todas las recetas</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Si no tiene permisos para editar, mostrar mensaje de acceso restringido
+  if (canEdit === false) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
         <Card className="w-full max-w-md">
@@ -142,24 +168,23 @@ export default function EditRecipePage() {
     )
   }
 
-  if (error || !recipe) {
+  // Si tiene permisos y la receta existe, mostrar el formulario de edición
+  if (canEdit === true && recipe) {
     return (
       <div className="container py-10">
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error || "Receta no encontrada"}</AlertDescription>
-        </Alert>
-        <Button asChild>
-          <Link href="/recipes">Volver a las recetas</Link>
-        </Button>
+        <h1 className="text-3xl font-bold mb-6">Editar Receta</h1>
+        <EditRecipeForm recipe={recipe} categories={categories} selectedCategoryIds={selectedCategoryIds} />
       </div>
     )
   }
 
+  // Fallback - no debería llegar aquí
   return (
     <div className="container py-10">
-      <h1 className="text-3xl font-bold mb-6">Editar Receta</h1>
-      <EditRecipeForm recipe={recipe} categories={categories} selectedCategoryIds={selectedCategoryIds} />
+      <div className="flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Cargando...</span>
+      </div>
     </div>
   )
 }
