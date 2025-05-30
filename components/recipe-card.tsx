@@ -1,9 +1,10 @@
+"use client"
+
 import Image from "next/image"
 import Link from "next/link"
 import { ChefHat, Flame, Users, User } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import type { Recipe } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,28 +12,23 @@ import { DeleteRecipeButton } from "@/components/delete-recipe-button"
 import { VideoModal } from "@/components/video-modal"
 import { SourceLinkButton } from "@/components/source-link-button"
 import { getCaloriesPerServing, getCalorieLevel } from "@/lib/calories-calculator"
+import { useAuth } from "@/components/auth/auth-provider"
 
-interface RecipeCardProps {
-  recipe: Recipe & {
-    creator?: {
-      full_name: string
-      email: string
-    } | null
-    user_profiles?: {
-      full_name: string
-      email: string
-    } | null
-  }
-  className?: string
-}
-
+// Update the RecipeCard component to check if the user is the creator
 export function RecipeCard({ recipe, className }: RecipeCardProps) {
+  // Add useAuth hook to get current user
+  const { user } = useAuth()
+
   // Ahora solo usamos el campo calories
   const caloriesPerServing = recipe.calories ? getCaloriesPerServing(recipe.calories) : null
   const calorieLevel = caloriesPerServing ? getCalorieLevel(caloriesPerServing) : null
 
   // Obtener la información del creador (puede venir de creator o user_profiles)
   const creatorInfo = recipe.creator || recipe.user_profiles || null
+
+  // Check if the current user is the creator of the recipe or an admin
+  const isCreator = user && creatorInfo && user.id === recipe.user_id
+  const canEdit = isCreator || user?.role === "admin"
 
   return (
     <Card className={cn("overflow-hidden", className)}>
@@ -97,10 +93,12 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
         <Button asChild className="flex-1">
           <Link href={`/recipes/${recipe.id}`}>Ver</Link>
         </Button>
-        <Button asChild variant="outline">
-          <Link href={`/recipes/${recipe.id}/edit`}>Editar</Link>
-        </Button>
-        <DeleteRecipeButton recipeId={recipe.id} recipeName={recipe.name} />
+        {canEdit && (
+          <Button asChild variant="outline">
+            <Link href={`/recipes/${recipe.id}/edit`}>Editar</Link>
+          </Button>
+        )}
+        {canEdit && <DeleteRecipeButton recipeId={recipe.id} recipeName={recipe.name} />}
       </CardFooter>
     </Card>
   )

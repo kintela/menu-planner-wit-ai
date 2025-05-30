@@ -2,6 +2,9 @@
 
 import { createServerClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { getCurrentUserProfile } from "@/lib/auth"
 
 interface Recipe {
   id: string
@@ -10,6 +13,7 @@ interface Recipe {
   ingredients: string[]
   instructions: string[]
   image: string
+  user_id: string
 }
 
 async function getRecipe(id: string): Promise<Recipe> {
@@ -32,23 +36,49 @@ async function getRecipe(id: string): Promise<Recipe> {
 export default async function RecipePage({ params }: { params: { id: string } }) {
   const { id } = params
   const recipe = await getRecipe(id)
+  const userProfile = await getCurrentUserProfile()
+
+  // Check if the current user is the creator of the recipe or an admin
+  const isCreator = userProfile && userProfile.id === recipe.user_id
+  const isAdmin = userProfile?.role === "admin"
+  const canEdit = isCreator || isAdmin
 
   return (
-    <div>
-      <h1>{recipe?.title}</h1>
-      <img src={recipe?.image || "/placeholder.svg"} alt={recipe?.title} />
-      <h2>Ingredients:</h2>
-      <ul>
-        {recipe?.ingredients.map((ingredient, index) => (
-          <li key={index}>{ingredient}</li>
-        ))}
-      </ul>
-      <h2>Instructions:</h2>
-      <ol>
-        {recipe?.instructions.map((instruction, index) => (
-          <li key={index}>{instruction}</li>
-        ))}
-      </ol>
+    <div className="container mx-auto py-8">
+      <div className="mb-6 flex justify-between items-center">
+        <h1 className="text-3xl font-bold">{recipe?.title}</h1>
+        {canEdit && (
+          <Button asChild variant="outline">
+            <Link href={`/recipes/${id}/edit`}>Editar receta</Link>
+          </Button>
+        )}
+      </div>
+
+      <img
+        src={recipe?.image || "/placeholder.svg"}
+        alt={recipe?.title}
+        className="w-full max-h-96 object-cover rounded-lg mb-6"
+      />
+
+      <div className="grid md:grid-cols-2 gap-8">
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Ingredientes:</h2>
+          <ul className="list-disc pl-5 space-y-2">
+            {recipe?.ingredients.map((ingredient, index) => (
+              <li key={index}>{ingredient}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Instrucciones:</h2>
+          <ol className="list-decimal pl-5 space-y-4">
+            {recipe?.instructions.map((instruction, index) => (
+              <li key={index}>{instruction}</li>
+            ))}
+          </ol>
+        </div>
+      </div>
     </div>
   )
 }
