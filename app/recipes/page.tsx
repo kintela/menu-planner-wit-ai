@@ -1,12 +1,8 @@
 import { PlusCircle } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { auth } from "@/auth"
 
 export default async function RecipesPage() {
-  const session = await auth()
-  const user = session?.user
-
   return (
     <div className="container relative">
       <div className="flex items-center justify-between space-y-2">
