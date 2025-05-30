@@ -1,10 +1,11 @@
+"use client"
+
 import { createServerClient } from "@/lib/supabase/server"
 import { RecipeCard } from "@/components/recipe-card"
 import { RecipeSearch } from "@/components/recipe-search"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MyRecipesCheckbox } from "@/components/my-recipes-checkbox"
 import Link from "next/link"
 import { PlusCircle, AlertCircle } from "lucide-react"
 import type { Category } from "@/lib/types"
@@ -13,11 +14,10 @@ interface RecipesPageProps {
   searchParams: {
     search?: string
     categories?: string
-    my?: string // Parámetro para mostrar solo mis recetas
+    my?: string
   }
 }
 
-// Forzar renderizado dinámico
 export const dynamic = "force-dynamic"
 
 export default async function RecipesPage({ searchParams }: RecipesPageProps) {
@@ -28,6 +28,8 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     const {
       data: { user },
     } = await supabase.auth.getUser()
+
+    console.log("Usuario detectado:", user ? "SÍ" : "NO", user?.email)
 
     // Determinar si mostrar solo las recetas del usuario o todas
     const showOnlyMyRecipes = searchParams.my === "true"
@@ -91,7 +93,6 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       const recipeId = rc.recipe_id
       const categoryId = rc.category_id
 
-      // Añadir la categoría a la receta
       if (recipeCategoriesMap.has(recipeId)) {
         recipeCategoriesMap.get(recipeId)?.push(categoryId)
       }
@@ -158,18 +159,6 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       }
     }
 
-    // Información de las categorías seleccionadas para mostrar
-    const selectedCategoryNames = searchParams.categories
-      ? searchParams.categories
-          .split(",")
-          .map((id) => {
-            const categoryId = Number.parseInt(id.trim())
-            const category = categories?.find((cat) => cat.id === categoryId)
-            return category?.name
-          })
-          .filter(Boolean)
-      : []
-
     const hasActiveFilters = Boolean(searchParams.search || searchParams.categories)
     const displayedRecipes = filteredRecipes || []
 
@@ -189,8 +178,33 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
                 {hasActiveFilters ? "Resultados de búsqueda" : showOnlyMyRecipes ? "Mis Recetas" : "Todas las Recetas"}
               </h1>
 
+              {/* Debug: Mostrar siempre para verificar */}
+              <div className="flex items-center space-x-2 ml-4 bg-yellow-200 p-2 rounded">
+                <span className="text-xs">DEBUG: Usuario: {user ? "✓" : "✗"}</span>
+              </div>
+
               {/* Checkbox "Solo las mías" - solo visible si el usuario está logueado */}
-              {user && <MyRecipesCheckbox isChecked={showOnlyMyRecipes} />}
+              {user && (
+                <div className="flex items-center space-x-2 ml-4 bg-green-100 p-2 rounded">
+                  <input
+                    type="checkbox"
+                    id="show-my-recipes"
+                    checked={showOnlyMyRecipes}
+                    onChange={(e) => {
+                      const params = new URLSearchParams(window.location.search)
+                      if (e.target.checked) {
+                        params.set("my", "true")
+                      } else {
+                        params.delete("my")
+                      }
+                      window.location.href = `/recipes?${params.toString()}`
+                    }}
+                  />
+                  <label htmlFor="show-my-recipes" className="text-sm font-medium cursor-pointer">
+                    Solo las mías
+                  </label>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-4 mt-2">
@@ -236,11 +250,6 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
               <h3 className="font-medium mb-2">Filtros aplicados:</h3>
               <div className="flex flex-wrap gap-2">
                 {searchParams.search && <Badge variant="secondary">Búsqueda: "{searchParams.search}"</Badge>}
-                {selectedCategoryNames.map((name, index) => (
-                  <Badge key={index} variant="secondary">
-                    Categoría: {name}
-                  </Badge>
-                ))}
                 {showOnlyMyRecipes && <Badge variant="secondary">Solo mis recetas</Badge>}
               </div>
               <p className="text-sm text-muted-foreground mt-2">{displayedRecipes.length} receta(s) encontrada(s)</p>
