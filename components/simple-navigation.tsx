@@ -244,12 +244,7 @@ export function SimpleNavigation() {
 
             {/* Mobile hamburger menu button - ALWAYS VISIBLE ON MOBILE */}
             <div className="md:hidden">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2"
-              >
+              <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2">
                 {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </Button>
             </div>
@@ -343,6 +338,7 @@ export function SimpleNavigation() {
             </div>
           </div>
         )}
-      </nav>
-  )\
+      </div>
+    </nav>
+  )
 }
