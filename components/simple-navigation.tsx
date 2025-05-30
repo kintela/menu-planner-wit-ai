@@ -111,8 +111,22 @@ export function SimpleNavigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center space-x-4">
-            <Link href="/" className="text-xl font-bold text-gray-900">
-              Menu Planner
+            <Link href="/" className="flex items-center justify-center p-2 text-gray-900" title="Inicio">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="lucide lucide-home"
+              >
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+              </svg>
             </Link>
 
             <div className="hidden md:flex items-center space-x-2">
