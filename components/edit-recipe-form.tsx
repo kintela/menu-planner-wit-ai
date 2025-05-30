@@ -155,16 +155,8 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     e.preventDefault()
     setIsLoading(true)
 
-    // Verificar que el usuario esté autenticado
-    if (!user) {
-      toast({
-        title: "Error de autenticación",
-        description: "Debes estar autenticado para editar una receta.",
-        variant: "destructive",
-      })
-      setIsLoading(false)
-      return
-    }
+    // Permitir edición sin autenticación
+    const userId = user?.id || "anonymous"
 
     const formData = new FormData(e.currentTarget)
     const name = formData.get("name") as string
@@ -255,17 +247,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     } finally {
       setIsLoading(false)
     }
-  }
-
-  // Si no hay usuario, mostrar mensaje
-  if (!user) {
-    return (
-      <Card className="p-6">
-        <div className="text-center">
-          <p className="text-muted-foreground">Debes estar autenticado para editar una receta.</p>
-        </div>
-      </Card>
-    )
   }
 
   return (
