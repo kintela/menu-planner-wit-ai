@@ -9,7 +9,7 @@ import type { User } from "@supabase/supabase-js"
 
 const supabase = createClientComponentClient()
 
-export function AddRecipeForm() {
+export default function AddRecipeForm() {
   const [formData, setFormData] = useState({
     name: "",
     ingredients: "",
