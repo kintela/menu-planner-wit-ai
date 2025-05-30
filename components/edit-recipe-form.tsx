@@ -43,6 +43,8 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
   const router = useRouter()
   const supabase = useSupabaseClient()
 
+  const [ingredients, setIngredients] = useState(recipe.ingredients)
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -58,9 +60,6 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true)
     try {
-      // Obtener el cliente de Supabase
-      const supabase = useSupabaseClient()
-
       // Obtener el usuario actual
       const {
         data: { user },
@@ -98,7 +97,7 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
         .update({
           title: values.title,
           description: values.description,
-          ingredients: values.ingredients,
+          ingredients: ingredients,
           instructions: values.instructions,
           category: values.category,
           image_url: values.image_url,
@@ -159,14 +158,22 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
             </FormItem>
           )}
         />
+        {/* Ingredients textarea */}
         <FormField
           control={form.control}
           name="ingredients"
-          render={({ field }) => (
+          render={() => (
             <FormItem>
               <FormLabel>Ingredients</FormLabel>
               <FormControl>
-                <Textarea placeholder="Enter recipe ingredients" className="resize-none" {...field} />
+                <Textarea
+                  id="ingredients"
+                  name="ingredients"
+                  value={ingredients}
+                  onChange={(e) => setIngredients(e.target.value)}
+                  placeholder="Escribe los ingredientes, uno por línea (ej: 200g de arroz, 1 pollo, 2 cebollas...)"
+                  className="min-h-32 resize-none"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -179,7 +186,13 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
             <FormItem>
               <FormLabel>Instructions</FormLabel>
               <FormControl>
-                <Textarea placeholder="Enter recipe instructions" className="resize-none" {...field} />
+                <Textarea
+                  id="preparation"
+                  name="preparation"
+                  defaultValue={recipe.instructions}
+                  placeholder="Describe los pasos para preparar la receta"
+                  className="min-h-32 resize-none"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
