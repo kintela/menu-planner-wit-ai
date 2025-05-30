@@ -200,6 +200,13 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
       console.log("Final image URL to save:", finalImageUrl)
 
+      // Verificar que tenemos una URL válida antes de guardar
+      if (finalImageUrl && finalImageUrl.trim() !== "") {
+        console.log("✅ Valid image URL to save:", finalImageUrl)
+      } else {
+        console.log("⚠️ No valid image URL to save")
+      }
+
       // Determinar las calorías finales
       let finalCalories = null
 
@@ -234,6 +241,20 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       }
 
       console.log("Recipe updated successfully in database")
+
+      // Verificar que la receta se actualizó correctamente
+      const { data: updatedRecipe, error: fetchError } = await supabase
+        .from("recipes")
+        .select("id, name, image_url")
+        .eq("id", recipe.id)
+        .single()
+
+      if (fetchError) {
+        console.error("Error fetching updated recipe:", fetchError)
+      } else {
+        console.log("✅ Recipe after update:", updatedRecipe)
+        console.log("✅ Image URL in database:", updatedRecipe.image_url)
+      }
 
       // Actualizar las categorías
       // Primero, eliminar todas las relaciones existentes
