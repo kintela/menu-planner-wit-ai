@@ -330,110 +330,121 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
           )}
         />
 
-        {/* Sección de imagen con tabs */}
-        <div className="space-y-2">
-          <FormLabel>Recipe Image</FormLabel>
-          <Tabs value={imageTab} onValueChange={setImageTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="url">Image URL</TabsTrigger>
-              <TabsTrigger value="upload">Upload Image</TabsTrigger>
-            </TabsList>
-            <TabsContent value="url" className="space-y-4">
-              <div className="space-y-2">
-                <Input
-                  type="url"
-                  placeholder="https://example.com/image.jpg"
-                  value={imageUrl}
-                  onChange={handleUrlChange}
-                />
-              </div>
-              {imageUrl && (
-                <div className="relative w-full aspect-video">
-                  <Image
-                    src={imageUrl || "/placeholder.svg"}
-                    alt="Recipe preview"
-                    fill
-                    className="object-cover rounded-md"
-                    onError={() => {
-                      toast({
-                        title: "Error loading image",
-                        description: "The URL provided is not valid or not accessible.",
-                        variant: "destructive",
-                      })
-                      setImagePreview(null)
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2"
-                    onClick={handleRemoveImage}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-            </TabsContent>
-            <TabsContent value="upload">
-              {imagePreview && imageTab === "upload" ? (
-                <div className="relative w-full aspect-video mb-4">
-                  <Image
-                    src={imagePreview || "/placeholder.svg"}
-                    alt="Recipe preview"
-                    fill
-                    className="object-cover rounded-md"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2"
-                    onClick={handleRemoveImage}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                  {uploadedImageUrl && (
-                    <div className="absolute bottom-2 right-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-md">
-                      ✅ Image saved
-                    </div>
-                  )}
-                  {isImageUploading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                      <div className="bg-white p-4 rounded-md flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Uploading image...</span>
+        {/* Sección de imagen dentro de FormField */}
+        <FormField
+          control={form.control}
+          name="image_url"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Recipe Image</FormLabel>
+              <FormControl>
+                <div className="space-y-4">
+                  <Tabs value={imageTab} onValueChange={setImageTab} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="url">Image URL</TabsTrigger>
+                      <TabsTrigger value="upload">Upload Image</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="url" className="space-y-4">
+                      <div className="space-y-2">
+                        <Input
+                          type="url"
+                          placeholder="https://example.com/image.jpg"
+                          value={imageUrl}
+                          onChange={handleUrlChange}
+                        />
                       </div>
-                    </div>
-                  )}
+                      {imageUrl && (
+                        <div className="relative w-full aspect-video">
+                          <Image
+                            src={imageUrl || "/placeholder.svg"}
+                            alt="Recipe preview"
+                            fill
+                            className="object-cover rounded-md"
+                            onError={() => {
+                              toast({
+                                title: "Error loading image",
+                                description: "The URL provided is not valid or not accessible.",
+                                variant: "destructive",
+                              })
+                              setImagePreview(null)
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-2 right-2"
+                            onClick={handleRemoveImage}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </TabsContent>
+                    <TabsContent value="upload">
+                      {imagePreview && imageTab === "upload" ? (
+                        <div className="relative w-full aspect-video mb-4">
+                          <Image
+                            src={imagePreview || "/placeholder.svg"}
+                            alt="Recipe preview"
+                            fill
+                            className="object-cover rounded-md"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-2 right-2"
+                            onClick={handleRemoveImage}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                          {uploadedImageUrl && (
+                            <div className="absolute bottom-2 right-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-md">
+                              ✅ Image saved
+                            </div>
+                          )}
+                          {isImageUploading && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                              <div className="bg-white p-4 rounded-md flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>Uploading image...</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center w-full">
+                          <label
+                            htmlFor="image-upload"
+                            className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted"
+                          >
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                              <Upload className="w-8 h-8 mb-4 text-muted-foreground" />
+                              <p className="mb-2 text-sm text-muted-foreground">
+                                <span className="font-semibold">Click to upload</span> or drag and drop
+                              </p>
+                              <p className="text-xs text-muted-foreground">PNG, JPG or GIF (max. 5MB)</p>
+                            </div>
+                            <input
+                              id="image-upload"
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handleImageChange}
+                              disabled={isImageUploading}
+                            />
+                          </label>
+                        </div>
+                      )}
+                    </TabsContent>
+                  </Tabs>
                 </div>
-              ) : (
-                <div className="flex items-center justify-center w-full">
-                  <label
-                    htmlFor="image-upload"
-                    className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted"
-                  >
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <Upload className="w-8 h-8 mb-4 text-muted-foreground" />
-                      <p className="mb-2 text-sm text-muted-foreground">
-                        <span className="font-semibold">Click to upload</span> or drag and drop
-                      </p>
-                      <p className="text-xs text-muted-foreground">PNG, JPG or GIF (max. 5MB)</p>
-                    </div>
-                    <input
-                      id="image-upload"
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleImageChange}
-                      disabled={isImageUploading}
-                    />
-                  </label>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
-        </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <Button type="submit" disabled={isLoading || isImageUploading}>
           {isLoading ? (
