@@ -44,6 +44,7 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
   const supabase = useSupabaseClient()
 
   const [ingredients, setIngredients] = useState(recipe.ingredients)
+  const [instructions, setInstructions] = useState(recipe.instructions)
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -98,7 +99,7 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
           title: values.title,
           description: values.description,
           ingredients: ingredients,
-          instructions: values.instructions,
+          instructions: instructions,
           category: values.category,
           image_url: values.image_url,
         })
@@ -187,11 +188,10 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
               <FormLabel>Instructions</FormLabel>
               <FormControl>
                 <Textarea
-                  id="preparation"
-                  name="preparation"
-                  defaultValue={recipe.instructions}
                   placeholder="Describe los pasos para preparar la receta"
                   className="min-h-32 resize-none"
+                  value={instructions}
+                  onChange={(e) => setInstructions(e.target.value)}
                 />
               </FormControl>
               <FormMessage />
