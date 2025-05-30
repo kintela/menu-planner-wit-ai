@@ -158,7 +158,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
                 {hasActiveFilters ? "Resultados de búsqueda" : showOnlyMyRecipes ? "Mis Recetas" : "Todas las Recetas"}
               </h1>
 
-              {/* Componente cliente para el checkbox */}
+              {/* Componente cliente para el checkbox - SIEMPRE visible */}
               <MyRecipesFilter />
             </div>
 
