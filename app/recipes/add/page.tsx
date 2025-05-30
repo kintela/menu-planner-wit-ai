@@ -23,6 +23,7 @@ export default function AddRecipePage() {
         setCategoriesError(null)
         const supabase = getSupabaseClient()
 
+        console.log("Intentando cargar categorías...")
         const { data, error } = await supabase.from("categories").select("*").order("name")
 
         if (error) {
@@ -30,8 +31,10 @@ export default function AddRecipePage() {
           setCategoriesError(`Error al cargar categorías: ${error.message}`)
         } else {
           setCategories(data || [])
+
           if (!data || data.length === 0) {
             setCategoriesError("No hay categorías disponibles.")
+
           }
         }
       } catch (error) {
@@ -41,6 +44,7 @@ export default function AddRecipePage() {
         setCategoriesLoading(false)
       }
     }
+
 
     if (user || !loading) {
       loadCategories()
@@ -97,11 +101,15 @@ export default function AddRecipePage() {
           <div className="text-center py-8">
             <Loader2 className="h-6 w-6 animate-spin mx-auto mb-4" />
             <p>Cargando categorías...</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Si esto tarda mucho, puede que no haya categorías en la base de datos
+            </p>
           </div>
         </div>
       </div>
     )
   }
+
 
   if (categoriesError) {
     return (
@@ -124,7 +132,9 @@ export default function AddRecipePage() {
                     Gestionar Categorías
                   </Link>
                 </Button>
+
                 <Button variant="outline" onClick={() => window.location.reload()}>
+
                   Reintentar
                 </Button>
               </div>
@@ -140,6 +150,7 @@ export default function AddRecipePage() {
       </div>
     )
   }
+
 
   return (
     <div className="container mx-auto py-8 px-4">

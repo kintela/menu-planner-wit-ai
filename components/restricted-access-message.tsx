@@ -1,7 +1,9 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Lock } from "lucide-react"
+
 
 interface RestrictedAccessMessageProps {
   message: string
@@ -9,6 +11,7 @@ interface RestrictedAccessMessageProps {
 }
 
 export function RestrictedAccessMessage({ message, redirectPath }: RestrictedAccessMessageProps) {
+
   // Construir la URL de redirección para el login
   const loginUrl = redirectPath ? `/login?redirect=${encodeURIComponent(redirectPath)}` : "/login"
 
@@ -31,6 +34,7 @@ export function RestrictedAccessMessage({ message, redirectPath }: RestrictedAcc
           </Button>
         </CardContent>
       </Card>
+
     </div>
   )
 }

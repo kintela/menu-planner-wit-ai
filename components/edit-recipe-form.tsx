@@ -31,10 +31,12 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const { toast } = useToast()
   const { user } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
+  const [isImageUploading, setIsImageUploading] = useState(false)
   const [selectedCategories, setSelectedCategories] = useState<number[]>(selectedCategoryIds)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(recipe.image_url || null)
   const [imageUrl, setImageUrl] = useState<string>(recipe.image_url || "")
+
   const [imageTab, setImageTab] = useState<string>("url")
   const [ingredients, setIngredients] = useState<string>("")
   const [estimatedCalories, setEstimatedCalories] = useState<number | null>(null)
@@ -67,6 +69,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     }
   }, [recipe])
 
+
   // Calcular calorías cuando cambian los ingredientes
   useEffect(() => {
     if (ingredients.trim() && !useManualCalories) {
@@ -77,7 +80,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     }
   }, [ingredients, useManualCalories])
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -110,12 +113,57 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       setImagePreview(reader.result as string)
     }
     reader.readAsDataURL(file)
+
+    // Subir la imagen inmediatamente
+    try {
+      setIsImageUploading(true)
+
+      toast({
+        title: "Subiendo imagen",
+        description: "Por favor espera mientras se sube la imagen...",
+      })
+
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error(`Error al subir la imagen: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      if (data.url) {
+        setUploadedImageUrl(data.url)
+
+        toast({
+          title: "Imagen subida y asociada",
+          description: "La imagen se ha subido y asociada a la receta correctamente.",
+        })
+      } else {
+        throw new Error("No se recibió URL de la imagen")
+      }
+    } catch (error) {
+      console.error("Error uploading image:", error)
+      toast({
+        title: "Error al subir la imagen",
+        description: `No se pudo subir la imagen: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        variant: "destructive",
+      })
+    } finally {
+      setIsImageUploading(false)
+    }
   }
 
-  const handleRemoveImage = () => {
+  const handleRemoveImage = async () => {
     setImageFile(null)
     setImagePreview(null)
     setImageUrl("")
+    setUploadedImageUrl(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -125,11 +173,13 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     setImageUrl(e.target.value)
     setImageFile(null)
     setImagePreview(e.target.value)
+    setUploadedImageUrl(null)
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
+
 
     // Verificar que el usuario esté autenticado
     if (!user) {
@@ -142,11 +192,29 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       return
     }
 
+
     const formData = new FormData(e.currentTarget)
     const name = formData.get("name") as string
     const preparation = formData.get("preparation") as string
     const video_url = (formData.get("video_url") as string) || null
     const source_url = (formData.get("source_url") as string) || null
+
+    // Usar el estado local para ingredientes
+    const finalIngredients = ingredients.trim()
+
+    console.log("Datos del formulario:", {
+      name,
+      ingredients,
+      preparation,
+      video_url,
+      source_url,
+      selectedCategories,
+      imageUrl,
+      uploadedImageUrl,
+    })
+
+    console.log("Ingredientes del estado local:", ingredients)
+    console.log("Ingredientes finales:", finalIngredients)
 
     // Validación del nombre (único campo obligatorio)
     if (!name.trim()) {
@@ -190,24 +258,42 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
             variant: "destructive",
           })
         }
+
       }
+
+      console.log("URL final de imagen:", finalImageUrl)
 
       // Determinar las calorías finales
       let finalCalories = null
 
       if (useManualCalories && manualCalories) {
-        // Si el usuario eligió calorías manuales, usar esas
         finalCalories = Number.parseInt(manualCalories)
       } else if (estimatedCalories) {
-        // Si no usa calorías manuales, usar las calculadas
         finalCalories = estimatedCalories
       }
 
+      console.log("Calorías finales:", finalCalories)
+
       const supabase = getSupabaseClient()
 
+      // Preparar datos para actualizar
+      const updateData = {
+        name: name.trim(),
+        ingredients: finalIngredients,
+        preparation: preparation.trim(),
+        image_url: finalImageUrl,
+        video_url: video_url?.trim() || null,
+        source_url: source_url?.trim() || null,
+        calories: finalCalories,
+      }
+
+      console.log("Datos a actualizar:", updateData)
+      console.log("ID de receta:", recipe.id)
+
       // Actualizar la receta
-      const { error } = await supabase
+      const { data: updateResult, error: updateError } = await supabase
         .from("recipes")
+
         .update({
           name,
           ingredients: ingredients || "",
@@ -218,41 +304,63 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
           calories: finalCalories,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", recipe.id)
 
-      if (error) throw error
+       
+        .eq("id", recipe.id)
+        .select()
+
+      console.log("Resultado de actualización:", updateResult)
+
+      if (updateError) {
+        console.error("Error al actualizar receta:", updateError)
+        throw new Error(`Error de base de datos: ${updateError.message}`)
+      }
+
+      console.log("Receta actualizada exitosamente")
+
 
       // Actualizar las categorías seleccionadas
       // Primero eliminar todas las categorías existentes
       await supabase.from("recipe_categories").delete().eq("recipe_id", recipe.id)
 
       // Luego insertar las nuevas categorías seleccionadas
+
       if (selectedCategories.length > 0) {
         const categoryRelations = selectedCategories.map((categoryId) => ({
           recipe_id: recipe.id,
           category_id: categoryId,
         }))
 
+        console.log("Insertando categorías:", categoryRelations)
+
         const { error: categoryError } = await supabase.from("recipe_categories").insert(categoryRelations)
 
-        if (categoryError) throw categoryError
+        if (categoryError) {
+          console.error("Error al insertar categorías:", categoryError)
+          throw new Error(`Error al guardar categorías: ${categoryError.message}`)
+        } else {
+          console.log("Categorías insertadas exitosamente")
+        }
       }
 
-      // Mostrar toast de éxito
       toast({
-        title: "Receta actualizada",
-        description: "La receta se ha actualizado correctamente. Redirigiendo...",
+        title: "¡Receta actualizada!",
+        description: "La receta se ha actualizado correctamente.",
       })
 
-      // Esperar un momento para que el toast se muestre y luego redirigir
+      console.log("=== GUARDADO COMPLETADO EXITOSAMENTE ===")
+
+      // Redirigir después de un breve delay
       setTimeout(() => {
         router.push(`/recipes/${recipe.id}`)
+
       }, 1000)
+
     } catch (error) {
-      console.error("Error updating recipe:", error)
+      console.error("=== ERROR EN GUARDADO ===", error)
       toast({
-        title: "Error",
-        description: `Ha ocurrido un error al actualizar la receta: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        title: "Error al guardar",
+        description: `Ha ocurrido un error: ${error instanceof Error ? error.message : "Error desconocido"}`,
         variant: "destructive",
       })
     } finally {
@@ -403,6 +511,19 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
                   >
                     <X className="h-4 w-4" />
                   </Button>
+                  {uploadedImageUrl && (
+                    <div className="absolute bottom-2 right-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-md">
+                      ✅ Imagen guardada
+                    </div>
+                  )}
+                  {isImageUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <div className="bg-white p-4 rounded-md flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Subiendo y guardando imagen...</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center justify-center w-full">
@@ -424,6 +545,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
                       accept="image/*"
                       className="hidden"
                       onChange={handleImageChange}
+                      disabled={isImageUploading}
                     />
                   </label>
                 </div>
@@ -468,11 +590,13 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
         <div className="text-sm text-muted-foreground mb-4">* Los campos marcados con asterisco son obligatorios</div>
 
+
         <div className="flex justify-end space-x-4">
           <Button type="button" variant="outline" onClick={() => router.back()}>
             Cancelar
           </Button>
           <Button type="submit" disabled={isLoading}>
+
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

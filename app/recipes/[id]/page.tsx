@@ -1,23 +1,26 @@
 // app/recipes/[id]/page.tsx
-
 import { createServerClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
+
 interface Recipe {
   id: string
   created_at: string
   title: string
+
   ingredients: string[] | string
   instructions: string[] | string
   image: string
   user_id: string
+
 }
 
 async function getRecipe(id: string): Promise<Recipe> {
   try {
     const supabase = createServerClient()
+
 
     const { data: recipe, error } = await supabase.from("recipes").select("*").eq("id", id).single()
 
@@ -91,6 +94,7 @@ export default async function RecipePage({ params }: { params: { id: string } })
           </ol>
         </div>
       </div>
+
     </div>
   )
 }

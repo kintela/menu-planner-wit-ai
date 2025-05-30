@@ -15,7 +15,9 @@ import { getCaloriesPerServing, getCalorieLevel } from "@/lib/calories-calculato
 
 // Define the RecipeCardProps interface
 interface RecipeCardProps {
+
   recipe: any
+
   className?: string
 }
 
