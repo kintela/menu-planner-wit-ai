@@ -117,7 +117,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
         toast({
           title: "Imagen subida y asociada",
-          description: "La imagen se ha subido y asociado a la receta correctamente.",
+          description: "La imagen se ha subido y asociada a la receta correctamente.",
         })
       } else {
         throw new Error("No se recibió URL de la imagen")
@@ -155,14 +155,24 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     e.preventDefault()
     setIsLoading(true)
 
-    // Permitir edición sin autenticación
-    const userId = user?.id || "anonymous"
+    console.log("=== INICIANDO GUARDADO DE RECETA ===")
 
     const formData = new FormData(e.currentTarget)
     const name = formData.get("name") as string
     const preparation = formData.get("preparation") as string
     const video_url = (formData.get("video_url") as string) || null
     const source_url = (formData.get("source_url") as string) || null
+
+    console.log("Datos del formulario:", {
+      name,
+      ingredients,
+      preparation,
+      video_url,
+      source_url,
+      selectedCategories,
+      imageUrl,
+      uploadedImageUrl,
+    })
 
     // Validación del nombre (único campo obligatorio)
     if (!name.trim()) {
@@ -185,6 +195,8 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         finalImageUrl = uploadedImageUrl
       }
 
+      console.log("URL final de imagen:", finalImageUrl)
+
       // Determinar las calorías finales
       let finalCalories = null
 
@@ -194,54 +206,88 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         finalCalories = estimatedCalories
       }
 
+      console.log("Calorías finales:", finalCalories)
+
       const supabase = getSupabaseClient()
 
-      // Actualizar la receta
+      // Preparar datos para actualizar
       const updateData = {
-        name,
-        ingredients: ingredients || "",
-        preparation: preparation || "",
+        name: name.trim(),
+        ingredients: ingredients.trim(),
+        preparation: preparation.trim(),
         image_url: finalImageUrl,
-        video_url: video_url,
-        source_url: source_url,
+        video_url: video_url?.trim() || null,
+        source_url: source_url?.trim() || null,
         calories: finalCalories,
       }
 
-      const { error } = await supabase.from("recipes").update(updateData).eq("id", recipe.id)
+      console.log("Datos a actualizar:", updateData)
+      console.log("ID de receta:", recipe.id)
 
-      if (error) {
-        console.error("Database update error:", error)
-        throw error
+      // Actualizar la receta
+      const { data: updateResult, error: updateError } = await supabase
+        .from("recipes")
+        .update(updateData)
+        .eq("id", recipe.id)
+        .select()
+
+      console.log("Resultado de actualización:", updateResult)
+
+      if (updateError) {
+        console.error("Error al actualizar receta:", updateError)
+        throw new Error(`Error de base de datos: ${updateError.message}`)
       }
 
-      // Actualizar las categorías
-      await supabase.from("recipe_categories").delete().eq("recipe_id", recipe.id)
+      console.log("Receta actualizada exitosamente")
 
+      // Actualizar las categorías
+      console.log("Actualizando categorías...")
+
+      // Primero eliminar categorías existentes
+      const { error: deleteError } = await supabase.from("recipe_categories").delete().eq("recipe_id", recipe.id)
+
+      if (deleteError) {
+        console.error("Error al eliminar categorías:", deleteError)
+      } else {
+        console.log("Categorías anteriores eliminadas")
+      }
+
+      // Luego insertar las nuevas categorías
       if (selectedCategories.length > 0) {
         const categoryRelations = selectedCategories.map((categoryId) => ({
           recipe_id: recipe.id,
           category_id: categoryId,
         }))
 
+        console.log("Insertando categorías:", categoryRelations)
+
         const { error: categoryError } = await supabase.from("recipe_categories").insert(categoryRelations)
 
-        if (categoryError) throw categoryError
+        if (categoryError) {
+          console.error("Error al insertar categorías:", categoryError)
+          throw new Error(`Error al guardar categorías: ${categoryError.message}`)
+        } else {
+          console.log("Categorías insertadas exitosamente")
+        }
       }
 
       toast({
-        title: "Receta actualizada",
-        description: "La receta se ha actualizado correctamente. Redirigiendo...",
+        title: "¡Receta actualizada!",
+        description: "La receta se ha actualizado correctamente.",
       })
 
+      console.log("=== GUARDADO COMPLETADO EXITOSAMENTE ===")
+
+      // Redirigir después de un breve delay
       setTimeout(() => {
-        router.push("/recipes")
+        router.push(`/recipes/${recipe.id}`)
         router.refresh()
-      }, 1000)
+      }, 1500)
     } catch (error) {
-      console.error("Error updating recipe:", error)
+      console.error("=== ERROR EN GUARDADO ===", error)
       toast({
-        title: "Error",
-        description: `Ha ocurrido un error al actualizar la receta: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        title: "Error al guardar",
+        description: `Ha ocurrido un error: ${error instanceof Error ? error.message : "Error desconocido"}`,
         variant: "destructive",
       })
     } finally {
