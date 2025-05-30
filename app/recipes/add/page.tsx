@@ -1,7 +1,7 @@
 "use client"
 
 import { useAuth } from "@/components/auth/auth-provider"
-import { AddRecipeForm } from "@/components/add-recipe-form"
+import AddRecipeForm from "@/components/add-recipe-form"
 import { Loader2, AlertCircle } from "lucide-react"
 import { useEffect, useState } from "react"
 import { getSupabaseClient } from "@/lib/supabase/client"
@@ -106,7 +106,7 @@ export default function AddRecipePage() {
     <div className="container mx-auto py-8 px-4">
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Añadir Nueva Receta</h1>
-        <AddRecipeForm categories={categories} />
+        <AddRecipeForm />
       </div>
     </div>
   )
