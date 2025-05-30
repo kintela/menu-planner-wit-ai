@@ -35,8 +35,8 @@ export async function GET(request: NextRequest) {
       try {
         const userName = data.user.user_metadata?.full_name || data.user.email?.split("@")[0] || "Usuario"
 
-        // Solo roberto.quintela@protonmail.com será admin, todos los demás user_restricted
-        const userRole = data.user.email === "roberto.quintela@protonmail.com" ? "admin" : "user_restricted"
+        // Solo roberto.quintela@protonmail.com será admin, todos los demás user_full (no user_restricted)
+        const userRole = data.user.email === "roberto.quintela@protonmail.com" ? "admin" : "user_full"
 
         console.log(`👤 Creating profile for: ${data.user.email} with role: ${userRole}`)
 
@@ -58,10 +58,13 @@ export async function GET(request: NextRequest) {
             email: data.user.email!,
             full_name: userName,
             role: userRole,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           })
 
           if (profileError) {
             console.error("❌ Error creating user profile:", profileError)
+            console.error("❌ Profile error details:", JSON.stringify(profileError, null, 2))
           } else {
             console.log(`✅ User profile created successfully for: ${data.user.email} with role: ${userRole}`)
           }
