@@ -9,7 +9,6 @@ import type { User } from "@supabase/supabase-js"
 
 import { ChefHat, Calendar, LogOut, Menu, X, History, Settings, Home } from "lucide-react"
 
-
 interface UserProfile {
   role: string
   full_name: string
@@ -21,6 +20,7 @@ export function SimpleNavigation() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -66,8 +66,45 @@ export function SimpleNavigation() {
   }, [supabase])
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    window.location.href = "/"
+    try {
+      setIsSigningOut(true)
+      console.log("🔄 Iniciando cierre de sesión...")
+
+      // Cerrar sesión en Supabase
+      const { error } = await supabase.auth.signOut()
+
+      if (error) {
+        console.error("❌ Error al cerrar sesión:", error)
+        throw error
+      }
+
+      console.log("✅ Sesión cerrada exitosamente")
+
+      // Limpiar estado local
+      setUser(null)
+      setUserProfile(null)
+
+      // Limpiar localStorage y sessionStorage
+      if (typeof window !== "undefined") {
+        localStorage.clear()
+        sessionStorage.clear()
+      }
+
+      // Redirigir a la página principal
+      window.location.href = "/"
+    } catch (error) {
+      console.error("❌ Error durante el cierre de sesión:", error)
+      // Incluso si hay error, intentar limpiar y redirigir
+      setUser(null)
+      setUserProfile(null)
+      if (typeof window !== "undefined") {
+        localStorage.clear()
+        sessionStorage.clear()
+        window.location.href = "/"
+      }
+    } finally {
+      setIsSigningOut(false)
+    }
   }
 
   // Función para verificar si el usuario puede ver una opción del menú
@@ -187,10 +224,11 @@ export function SimpleNavigation() {
                     variant="outline"
                     size="sm"
                     onClick={handleSignOut}
-                    className="flex items-center space-x-1 text-red-600 border-red-300 hover:bg-red-100 hover:text-red-700 hover:border-red-400 transition-colors"
+                    disabled={isSigningOut}
+                    className="flex items-center space-x-1 text-red-600 border-red-300 hover:bg-red-100 hover:text-red-700 hover:border-red-400 transition-colors disabled:opacity-50"
                   >
                     <LogOut className="h-4 w-4" />
-                    <span>Cerrar Sesión</span>
+                    <span>{isSigningOut ? "Cerrando..." : "Cerrar Sesión"}</span>
                   </Button>
                 </>
               ) : (
@@ -255,9 +293,8 @@ export function SimpleNavigation() {
                 <ChefHat className="h-5 w-5" />
                 <span>Recetas</span>
               </Link>
-             
-              <Link
 
+              <Link
                 href="/weekly-menu"
                 className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium ${
                   pathname === "/weekly-menu" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
@@ -300,10 +337,11 @@ export function SimpleNavigation() {
                     handleSignOut()
                     setMobileMenuOpen(false)
                   }}
-                  className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-red-50 w-full text-left"
+                  disabled={isSigningOut}
+                  className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-red-50 w-full text-left disabled:opacity-50"
                 >
                   <LogOut className="h-5 w-5" />
-                  <span>Cerrar Sesión</span>
+                  <span>{isSigningOut ? "Cerrando..." : "Cerrar Sesión"}</span>
                 </button>
               )}
 
