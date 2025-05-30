@@ -8,6 +8,7 @@ import { Loader2, Upload, X, Calculator } from "lucide-react"
 import Image from "next/image"
 
 import { getSupabaseClient } from "@/lib/supabase/client"
+import { useAuth } from "@/components/auth/auth-provider"
 import type { Category } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -26,6 +27,7 @@ interface AddRecipeFormProps {
 export function AddRecipeForm({ categories }: AddRecipeFormProps) {
   const router = useRouter()
   const { toast } = useToast()
+  const { user } = useAuth() // Obtener el usuario autenticado
   const [isLoading, setIsLoading] = useState(false)
   const [selectedCategories, setSelectedCategories] = useState<number[]>([])
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -122,6 +124,17 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
     e.preventDefault()
     setIsLoading(true)
 
+    // Verificar que el usuario esté autenticado
+    if (!user) {
+      toast({
+        title: "Error de autenticación",
+        description: "Debes estar autenticado para añadir una receta.",
+        variant: "destructive",
+      })
+      setIsLoading(false)
+      return
+    }
+
     const formData = new FormData(e.currentTarget)
     const name = formData.get("name") as string
     const preparation = formData.get("preparation") as string
@@ -185,7 +198,7 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
 
       const supabase = getSupabaseClient()
 
-      // Insertar la receta
+      // Insertar la receta con el user_id
       const { data: recipe, error } = await supabase
         .from("recipes")
         .insert({
@@ -197,6 +210,7 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
           source_url: source_url,
           calories: finalCalories,
           is_ai_generated: false,
+          user_id: user.id, // Asignar el ID del usuario autenticado
         })
         .select()
         .single()
@@ -236,6 +250,17 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Si no hay usuario, mostrar mensaje
+  if (!user) {
+    return (
+      <Card className="p-6">
+        <div className="text-center">
+          <p className="text-muted-foreground">Debes estar autenticado para añadir una receta.</p>
+        </div>
+      </Card>
+    )
   }
 
   return (
