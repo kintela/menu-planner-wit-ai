@@ -38,13 +38,17 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     // Obtener todas las categorías para el filtro
     const { data: categories } = await supabase.from("categories").select("*").order("name")
 
-    // PRUEBA: Obtener primero una receta para ver su estructura
-    const { data: sampleRecipe } = await supabase.from("recipes").select("*").limit(1).single()
-    console.log("Estructura de una receta:", sampleRecipe ? Object.keys(sampleRecipe) : "No hay recetas")
-    console.log("Ejemplo de user_id en receta:", sampleRecipe?.user_id)
+    // Construir la consulta paso a paso
+    let recipesQuery = supabase.from("recipes")
 
-    // Construir la consulta base para recetas con información del creador
-    let recipesQuery = supabase.from("recipes").select(`
+    // PRIMERO aplicar el filtro de usuario si es necesario
+    if (showOnlyMyRecipes && user?.id) {
+      console.log("Aplicando filtro por usuario:", user.id)
+      recipesQuery = recipesQuery.eq("user_id", user.id)
+    }
+
+    // DESPUÉS aplicar el select con las relaciones
+    recipesQuery = recipesQuery.select(`
         *,
         user_profiles (
           full_name,
@@ -52,23 +56,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
         )
       `)
 
-    // Filtrar por usuario solo si está autenticado y solicita ver solo sus recetas
-    if (showOnlyMyRecipes && user?.id) {
-      console.log("Aplicando filtro por usuario:", user.id)
-
-      // PRUEBA: Verificar si hay recetas con este user_id
-      const { data: userRecipesCheck, count } = await supabase
-        .from("recipes")
-        .select("*", { count: "exact" })
-        .eq("user_id", user.id)
-
-      console.log("Recetas encontradas con user_id=", user.id, ":", count)
-
-      // Aplicar el filtro
-      recipesQuery = recipesQuery.eq("user_id", user.id)
-    }
-
-    // Ordenar después de aplicar filtros
+    // FINALMENTE aplicar el orden
     recipesQuery = recipesQuery.order("created_at", { ascending: false })
 
     // Ejecutar la consulta
@@ -79,7 +67,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       throw new Error(`Error fetching recipes: ${recipesError.message}`)
     }
 
-    console.log("Recetas obtenidas:", allRecipes?.length || 0)
+    console.log("Recetas obtenidas después del filtro:", allRecipes?.length || 0)
 
     if (!allRecipes) {
       return (
@@ -148,7 +136,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       }
     })
 
-    // Aplicar filtros
+    // Aplicar filtros adicionales
     let filteredRecipes = [...recipesWithCategories]
 
     // Filtrar por término de búsqueda
@@ -201,7 +189,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
               <SimpleCheckbox />
 
               {/* Debug info */}
-              <div className="bg-blue-100 p-2 rounded text-xs">
+              <div className="bg-green-100 p-2 rounded text-xs">
                 Usuario: {user?.id ? "✓" : "✗"} | Filtro: {showOnlyMyRecipes ? "SÍ" : "NO"} | Recetas:{" "}
                 {displayedRecipes.length}
               </div>
