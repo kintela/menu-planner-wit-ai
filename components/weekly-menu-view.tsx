@@ -294,12 +294,20 @@ export function WeeklyMenuView({
   }
 
   // Función para manejar la creación de una nueva receta desde la IA
-  const handleRecipeCreated = (newRecipe: Recipe, dayOfWeek: number, mealType: "comida" | "cena", dishOrder = 1) => {
-    // Añadir la nueva receta a la lista
+  const handleRecipeCreated = async (
+    newRecipe: Recipe,
+    dayOfWeek: number,
+    mealType: "comida" | "cena",
+    dishOrder = 1,
+  ) => {
+    // Añadir la nueva receta a la lista primero
     setRecipes((prev) => [...prev, newRecipe])
 
-    // Seleccionar automáticamente la nueva receta
-    handleRecipeChange(dayOfWeek, mealType, newRecipe.id.toString(), dishOrder)
+    // Esperar un momento para que el estado se actualice
+    setTimeout(async () => {
+      // Seleccionar automáticamente la nueva receta
+      await handleRecipeChange(dayOfWeek, mealType, newRecipe.id.toString(), dishOrder)
+    }, 100)
   }
 
   return (
@@ -390,6 +398,7 @@ export function WeeklyMenuView({
                         mealType="comida"
                         dishOrder={1}
                         dayName={dayMenu.dayName}
+                        useSaveAndSelect={true}
                       />
                     </div>
                   </div>
@@ -435,6 +444,7 @@ export function WeeklyMenuView({
                         mealType="comida"
                         dishOrder={2}
                         dayName={dayMenu.dayName}
+                        useSaveAndSelect={true}
                       />
                     </div>
                   </div>
@@ -470,7 +480,6 @@ export function WeeklyMenuView({
                       <Button asChild variant="outline" size="sm" className="flex-1">
                         <Link href={`/recipes/${dayMenu.meals.cena.id}`}>
                           <Eye className="h-4 w-4 mr-2" />
-                          Ver receta
                         </Link>
                       </Button>
                     )}
@@ -479,6 +488,7 @@ export function WeeklyMenuView({
                       mealType="cena"
                       dishOrder={1}
                       dayName={dayMenu.dayName}
+                      useSaveAndSelect={true}
                     />
                   </div>
                 </div>
