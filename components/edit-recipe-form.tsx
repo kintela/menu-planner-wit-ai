@@ -29,6 +29,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const router = useRouter()
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(false)
+  const [isImageUploading, setIsImageUploading] = useState(false)
   const [selectedCategories, setSelectedCategories] = useState<number[]>(selectedCategoryIds)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(recipe.image_url)
@@ -39,6 +40,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const [estimatedCalories, setEstimatedCalories] = useState<number | null>(null)
   const [manualCalories, setManualCalories] = useState<string>(recipe.calories?.toString() || "")
   const [useManualCalories, setUseManualCalories] = useState(!!recipe.calories)
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
 
   // Calcular calorías cuando cambian los ingredientes
   useEffect(() => {
@@ -50,7 +52,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     }
   }, [ingredients, useManualCalories])
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -83,12 +85,51 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       setImagePreview(reader.result as string)
     }
     reader.readAsDataURL(file)
+
+    // Subir la imagen inmediatamente
+    try {
+      setIsImageUploading(true)
+      toast({
+        title: "Subiendo imagen",
+        description: "Por favor espera mientras se sube la imagen...",
+      })
+
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error(`Error al subir la imagen: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      setUploadedImageUrl(data.url)
+
+      toast({
+        title: "Imagen subida",
+        description: "La imagen se ha subido correctamente.",
+      })
+    } catch (error) {
+      console.error("Error uploading image:", error)
+      toast({
+        title: "Error al subir la imagen",
+        description: "No se pudo subir la imagen. Por favor, inténtalo de nuevo.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsImageUploading(false)
+    }
   }
 
   const handleRemoveImage = () => {
     setImageFile(null)
     setImagePreview(null)
     setImageUrl("")
+    setUploadedImageUrl(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -98,6 +139,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     setImageUrl(e.target.value)
     setImageFile(null)
     setImagePreview(e.target.value)
+    setUploadedImageUrl(null)
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -128,36 +170,10 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       if (imageTab === "url" && imageUrl) {
         finalImageUrl = imageUrl
         console.log("Using URL image:", finalImageUrl)
-      } else if (imageTab === "upload" && imageFile) {
-        try {
-          // Intentar subir la imagen usando FormData y fetch
-          const uploadFormData = new FormData()
-          uploadFormData.append("file", imageFile)
-
-          console.log("Uploading image file:", imageFile.name)
-          const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
-            method: "POST",
-            body: uploadFormData,
-          })
-
-          if (!response.ok) {
-            const errorText = await response.text()
-            console.error("Upload response error:", errorText)
-            throw new Error(`Error al subir la imagen: ${response.statusText}`)
-          }
-
-          const data = await response.json()
-          finalImageUrl = data.url
-          console.log("Image uploaded successfully:", finalImageUrl)
-        } catch (uploadError) {
-          console.error("Error uploading image:", uploadError)
-          toast({
-            title: "Error al subir la imagen",
-            description: "No se pudo subir la imagen. La receta se actualizará sin imagen.",
-            variant: "destructive",
-          })
-          // No cambiar finalImageUrl si hay error
-        }
+      } else if (imageTab === "upload" && uploadedImageUrl) {
+        // Si ya subimos la imagen previamente, usar esa URL
+        finalImageUrl = uploadedImageUrl
+        console.log("Using previously uploaded image:", finalImageUrl)
       }
 
       console.log("Final image URL to save:", finalImageUrl)
@@ -223,6 +239,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       setTimeout(() => {
         console.log("Ejecutando redirección a /recipes desde edición")
         router.push("/recipes")
+        router.refresh() // Forzar actualización para ver los cambios
       }, 1000)
     } catch (error) {
       console.error("Error updating recipe:", error)
@@ -373,6 +390,19 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
                   >
                     <X className="h-4 w-4" />
                   </Button>
+                  {uploadedImageUrl && (
+                    <div className="absolute bottom-2 right-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-md">
+                      Imagen subida ✓
+                    </div>
+                  )}
+                  {isImageUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <div className="bg-white p-4 rounded-md flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Subiendo imagen...</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center justify-center w-full">
@@ -394,6 +424,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
                       accept="image/*"
                       className="hidden"
                       onChange={handleImageChange}
+                      disabled={isImageUploading}
                     />
                   </label>
                 </div>
@@ -446,7 +477,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         <div className="text-sm text-muted-foreground mb-4">* Los campos marcados con asterisco son obligatorios</div>
 
         <div className="flex gap-4">
-          <Button type="submit" className="flex-1" disabled={isLoading}>
+          <Button type="submit" className="flex-1" disabled={isLoading || isImageUploading}>
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
