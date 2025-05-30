@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
 import { PlusCircle, AlertCircle } from "lucide-react"
 import type { Category } from "@/lib/types"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface RecipesPageProps {
   searchParams: {
@@ -179,13 +180,54 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       ? await supabase.from("recipes").select("*", { count: "exact", head: true }).eq("user_id", user.id)
       : null
 
+    // Construir la URL base para el checkbox "Solo las mías"
+    const baseUrl = "/recipes"
+    const searchParamsWithoutMy = { ...searchParams }
+    delete searchParamsWithoutMy.my
+
+    // Construir la URL con los parámetros actuales (excepto 'my')
+    const urlParams = new URLSearchParams()
+    Object.entries(searchParamsWithoutMy).forEach(([key, value]) => {
+      if (value) urlParams.append(key, value)
+    })
+
+    // URLs para los enlaces del checkbox
+    const myRecipesUrl = `${baseUrl}?${urlParams.toString()}${urlParams.toString() ? "&" : ""}my=true`
+    const allRecipesUrl = `${baseUrl}?${urlParams.toString()}`
+
     return (
       <div className="container py-10">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold">
-              {hasActiveFilters ? "Resultados de búsqueda" : showOnlyMyRecipes ? "Mis Recetas" : "Todas las Recetas"}
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold">
+                {hasActiveFilters ? "Resultados de búsqueda" : showOnlyMyRecipes ? "Mis Recetas" : "Todas las Recetas"}
+              </h1>
+
+              {/* Checkbox "Solo las mías" - solo visible si el usuario está logueado */}
+              {user && (
+                <div className="flex items-center space-x-2 ml-4">
+                  <Checkbox
+                    id="show-my-recipes"
+                    checked={showOnlyMyRecipes}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        window.location.href = myRecipesUrl
+                      } else {
+                        window.location.href = allRecipesUrl
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="show-my-recipes"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    Solo las mías
+                  </label>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center gap-4 mt-2">
               <Badge variant="outline" className="text-sm">
                 {hasActiveFilters ? (
@@ -199,21 +241,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
               </Badge>
               {hasActiveFilters && (
                 <Button asChild variant="ghost" size="sm">
-                  <Link href="/recipes">Ver todas las recetas</Link>
-                </Button>
-              )}
-              {user &&
-                !showOnlyMyRecipes &&
-                userRecipesCount &&
-                userRecipesCount.count &&
-                userRecipesCount.count > 0 && (
-                  <Button asChild variant="ghost" size="sm">
-                    <Link href="/recipes?my=true">Ver solo mis recetas</Link>
-                  </Button>
-                )}
-              {showOnlyMyRecipes && (
-                <Button asChild variant="ghost" size="sm">
-                  <Link href="/recipes">Ver todas las recetas</Link>
+                  <Link href={showOnlyMyRecipes ? myRecipesUrl : allRecipesUrl}>Limpiar filtros</Link>
                 </Button>
               )}
             </div>
@@ -248,6 +276,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
                     Categoría: {name}
                   </Badge>
                 ))}
+                {showOnlyMyRecipes && <Badge variant="secondary">Solo mis recetas</Badge>}
               </div>
               <p className="text-sm text-muted-foreground mt-2">{displayedRecipes.length} receta(s) encontrada(s)</p>
             </div>
