@@ -1,7 +1,7 @@
 import { createServerClient } from "@/lib/supabase/server"
 import { RecipeCard } from "@/components/recipe-card"
 import { RecipeSearch } from "@/components/recipe-search"
-import { MyRecipesFilter } from "@/components/my-recipes-filter"
+import { SimpleCheckbox } from "@/components/simple-checkbox"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -175,8 +175,8 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
                 {hasActiveFilters ? "Resultados de búsqueda" : showOnlyMyRecipes ? "Mis Recetas" : "Todas las Recetas"}
               </h1>
 
-              {/* Componente cliente para el checkbox */}
-              <MyRecipesFilter />
+              {/* Checkbox SIEMPRE visible para prueba */}
+              <SimpleCheckbox />
             </div>
 
             <div className="flex items-center gap-4 mt-2">
