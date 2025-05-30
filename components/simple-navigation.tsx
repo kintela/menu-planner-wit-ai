@@ -186,7 +186,8 @@ export function SimpleNavigation() {
             </div>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            {/* Desktop user info and logout */}
             {user ? (
               <>
                 <span className="hidden md:block text-sm text-gray-700">
@@ -199,14 +200,14 @@ export function SimpleNavigation() {
                   variant="outline"
                   size="sm"
                   onClick={handleSignOut}
-                  className="flex items-center space-x-1 text-red-600 border-red-300 hover:bg-red-100 hover:text-red-700 hover:border-red-400 transition-colors"
+                  className="hidden md:flex items-center space-x-1 text-red-600 border-red-300 hover:bg-red-100 hover:text-red-700 hover:border-red-400 transition-colors"
                 >
                   <LogOut className="h-4 w-4" />
-                  <span className="hidden sm:inline">Cerrar Sesión</span>
+                  <span>Cerrar Sesión</span>
                 </Button>
               </>
             ) : (
-              <div className="flex items-center space-x-2">
+              <div className="hidden md:flex items-center space-x-2">
                 <Link href="/login">
                   <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
                     Iniciar Sesión
@@ -215,31 +216,45 @@ export function SimpleNavigation() {
               </div>
             )}
 
-            {/* Mobile navigation */}
-            <div className="md:hidden flex items-center space-x-1">
-              {/* Iconos de acceso rápido solo para usuarios autenticados */}
-              {user && (
-                <>
-                  <Link href="/recipes" className="p-2" title="Recetas">
-                    <ChefHat className="h-5 w-5 text-gray-600" />
-                  </Link>
-                  <Link href="/recipes/add" className="p-2" title="Añadir Receta">
-                    <PlusCircle className="h-5 w-5 text-gray-600" />
-                  </Link>
-                  <Link href="/weekly-menu" className="p-2" title="Menú Semanal">
-                    <Calendar className="h-5 w-5 text-gray-600" />
-                  </Link>
-                </>
-              )}
+            {/* Mobile quick access icons (only for authenticated users) */}
+            {user && (
+              <div className="md:hidden flex items-center space-x-1">
+                <Link href="/recipes" className="p-1" title="Recetas">
+                  <ChefHat className="h-5 w-5 text-gray-600" />
+                </Link>
+                <Link href="/recipes/add" className="p-1" title="Añadir Receta">
+                  <PlusCircle className="h-5 w-5 text-gray-600" />
+                </Link>
+                <Link href="/weekly-menu" className="p-1" title="Menú Semanal">
+                  <Calendar className="h-5 w-5 text-gray-600" />
+                </Link>
+              </div>
+            )}
 
-              {/* Botón de menú hamburguesa siempre visible en móvil */}
-              <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            {/* Mobile login button for non-authenticated users */}
+            {!user && (
+              <div className="md:hidden">
+                <Link href="/login">
+                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1">
+                    Login
+                  </Button>
+                </Link>
+              </div>
+            )}
+
+            {/* Mobile hamburger menu button - ALWAYS VISIBLE ON MOBILE */}
+            <div className="md:hidden">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-2"
+              >
+                {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </Button>
             </div>
           </div>
         </div>
-
         {/* Mobile menu */}
         {mobileMenuOpen && (
           <div className="md:hidden">
@@ -328,7 +343,6 @@ export function SimpleNavigation() {
             </div>
           </div>
         )}
-      </div>
-    </nav>
-  )
+      </nav>
+  )\
 }
