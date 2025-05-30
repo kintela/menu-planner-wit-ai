@@ -168,12 +168,10 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
               <FormLabel>Ingredients</FormLabel>
               <FormControl>
                 <Textarea
-                  id="ingredients"
-                  name="ingredients"
-                  value={ingredients}
-                  onChange={(e) => setIngredients(e.target.value)}
                   placeholder="Escribe los ingredientes, uno por línea (ej: 200g de arroz, 1 pollo, 2 cebollas...)"
                   className="min-h-32 resize-none"
+                  value={ingredients}
+                  onChange={(e) => setIngredients(e.target.value)}
                 />
               </FormControl>
               <FormMessage />
