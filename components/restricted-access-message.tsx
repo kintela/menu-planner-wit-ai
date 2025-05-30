@@ -8,13 +8,16 @@ import { usePathname } from "next/navigation"
 
 interface RestrictedAccessMessageProps {
   message?: string
+  redirectPath?: string
 }
 
 export function RestrictedAccessMessage({
   message = "Necesitas iniciar sesión para acceder a esta página",
+  redirectPath,
 }: RestrictedAccessMessageProps) {
   const pathname = usePathname()
-  const loginUrl = `/login?redirect=${encodeURIComponent(pathname)}`
+  const currentPath = redirectPath || pathname
+  const loginUrl = `/login?redirect=${encodeURIComponent(currentPath)}`
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">

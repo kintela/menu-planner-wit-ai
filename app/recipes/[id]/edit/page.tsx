@@ -2,156 +2,116 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { getSupabaseClient } from "@/lib/supabase/client"
 import { EditRecipeForm } from "@/components/edit-recipe-form"
-import type { Category, Recipe } from "@/lib/types"
-import { Loader2, AlertCircle } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { getSupabaseClient } from "@/lib/supabase/client"
+import { useAuth } from "@/components/auth/auth-provider"
+import { RestrictedAccessMessage } from "@/components/restricted-access-message"
+import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { RestrictedAccessMessage } from "@/components/restricted-access-message"
-import { useAuth } from "@/components/auth/auth-provider"
 
 export default function EditRecipePage() {
-  const params = useParams()
-  const { user, loading } = useAuth()
-  const [recipe, setRecipe] = useState<Recipe | null>(null)
-  const [categories, setCategories] = useState<Category[]>([])
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [authError, setAuthError] = useState<string | null>(null)
-
+  const { id } = useParams()
   const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
+  const [recipe, setRecipe] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [isAuthor, setIsAuthor] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
-    async function loadData() {
+    async function fetchRecipe() {
+      if (authLoading) return
+
+      if (!user) {
+        setLoading(false)
+        return
+      }
+
       try {
         const supabase = getSupabaseClient()
 
+        // Verificar si el usuario es admin
+        const { data: profileData } = await supabase.from("profiles").select("role").eq("id", user.id).single()
+
+        const isUserAdmin = profileData?.role === "admin"
+        setIsAdmin(isUserAdmin)
+
         // Obtener la receta
-        const { data: recipeData, error: recipeError } = await supabase
-          .from("recipes")
-          .select("*")
-          .eq("id", params.id)
-          .single()
+        const { data, error } = await supabase.from("recipes").select("*").eq("id", id).single()
 
-        if (recipeError || !recipeData) {
-          setError("Receta no encontrada")
-          return
-        }
+        if (error) throw error
 
-        // Verificar si el usuario es el autor de la receta
-        if (recipeData.user_id !== user.id) {
-          // Verificar si es admin
-          const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
+        setRecipe(data)
 
-          if (!profile || profile.role !== "admin") {
-            setAuthError("Solo puedes editar tus propias recetas. Esta receta pertenece a otro usuario.")
-            return
-          }
-        }
+        // Verificar si el usuario es el autor
+        setIsAuthor(data.user_id === user.id)
 
-        setRecipe(recipeData)
-
-        // Obtener las categorías de la receta
-        const { data: recipeCategories } = await supabase
-          .from("recipe_categories")
-          .select("category_id")
-          .eq("recipe_id", recipeData.id)
-
-        const categoryIds = recipeCategories?.map((rc) => rc.category_id) || []
-        setSelectedCategoryIds(categoryIds)
-
-        // Obtener todas las categorías
-        const { data: categoriesData } = await supabase.from("categories").select("*").order("name")
-
-        setCategories(categoriesData || [])
-
-        console.log("Recipe loaded:", recipeData)
-        console.log("Selected Category IDs:", categoryIds)
-        console.log("All Categories:", categoriesData)
-      } catch (err) {
-        console.error("Error loading data:", err)
-        setError("Error al cargar los datos")
-      } finally {
-        setIsLoading(false)
+        setLoading(false)
+      } catch (error) {
+        console.error("Error fetching recipe:", error)
+        setError(error.message)
+        setLoading(false)
       }
     }
 
-    if (user && params.id) {
-      loadData()
-    }
-  }, [params.id, user])
+    fetchRecipe()
+  }, [id, user, authLoading])
+
+  // Si no está autenticado, mostrar mensaje de acceso restringido
+  if (!authLoading && !user) {
+    return <RestrictedAccessMessage message="Necesitas iniciar sesión para poder editar únicamente tus recetas" />
+  }
 
   if (loading) {
     return (
       <div className="container py-10">
-        <div className="flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Verificando autenticación...</span>
+        <div className="flex flex-col items-center justify-center min-h-[50vh]">
+          <Loader2 className="h-8 w-8 animate-spin mb-4" />
+          <p>Cargando receta...</p>
         </div>
       </div>
     )
   }
 
-  if (!user) {
-    return (
-      <RestrictedAccessMessage
-        message="Necesitas iniciar sesión para poder editar únicamente tus recetas"
-        redirectPath={`/recipes/${params.id}/edit`}
-      />
-    )
-  }
-
-  if (isLoading) {
+  if (error) {
     return (
       <div className="container py-10">
-        <div className="flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Cargando receta...</span>
+        <div className="max-w-md mx-auto">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h2 className="text-lg font-semibold text-red-800 mb-2">Error</h2>
+            <p className="text-red-700">{error}</p>
+            <Button asChild className="mt-4">
+              <Link href="/recipes">Volver a recetas</Link>
+            </Button>
+          </div>
         </div>
       </div>
     )
   }
 
-  if (authError) {
+  // Si el usuario no es el autor ni admin, mostrar mensaje
+  if (recipe && !isAuthor && !isAdmin) {
     return (
       <div className="container py-10">
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{authError}</AlertDescription>
-        </Alert>
-        <div className="flex gap-4">
-          <Button asChild>
-            <Link href={`/recipes/${params.id}`}>Volver a la receta</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/recipes">Ver todas las recetas</Link>
-          </Button>
+        <div className="max-w-md mx-auto">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+            <h2 className="text-lg font-semibold text-amber-800 mb-2">Acceso Restringido</h2>
+            <p className="text-amber-700">Solo puedes editar tus propias recetas.</p>
+            <div className="flex gap-3 mt-4">
+              <Button asChild>
+                <Link href={`/recipes/${id}`}>Volver a la receta</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/recipes">Ver todas las recetas</Link>
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
-  if (error || !recipe) {
-    return (
-      <div className="container py-10">
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error || "Receta no encontrada"}</AlertDescription>
-        </Alert>
-        <Button asChild>
-          <Link href="/recipes">Volver a las recetas</Link>
-        </Button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="container py-10">
-      <h1 className="text-3xl font-bold mb-6">Editar Receta</h1>
-      <EditRecipeForm recipe={recipe} categories={categories} selectedCategoryIds={selectedCategoryIds} />
-    </div>
-  )
+  return recipe ? <EditRecipeForm recipe={recipe} /> : null
 }
