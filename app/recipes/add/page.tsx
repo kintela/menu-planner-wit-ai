@@ -16,7 +16,6 @@ export default function AddRecipePage() {
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [categoriesError, setCategoriesError] = useState<string | null>(null)
 
-  // Cargar categorías cuando el usuario esté autenticado
   useEffect(() => {
     async function loadCategories() {
       try {
@@ -24,19 +23,15 @@ export default function AddRecipePage() {
         setCategoriesError(null)
         const supabase = getSupabaseClient()
 
-        console.log("Intentando cargar categorías...")
         const { data, error } = await supabase.from("categories").select("*").order("name")
 
         if (error) {
           console.error("Error loading categories:", error)
           setCategoriesError(`Error al cargar categorías: ${error.message}`)
         } else {
-          console.log("Categorías cargadas:", data)
           setCategories(data || [])
-
-          // Si no hay categorías, mostrar mensaje
           if (!data || data.length === 0) {
-            setCategoriesError("No hay categorías disponibles. Ve a la página de categorías para crear algunas.")
+            setCategoriesError("No hay categorías disponibles.")
           }
         }
       } catch (error) {
@@ -47,13 +42,11 @@ export default function AddRecipePage() {
       }
     }
 
-    // Solo cargar categorías si hay un usuario o si no se requiere autenticación
     if (user || !loading) {
       loadCategories()
     }
   }, [user, loading])
 
-  // Mostrar loading mientras se verifica la autenticación
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -65,7 +58,6 @@ export default function AddRecipePage() {
     )
   }
 
-  // Si no está autenticado, mostrar mensaje de acceso restringido
   if (!user) {
     return (
       <div className="container mx-auto py-8 px-4">
@@ -97,7 +89,6 @@ export default function AddRecipePage() {
     )
   }
 
-  // Mostrar loading mientras se cargan las categorías
   if (categoriesLoading) {
     return (
       <div className="container mx-auto py-8 px-4">
@@ -106,16 +97,12 @@ export default function AddRecipePage() {
           <div className="text-center py-8">
             <Loader2 className="h-6 w-6 animate-spin mx-auto mb-4" />
             <p>Cargando categorías...</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Si esto tarda mucho, puede que no haya categorías en la base de datos
-            </p>
           </div>
         </div>
       </div>
     )
   }
 
-  // Si hay error cargando categorías
   if (categoriesError) {
     return (
       <div className="container mx-auto py-8 px-4">
@@ -137,15 +124,7 @@ export default function AddRecipePage() {
                     Gestionar Categorías
                   </Link>
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setCategoriesLoading(true)
-                    setCategoriesError(null)
-                    // Recargar categorías
-                    window.location.reload()
-                  }}
-                >
+                <Button variant="outline" onClick={() => window.location.reload()}>
                   Reintentar
                 </Button>
               </div>
@@ -162,7 +141,6 @@ export default function AddRecipePage() {
     )
   }
 
-  // Si está autenticado y las categorías se cargaron correctamente
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="max-w-2xl mx-auto">
