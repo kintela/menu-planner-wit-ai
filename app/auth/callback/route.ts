@@ -35,8 +35,8 @@ export async function GET(request: NextRequest) {
       try {
         const userName = data.user.user_metadata?.full_name || data.user.email?.split("@")[0] || "Usuario"
 
-        // Solo roberto.quintela@protonmail.com será admin, todos los demás user_full (no user_restricted)
-        const userRole = data.user.email === "roberto.quintela@protonmail.com" ? "admin" : "user_full"
+        // Solo roberto.quintela@protonmail.com será admin, todos los demás user_restricted
+        const userRole = data.user.email === "roberto.quintela@protonmail.com" ? "admin" : "user_restricted"
 
         console.log(`👤 Creating profile for: ${data.user.email} with role: ${userRole}`)
 
