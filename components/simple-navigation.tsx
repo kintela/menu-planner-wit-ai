@@ -216,35 +216,35 @@ export function SimpleNavigation() {
               </div>
             )}
 
-            {/* Mobile quick access icons (only for authenticated users) */}
-            {user && (
-              <div className="md:hidden flex items-center space-x-1">
-                <Link href="/recipes" className="p-1" title="Recetas">
-                  <ChefHat className="h-5 w-5 text-gray-600" />
-                </Link>
-                <Link href="/recipes/add" className="p-1" title="Añadir Receta">
-                  <PlusCircle className="h-5 w-5 text-gray-600" />
-                </Link>
-                <Link href="/weekly-menu" className="p-1" title="Menú Semanal">
-                  <Calendar className="h-5 w-5 text-gray-600" />
-                </Link>
-              </div>
-            )}
+            {/* Mobile quick access icons - ALWAYS VISIBLE */}
+            <div className="md:hidden flex items-center space-x-1">
+              <Link href="/recipes" className="p-1" title="Recetas">
+                <ChefHat className="h-5 w-5 text-gray-600" />
+              </Link>
+              <Link href="/weekly-menu" className="p-1" title="Menú Semanal">
+                <Calendar className="h-5 w-5 text-gray-600" />
+              </Link>
+            </div>
 
             {/* Mobile login button for non-authenticated users */}
             {!user && (
               <div className="md:hidden">
                 <Link href="/login">
                   <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1">
-                    Login
+                    Iniciar Sesión
                   </Button>
                 </Link>
               </div>
             )}
 
             {/* Mobile hamburger menu button - ALWAYS VISIBLE ON MOBILE */}
-            <div className="md:hidden">
-              <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="p-2">
+            <div className="md:hidden ml-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-2 border border-gray-300"
+              >
                 {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </Button>
             </div>
