@@ -10,6 +10,7 @@ export async function middleware(request: NextRequest) {
     "/",
     "/login",
     "/auth/callback",
+    "/debug-auth", // Añadir página de debug
     "/recipes", // Ahora es público - todos pueden ver recetas
     "/history", // Permitir que la página maneje su propia autenticación
     "/categories", // Permitir que la página maneje su propia autenticación
