@@ -1,17 +1,19 @@
-import Link from "next/link"
-import { PlusCircle, AlertCircle } from "lucide-react"
+// app/recipes/page.tsx
 import { createServerClient } from "@/lib/supabase/server"
 import { RecipeCard } from "@/components/recipe-card"
 import { RecipeSearch } from "@/components/recipe-search"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import type { Recipe, Category } from "@/lib/types"
+import Link from "next/link"
+import { PlusCircle, AlertCircle, User } from "lucide-react"
+import type { Category } from "@/lib/types"
 
 interface RecipesPageProps {
   searchParams: {
     search?: string
     categories?: string
+    my?: string // Parámetro para mostrar solo mis recetas
   }
 }
 
@@ -22,14 +24,36 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
   try {
     const supabase = createServerClient()
 
+    // Obtener el usuario actual (opcional)
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    // Determinar si mostrar solo las recetas del usuario o todas
+    const showOnlyMyRecipes = searchParams.my === "true"
+
     // Obtener todas las categorías para el filtro
     const { data: categories } = await supabase.from("categories").select("*").order("name")
 
-    // Obtener todas las recetas
-    const { data: allRecipes, error: recipesError } = await supabase
+    // Construir la consulta base para recetas con información del creador
+    let recipesQuery = supabase
       .from("recipes")
-      .select("*")
+      .select(`
+        *,
+        user_profiles (
+          full_name,
+          email
+        )
+      `)
       .order("created_at", { ascending: false })
+
+    // Filtrar por usuario solo si está autenticado y solicita ver solo sus recetas
+    if (showOnlyMyRecipes && user) {
+      recipesQuery = recipesQuery.eq("user_id", user.id)
+    }
+
+    // Ejecutar la consulta
+    const { data: allRecipes, error: recipesError } = await recipesQuery
 
     if (recipesError) {
       console.error("Error fetching recipes:", recipesError)
@@ -87,7 +111,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       })
     })
 
-    // Combinar recetas con sus categorías
+    // Combinar recetas con sus categorías y información del creador
     const recipesWithCategories = allRecipes?.map((recipe) => {
       const categoryIds = recipeCategoriesMap.get(recipe.id) || []
       const recipeCategories = categoryIds
@@ -100,6 +124,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       return {
         ...recipe,
         categories: recipeCategories,
+        creator: recipe.user_profiles || null,
       }
     })
 
@@ -110,10 +135,11 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     if (searchParams.search && searchParams.search.trim()) {
       const searchTerm = searchParams.search.toLowerCase().trim()
       filteredRecipes = filteredRecipes.filter(
-        (recipe: Recipe) =>
+        (recipe: any) =>
           recipe.name.toLowerCase().includes(searchTerm) ||
           (recipe.ingredients && recipe.ingredients.toLowerCase().includes(searchTerm)) ||
-          (recipe.preparation && recipe.preparation.toLowerCase().includes(searchTerm)),
+          (recipe.preparation && recipe.preparation.toLowerCase().includes(searchTerm)) ||
+          (recipe.creator?.full_name && recipe.creator.full_name.toLowerCase().includes(searchTerm)),
       )
     }
 
@@ -147,19 +173,29 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     const hasActiveFilters = Boolean(searchParams.search || searchParams.categories)
     const displayedRecipes = filteredRecipes || []
 
+    // Obtener conteos para mostrar estadísticas
+    const { count: totalRecipesCount } = await supabase.from("recipes").select("*", { count: "exact", head: true })
+
+    const userRecipesCount = user
+      ? await supabase.from("recipes").select("*", { count: "exact", head: true }).eq("user_id", user.id)
+      : null
+
     return (
       <div className="container py-10">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold">{hasActiveFilters ? "Resultados de búsqueda" : "Mis Recetas"}</h1>
+            <h1 className="text-3xl font-bold">
+              {hasActiveFilters ? "Resultados de búsqueda" : showOnlyMyRecipes ? "Mis Recetas" : "Todas las Recetas"}
+            </h1>
             <div className="flex items-center gap-4 mt-2">
               <Badge variant="outline" className="text-sm">
                 {hasActiveFilters ? (
-                  <>
-                    Mostrando {displayedRecipes.length} de {recipesWithCategories.length} recetas
-                  </>
+                  <>Mostrando {displayedRecipes.length} recetas</>
                 ) : (
-                  <>Total: {recipesWithCategories.length} recetas</>
+                  <>
+                    Total: {displayedRecipes.length} recetas
+                    {showOnlyMyRecipes && userRecipesCount && <> (de {totalRecipesCount} en total)</>}
+                  </>
                 )}
               </Badge>
               {hasActiveFilters && (
@@ -167,14 +203,38 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
                   <Link href="/recipes">Ver todas las recetas</Link>
                 </Button>
               )}
+              {user &&
+                !showOnlyMyRecipes &&
+                userRecipesCount &&
+                userRecipesCount.count &&
+                userRecipesCount.count > 0 && (
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href="/recipes?my=true">Ver solo mis recetas</Link>
+                  </Button>
+                )}
+              {showOnlyMyRecipes && (
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/recipes">Ver todas las recetas</Link>
+                </Button>
+              )}
             </div>
           </div>
-          <Button asChild>
-            <Link href="/recipes/add">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Añadir Receta
-            </Link>
-          </Button>
+          <div className="flex gap-2">
+            {!user && (
+              <Button asChild variant="outline">
+                <Link href="/login">
+                  <User className="mr-2 h-4 w-4" />
+                  Iniciar Sesión
+                </Link>
+              </Button>
+            )}
+            <Button asChild>
+              <Link href="/recipes/add">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Añadir Receta
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <RecipeSearch
@@ -198,21 +258,21 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
                   </Badge>
                 ))}
               </div>
-              <p className="text-sm text-muted-foreground mt-2">
-                {displayedRecipes.length} receta(s) encontrada(s) de {recipesWithCategories.length} total
-              </p>
+              <p className="text-sm text-muted-foreground mt-2">{displayedRecipes.length} receta(s) encontrada(s)</p>
             </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {displayedRecipes && displayedRecipes.length > 0 ? (
-              displayedRecipes.map((recipe: Recipe) => <RecipeCard key={recipe.id} recipe={recipe} />)
+              displayedRecipes.map((recipe: any) => <RecipeCard key={recipe.id} recipe={recipe} />)
             ) : (
               <div className="col-span-full text-center py-10">
                 <p className="text-muted-foreground">
                   {hasActiveFilters
                     ? "No se encontraron recetas con los criterios seleccionados."
-                    : "No hay recetas disponibles. ¡Añade tu primera receta!"}
+                    : showOnlyMyRecipes
+                      ? "No has añadido ninguna receta todavía."
+                      : "No hay recetas disponibles en el sistema."}
                 </p>
                 <div className="flex gap-2 justify-center mt-4">
                   {hasActiveFilters && (
@@ -238,7 +298,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
 
     return (
       <div className="container py-10">
-        <h1 className="text-3xl font-bold mb-6">Mis Recetas</h1>
+        <h1 className="text-3xl font-bold mb-6">Recetas</h1>
         <Card className="border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-600">

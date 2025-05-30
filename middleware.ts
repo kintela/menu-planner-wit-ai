@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
     "/",
     "/login",
     "/auth/callback",
-    "/recipes", // Solo la lista de recetas
+    "/recipes", // Ahora es público - todos pueden ver recetas
     "/history", // Permitir que la página maneje su propia autenticación
     "/categories", // Permitir que la página maneje su propia autenticación
     "/weekly-menu", // Permitir que la página maneje su propia autenticación
@@ -23,9 +23,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Permitir ver recetas individuales (solo lectura)
+  // Permitir ver recetas individuales (público)
   if (pathname.match(/^\/recipes\/\d+$/)) {
-    console.log("✅ Permitiendo acceso a receta individual")
+    console.log("✅ Permitiendo acceso público a receta individual")
     return NextResponse.next()
   }
 
