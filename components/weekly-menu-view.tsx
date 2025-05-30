@@ -2,7 +2,8 @@
 
 import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
-import { Loader2, RefreshCw } from "lucide-react"
+import Link from "next/link"
+import { Loader2, RefreshCw, Eye } from "lucide-react"
 
 import { getSupabaseClient } from "@/lib/supabase/client"
 import type { WeeklyMenu, MenuItem, Recipe, DayMenu } from "@/lib/types"
@@ -360,6 +361,14 @@ export function WeeklyMenuView({
                         ))}
                     </SelectContent>
                   </Select>
+                  {dayMenu.meals.comida[0] && (
+                    <Button asChild variant="outline" size="sm" className="mt-2">
+                      <Link href={`/recipes/${dayMenu.meals.comida[0].id}`}>
+                        <Eye className="h-4 w-4 mr-2" />
+                        Ver receta
+                      </Link>
+                    </Button>
+                  )}
                 </div>
 
                 {/* Segundo plato */}
@@ -383,6 +392,14 @@ export function WeeklyMenuView({
                         ))}
                     </SelectContent>
                   </Select>
+                  {dayMenu.meals.comida[1] && (
+                    <Button asChild variant="outline" size="sm" className="mt-2">
+                      <Link href={`/recipes/${dayMenu.meals.comida[1].id}`}>
+                        <Eye className="h-4 w-4 mr-2" />
+                        Ver receta
+                      </Link>
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -407,6 +424,14 @@ export function WeeklyMenuView({
                       ))}
                   </SelectContent>
                 </Select>
+                {dayMenu.meals.cena && (
+                  <Button asChild variant="outline" size="sm" className="mt-2">
+                    <Link href={`/recipes/${dayMenu.meals.cena.id}`}>
+                      <Eye className="h-4 w-4 mr-2" />
+                      Ver receta
+                    </Link>
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
