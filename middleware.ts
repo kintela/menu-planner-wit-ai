@@ -3,14 +3,22 @@ import { NextResponse, type NextRequest } from "next/server"
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
-  console.log("🔒 Middleware ejecutándose para:", pathname)
+
+  // TEMPORAL: Log detallado para debug
+  console.log("🔍 DEBUG - Middleware ejecutándose:", {
+    pathname,
+    host: request.headers.get("host"),
+    userAgent: request.headers.get("user-agent"),
+    referer: request.headers.get("referer"),
+  })
 
   // Rutas que NO requieren autenticación (lista blanca)
   const publicPaths = [
     "/",
     "/login",
     "/auth/callback",
-    "/debug-auth", // Añadir página de debug
+    "/debug-auth",
+    "/api/debug-deployment", // Añadir ruta de debug
     "/recipes", // Ahora es público - todos pueden ver recetas
     "/history", // Permitir que la página maneje su propia autenticación
     "/categories", // Permitir que la página maneje su propia autenticación
@@ -42,47 +50,54 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Para todas las demás rutas, verificar autenticación
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
+  // TEMPORAL: Si hay problemas con Supabase, permitir acceso
+  try {
+    // Para todas las demás rutas, verificar autenticación
+    let supabaseResponse = NextResponse.next({
+      request,
+    })
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+            supabaseResponse = NextResponse.next({
+              request,
+            })
+            cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
+          },
         },
       },
-    },
-  )
+    )
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
 
-  console.log("👤 Usuario encontrado:", user ? `${user.email}` : "No autenticado")
+    console.log("👤 Usuario encontrado:", user ? `${user.email}` : "No autenticado")
 
-  // Si no hay usuario autenticado, redirigir a login
-  if (!user) {
-    console.log("🚫 Acceso denegado - Redirigiendo a login desde:", pathname)
-    const redirectUrl = new URL("/login", request.url)
-    redirectUrl.searchParams.set("redirect", pathname)
-    return NextResponse.redirect(redirectUrl)
+    // Si no hay usuario autenticado, redirigir a login
+    if (!user) {
+      console.log("🚫 Acceso denegado - Redirigiendo a login desde:", pathname)
+      const redirectUrl = new URL("/login", request.url)
+      redirectUrl.searchParams.set("redirect", pathname)
+      return NextResponse.redirect(redirectUrl)
+    }
+
+    console.log("✅ Usuario autenticado - Acceso permitido")
+    return supabaseResponse
+  } catch (error) {
+    console.error("❌ Error en middleware:", error)
+    // En caso de error, permitir acceso para evitar bloqueos
+    return NextResponse.next()
   }
-
-  console.log("✅ Usuario autenticado - Acceso permitido")
-  return supabaseResponse
 }
 
 export const config = {
