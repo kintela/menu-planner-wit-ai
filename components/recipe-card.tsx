@@ -1,9 +1,10 @@
+"use client"
+
 import Image from "next/image"
 import Link from "next/link"
 import { ChefHat, Flame, Users, User } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import type { Recipe } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,20 +13,15 @@ import { VideoModal } from "@/components/video-modal"
 import { SourceLinkButton } from "@/components/source-link-button"
 import { getCaloriesPerServing, getCalorieLevel } from "@/lib/calories-calculator"
 
+// Define the RecipeCardProps interface
 interface RecipeCardProps {
-  recipe: Recipe & {
-    creator?: {
-      full_name: string
-      email: string
-    } | null
-    user_profiles?: {
-      full_name: string
-      email: string
-    } | null
-  }
+
+  recipe: any
+
   className?: string
 }
 
+// Update the RecipeCard component to check if the user is the creator
 export function RecipeCard({ recipe, className }: RecipeCardProps) {
   // Ahora solo usamos el campo calories
   const caloriesPerServing = recipe.calories ? getCaloriesPerServing(recipe.calories) : null

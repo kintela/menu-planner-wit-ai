@@ -25,7 +25,8 @@ export function LoginForm() {
   const searchParams = useSearchParams()
   const supabase = getSupabaseClient()
 
-  const redirectTo = searchParams.get("redirect") || "/"
+  // Buscar tanto "redirect" como "redirectTo" para compatibilidad
+  const redirectTo = searchParams.get("redirect") || searchParams.get("redirectTo") || "/"
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault()
