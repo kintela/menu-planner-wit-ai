@@ -38,23 +38,38 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     // Obtener todas las categorías para el filtro
     const { data: categories } = await supabase.from("categories").select("*").order("name")
 
+    // PRUEBA: Obtener primero una receta para ver su estructura
+    const { data: sampleRecipe } = await supabase.from("recipes").select("*").limit(1).single()
+    console.log("Estructura de una receta:", sampleRecipe ? Object.keys(sampleRecipe) : "No hay recetas")
+    console.log("Ejemplo de user_id en receta:", sampleRecipe?.user_id)
+
     // Construir la consulta base para recetas con información del creador
-    let recipesQuery = supabase
-      .from("recipes")
-      .select(`
+    let recipesQuery = supabase.from("recipes").select(`
         *,
         user_profiles (
           full_name,
           email
         )
       `)
-      .order("created_at", { ascending: false })
 
     // Filtrar por usuario solo si está autenticado y solicita ver solo sus recetas
     if (showOnlyMyRecipes && user?.id) {
       console.log("Aplicando filtro por usuario:", user.id)
+
+      // PRUEBA: Verificar si hay recetas con este user_id
+      const { data: userRecipesCheck, count } = await supabase
+        .from("recipes")
+        .select("*", { count: "exact" })
+        .eq("user_id", user.id)
+
+      console.log("Recetas encontradas con user_id=", user.id, ":", count)
+
+      // Aplicar el filtro
       recipesQuery = recipesQuery.eq("user_id", user.id)
     }
+
+    // Ordenar después de aplicar filtros
+    recipesQuery = recipesQuery.order("created_at", { ascending: false })
 
     // Ejecutar la consulta
     const { data: allRecipes, error: recipesError } = await recipesQuery
@@ -230,7 +245,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
         />
 
         <div className="mt-6">
-          {hasActiveFilters && (
+          {(hasActiveFilters || showOnlyMyRecipes) && (
             <div className="mb-4 p-4 bg-muted/50 rounded-lg">
               <h3 className="font-medium mb-2">Filtros aplicados:</h3>
               <div className="flex flex-wrap gap-2">
