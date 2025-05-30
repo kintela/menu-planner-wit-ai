@@ -56,6 +56,9 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     const file = e.target.files?.[0]
     if (!file) return
 
+    console.log("=== IMAGE CHANGE HANDLER ===")
+    console.log("File selected:", file.name, file.size, file.type)
+
     // Validar que sea una imagen
     if (!file.type.startsWith("image/")) {
       toast({
@@ -83,12 +86,15 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     const reader = new FileReader()
     reader.onloadend = () => {
       setImagePreview(reader.result as string)
+      console.log("Preview URL created")
     }
     reader.readAsDataURL(file)
 
     // Subir la imagen inmediatamente
     try {
       setIsImageUploading(true)
+      console.log("Starting image upload...")
+
       toast({
         title: "Subiendo imagen",
         description: "Por favor espera mientras se sube la imagen...",
@@ -97,27 +103,40 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       const formData = new FormData()
       formData.append("file", file)
 
+      console.log("Making fetch request to upload API...")
       const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
         method: "POST",
         body: formData,
       })
 
+      console.log("Upload response status:", response.status)
+      console.log("Upload response ok:", response.ok)
+
       if (!response.ok) {
+        const errorText = await response.text()
+        console.error("Upload response error:", errorText)
         throw new Error(`Error al subir la imagen: ${response.statusText}`)
       }
 
       const data = await response.json()
-      setUploadedImageUrl(data.url)
+      console.log("Upload response data:", data)
 
-      toast({
-        title: "Imagen subida",
-        description: "La imagen se ha subido correctamente.",
-      })
+      if (data.url) {
+        setUploadedImageUrl(data.url)
+        console.log("Image uploaded successfully, URL:", data.url)
+
+        toast({
+          title: "Imagen subida",
+          description: "La imagen se ha subido correctamente.",
+        })
+      } else {
+        throw new Error("No se recibió URL de la imagen")
+      }
     } catch (error) {
       console.error("Error uploading image:", error)
       toast({
         title: "Error al subir la imagen",
-        description: "No se pudo subir la imagen. Por favor, inténtalo de nuevo.",
+        description: `No se pudo subir la imagen: ${error instanceof Error ? error.message : "Error desconocido"}`,
         variant: "destructive",
       })
     } finally {
@@ -167,13 +186,16 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       // Determinar la URL de la imagen
       let finalImageUrl = recipe.image_url // Mantener la imagen actual por defecto
 
-      if (imageTab === "url" && imageUrl) {
-        finalImageUrl = imageUrl
+      if (imageTab === "url" && imageUrl.trim()) {
+        finalImageUrl = imageUrl.trim()
         console.log("Using URL image:", finalImageUrl)
       } else if (imageTab === "upload" && uploadedImageUrl) {
         // Si ya subimos la imagen previamente, usar esa URL
         finalImageUrl = uploadedImageUrl
         console.log("Using previously uploaded image:", finalImageUrl)
+      } else if (imageTab === "upload" && !uploadedImageUrl && !imageFile) {
+        // Si estamos en la pestaña de upload pero no hay imagen subida ni archivo, mantener la original
+        console.log("No new image selected, keeping original:", finalImageUrl)
       }
 
       console.log("Final image URL to save:", finalImageUrl)
