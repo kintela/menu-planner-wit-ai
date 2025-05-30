@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { AuthProvider } from "@/components/auth/auth-provider"
 import { SimpleNavigation } from "@/components/simple-navigation"
+import { SessionWrapper } from "@/components/providers/session-wrapper"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -24,13 +25,15 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <AuthProvider>
-            <div className="flex min-h-screen flex-col">
-              <SimpleNavigation />
-              <main className="flex-1">{children}</main>
-            </div>
-            <Toaster />
-          </AuthProvider>
+          <SessionWrapper>
+            <AuthProvider>
+              <div className="flex min-h-screen flex-col">
+                <SimpleNavigation />
+                <main className="flex-1">{children}</main>
+              </div>
+              <Toaster />
+            </AuthProvider>
+          </SessionWrapper>
         </ThemeProvider>
       </body>
     </html>
