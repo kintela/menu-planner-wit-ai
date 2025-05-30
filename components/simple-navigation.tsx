@@ -140,7 +140,6 @@ export function SimpleNavigation() {
                 }`}
               >
                 <PlusCircle className="h-4 w-4" />
-                <span>Añadir</span>
               </Link>
 
               <Link
@@ -272,7 +271,6 @@ export function SimpleNavigation() {
                 onClick={() => setMobileMenuOpen(false)}
               >
                 <PlusCircle className="h-5 w-5" />
-                <span>Añadir Receta</span>
               </Link>
 
               <Link
