@@ -30,7 +30,7 @@ const formSchema = z.object({
   category: z.string().min(2, {
     message: "Category must be at least 2 characters.",
   }),
-  image_url: z.string().url({ message: "Invalid URL" }),
+  image_url: z.string().url({ message: "Invalid URL" }).optional(),
 })
 
 interface EditRecipeFormProps {
@@ -43,18 +43,19 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
   const router = useRouter()
   const supabase = useSupabaseClient()
 
-  const [ingredients, setIngredients] = useState(recipe.ingredients)
-  const [instructions, setInstructions] = useState(recipe.instructions)
+  // Asegurarse de que los valores nunca sean null
+  const [ingredients, setIngredients] = useState(recipe.ingredients || "")
+  const [instructions, setInstructions] = useState(recipe.instructions || "")
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      title: recipe.title,
-      description: recipe.description,
-      ingredients: recipe.ingredients,
-      instructions: recipe.instructions,
-      category: recipe.category,
-      image_url: recipe.image_url,
+      title: recipe.title || "",
+      description: recipe.description || "",
+      ingredients: recipe.ingredients || "",
+      instructions: recipe.instructions || "",
+      category: recipe.category || "Dinner", // Valor por defecto
+      image_url: recipe.image_url || "", // String vacío en lugar de null
     },
   })
 
@@ -101,7 +102,7 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
           ingredients: ingredients,
           instructions: instructions,
           category: values.category,
-          image_url: values.image_url,
+          image_url: values.image_url || null, // Permitir null en la BD pero no en el formulario
         })
         .eq("id", recipe.id)
 
@@ -160,49 +161,37 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
           )}
         />
         {/* Ingredients textarea */}
-        <FormField
-          control={form.control}
-          name="ingredients"
-          render={() => (
-            <FormItem>
-              <FormLabel>Ingredients</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder="Escribe los ingredientes, uno por línea (ej: 200g de arroz, 1 pollo, 2 cebollas...)"
-                  className="min-h-32 resize-none"
-                  value={ingredients}
-                  onChange={(e) => setIngredients(e.target.value)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="instructions"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Instructions</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder="Describe los pasos para preparar la receta"
-                  className="min-h-32 resize-none"
-                  value={instructions}
-                  onChange={(e) => setInstructions(e.target.value)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <FormItem>
+          <FormLabel>Ingredients</FormLabel>
+          <FormControl>
+            <Textarea
+              placeholder="Escribe los ingredientes, uno por línea (ej: 200g de arroz, 1 pollo, 2 cebollas...)"
+              className="min-h-32 resize-none"
+              value={ingredients}
+              onChange={(e) => setIngredients(e.target.value)}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+        <FormItem>
+          <FormLabel>Instructions</FormLabel>
+          <FormControl>
+            <Textarea
+              placeholder="Describe los pasos para preparar la receta"
+              className="min-h-32 resize-none"
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
         <FormField
           control={form.control}
           name="category"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Category</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} defaultValue={field.value || "Dinner"}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a category" />
@@ -228,7 +217,11 @@ export function EditRecipeForm({ recipe }: EditRecipeFormProps) {
             <FormItem>
               <FormLabel>Image URL</FormLabel>
               <FormControl>
-                <Input placeholder="Enter image URL" {...field} />
+                <Input
+                  placeholder="Enter image URL"
+                  {...field}
+                  value={field.value || ""} // Asegurar que nunca sea null
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
