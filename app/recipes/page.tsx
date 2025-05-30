@@ -183,28 +183,26 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
                 <span className="text-xs">DEBUG: Usuario: {user ? "✓" : "✗"}</span>
               </div>
 
-              {/* Checkbox "Solo las mías" - solo visible si el usuario está logueado */}
-              {user && (
-                <div className="flex items-center space-x-2 ml-4 bg-green-100 p-2 rounded">
-                  <input
-                    type="checkbox"
-                    id="show-my-recipes"
-                    checked={showOnlyMyRecipes}
-                    onChange={(e) => {
-                      const params = new URLSearchParams(window.location.search)
-                      if (e.target.checked) {
-                        params.set("my", "true")
-                      } else {
-                        params.delete("my")
-                      }
-                      window.location.href = `/recipes?${params.toString()}`
-                    }}
-                  />
-                  <label htmlFor="show-my-recipes" className="text-sm font-medium cursor-pointer">
-                    Solo las mías
-                  </label>
-                </div>
-              )}
+              {/* Checkbox SIEMPRE visible para debug */}
+              <div className="flex items-center space-x-2 ml-4 bg-green-100 p-2 rounded">
+                <input
+                  type="checkbox"
+                  id="show-my-recipes"
+                  checked={showOnlyMyRecipes}
+                  onChange={(e) => {
+                    const params = new URLSearchParams(window.location.search)
+                    if (e.target.checked) {
+                      params.set("my", "true")
+                    } else {
+                      params.delete("my")
+                    }
+                    window.location.href = `/recipes?${params.toString()}`
+                  }}
+                />
+                <label htmlFor="show-my-recipes" className="text-sm font-medium cursor-pointer">
+                  Solo las mías (DEBUG: {user ? "user OK" : "no user"})
+                </label>
+              </div>
             </div>
 
             <div className="flex items-center gap-4 mt-2">
