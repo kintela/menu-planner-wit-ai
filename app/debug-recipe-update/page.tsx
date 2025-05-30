@@ -113,6 +113,30 @@ export default function DebugRecipeUpdatePage() {
     }
   }
 
+  const testReadCategories = async () => {
+    try {
+      const supabase = getSupabaseClient()
+      const { data, error } = await supabase.from("categories").select("*").order("name")
+
+      addResult("READ CATEGORIES", !error, data, error)
+
+      if (error) {
+        toast({
+          title: "Error al leer categorías",
+          description: error.message,
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Categorías leídas correctamente",
+          description: `Se encontraron ${data?.length || 0} categorías`,
+        })
+      }
+    } catch (error) {
+      addResult("READ CATEGORIES", false, null, error)
+    }
+  }
+
   const clearResults = () => {
     setResults([])
   }
@@ -162,6 +186,8 @@ export default function DebugRecipeUpdatePage() {
           <Button onClick={testUpdateRecipe} disabled={isLoading} variant="default">
             {isLoading ? "Actualizando..." : "Actualizar Receta"}
           </Button>
+
+          <Button onClick={testReadCategories}>Leer Categorías</Button>
 
           <Button onClick={clearResults} variant="outline">
             Limpiar Resultados
