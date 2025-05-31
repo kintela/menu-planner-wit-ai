@@ -34,6 +34,11 @@ const formatDateToDDMMYYYY = (dateString: string): string => {
   return date.toLocaleDateString("es-ES")
 }
 
+// Función para generar el nombre del menú con fechas formateadas
+const getFormattedMenuName = (menu: WeeklyMenu): string => {
+  return `Menú del ${formatDateToDDMMYYYY(menu.start_date)} al ${formatDateToDDMMYYYY(menu.end_date)}`
+}
+
 export function WeeklyMenuView({
   weeklyMenu: initialWeeklyMenu,
   menuItems: initialMenuItems,
@@ -428,7 +433,7 @@ export function WeeklyMenuView({
                     onClick={() => onMenuSelect?.(menu)}
                     className="flex flex-col items-start gap-1 p-3"
                   >
-                    <div className="font-medium">{menu.name}</div>
+                    <div className="font-medium">{getFormattedMenuName(menu)}</div>
                     <div className="text-xs text-muted-foreground">
                       {formatDateToDDMMYYYY(menu.start_date)} al {formatDateToDDMMYYYY(menu.end_date)}
                     </div>
