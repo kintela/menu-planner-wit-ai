@@ -403,7 +403,7 @@ export function WeeklyMenuView({
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold flex items-center gap-2">
-          {weeklyMenu?.name || `Menú del ${formatDateToDDMMYYYY(startDate)} al ${formatDateToDDMMYYYY(endDateStr)}`}
+          {`Menú del ${formatDateToDDMMYYYY(startDate)} al ${formatDateToDDMMYYYY(endDateStr)}`}
           {weeklyMenu?.is_saved && (
             <Badge variant="secondary" className="text-xs">
               Guardado
