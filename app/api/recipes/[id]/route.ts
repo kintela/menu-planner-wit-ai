@@ -1,10 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const supabase = createServerComponentClient({ cookies })
+    const supabase = createRouteHandlerClient({ cookies })
 
     // Verificar autenticación
     const {
@@ -13,6 +13,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
+      console.error("Auth error:", authError)
       return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     }
 
@@ -32,6 +33,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     // Verificar que el usuario es el propietario de la receta
     if (recipe.user_id !== user.id) {
+      console.error("User ID mismatch:", { recipeUserId: recipe.user_id, currentUserId: user.id })
       return NextResponse.json({ error: "No tienes permisos para eliminar esta receta" }, { status: 403 })
     }
 

@@ -3,6 +3,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { ChefHat, Flame, Users, User } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -21,6 +22,8 @@ interface RecipeCardProps {
 
 // Update the RecipeCard component to check if the user is the creator
 export function RecipeCard({ recipe, className }: RecipeCardProps) {
+  const router = useRouter()
+
   // Ahora solo usamos el campo calories
   const caloriesPerServing = recipe.calories ? getCaloriesPerServing(recipe.calories) : null
   const calorieLevel = caloriesPerServing ? getCalorieLevel(caloriesPerServing) : null
@@ -30,8 +33,8 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
 
   // Función para manejar la eliminación de la receta
   const handleDelete = () => {
-    // Recargar la página o actualizar la lista de recetas
-    window.location.reload()
+    // Refrescar la página para mostrar la lista actualizada
+    router.refresh()
   }
 
   return (

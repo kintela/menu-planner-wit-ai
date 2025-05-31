@@ -27,27 +27,39 @@ export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteR
   const [isDeleting, setIsDeleting] = useState(false)
 
   // Verificar si el usuario puede eliminar esta receta
-  // Convertimos ambos IDs a string para asegurar una comparación correcta
   const canDelete = user && recipeUserId && String(user.id) === String(recipeUserId)
-
-  // Para depuración
-  console.log("User ID:", user?.id, "Recipe User ID:", recipeUserId, "Can Delete:", canDelete)
 
   const handleDelete = async () => {
     setIsDeleting(true)
     try {
+      console.log("Attempting to delete recipe:", { recipeId, userId: user?.id })
+
       const response = await fetch(`/api/recipes/${recipeId}`, {
         method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
       })
 
+      console.log("Delete response status:", response.status)
+
       if (!response.ok) {
-        throw new Error(`Failed to delete recipe: ${response.status}`)
+        const errorData = await response.json()
+        console.error("Delete error response:", errorData)
+        throw new Error(errorData.error || `Failed to delete recipe: ${response.status}`)
       }
 
-      onDelete() // Call the onDelete callback to update the UI
+      const successData = await response.json()
+      console.log("Delete success:", successData)
+
+      // Mostrar mensaje de éxito
+      alert("Receta eliminada correctamente")
+
+      // Llamar al callback para actualizar la UI
+      onDelete()
     } catch (error: any) {
       console.error("Error deleting recipe:", error)
-      alert("Failed to delete recipe. Please try again.")
+      alert(`Error al eliminar la receta: ${error.message}`)
     } finally {
       setIsDeleting(false)
     }
