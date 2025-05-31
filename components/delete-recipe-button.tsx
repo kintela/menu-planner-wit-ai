@@ -1,6 +1,4 @@
 "use client"
-
-import type React from "react"
 import { useState } from "react"
 import { Trash2 } from "lucide-react"
 
@@ -20,16 +18,20 @@ import { Button } from "@/components/ui/button"
 
 interface DeleteRecipeButtonProps {
   recipeId: string
-  recipeUserId?: string // Agregar esta prop
+  recipeUserId?: string
   onDelete: () => void
 }
 
-const DeleteRecipeButton: React.FC<DeleteRecipeButtonProps> = ({ recipeId, recipeUserId, onDelete }) => {
+export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteRecipeButtonProps) {
   const { user } = useAuth()
   const [isDeleting, setIsDeleting] = useState(false)
 
   // Verificar si el usuario puede eliminar esta receta
-  const canDelete = user && user.id === recipeUserId
+  // Convertimos ambos IDs a string para asegurar una comparación correcta
+  const canDelete = user && recipeUserId && String(user.id) === String(recipeUserId)
+
+  // Para depuración
+  console.log("User ID:", user?.id, "Recipe User ID:", recipeUserId, "Can Delete:", canDelete)
 
   const handleDelete = async () => {
     setIsDeleting(true)
@@ -76,5 +78,3 @@ const DeleteRecipeButton: React.FC<DeleteRecipeButtonProps> = ({ recipeId, recip
     </AlertDialog>
   )
 }
-
-export { DeleteRecipeButton }
