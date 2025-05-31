@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { ArrowLeft } from "lucide-react"
 
 interface Recipe {
   id: string
@@ -10,7 +11,7 @@ interface Recipe {
   title: string
   ingredients: string[] | string
   instructions: string[] | string
-  preparation: string // Add this field
+  preparation: string
   image: string
   user_id: string
 }
@@ -60,6 +61,16 @@ export default async function RecipePage({ params }: { params: { id: string } })
 
   return (
     <div className="container mx-auto py-8">
+      {/* Botón para volver a recetas */}
+      <div className="mb-4">
+        <Button asChild variant="outline" size="sm" className="flex items-center gap-1">
+          <Link href="/recipes">
+            <ArrowLeft className="h-4 w-4" />
+            <span>Volver a recetas</span>
+          </Link>
+        </Button>
+      </div>
+
       <div className="mb-6 flex justify-between items-center">
         <h1 className="text-3xl font-bold">{recipe?.title}</h1>
         <Button asChild variant="outline">
