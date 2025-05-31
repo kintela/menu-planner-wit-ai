@@ -47,53 +47,69 @@ export function DeleteRecipeButton({
     try {
       console.log("🔍 Verificando si la receta está en menús:", { recipeId, recipeName })
 
-      // Verificar si la receta está siendo usada en algún menú
-      const { data: menuItems, error: menuError } = await supabase
-        .from("menu_items")
-        .select("*")
-        .eq("recipe_id", recipeId)
+      // Intentar diferentes nombres de tabla posibles
+      const tableNames = ["menu_items", "weekly_menu_items", "menu_recipes"]
 
-      console.log("📋 Resultado de menu_items:", { menuItems, menuError })
+      for (const tableName of tableNames) {
+        console.log(`🔍 Probando tabla: ${tableName}`)
 
-      if (menuError) {
-        console.error("❌ Error al consultar menu_items:", menuError)
-        throw new Error(menuError.message || "Error al verificar menús")
-      }
+        const { data: menuItems, error: menuError } = await supabase
+          .from(tableName)
+          .select("*")
+          .eq("recipe_id", recipeId)
 
-      if (menuItems && menuItems.length > 0) {
-        console.log("🚫 Receta está en menús")
+        console.log(`📋 Resultado de ${tableName}:`, { menuItems, menuError })
 
-        // Obtener información de los menús
-        const menuIds = menuItems.map((item) => item.menu_id)
-        const { data: menus, error: menusError } = await supabase.from("menus").select("*").in("id", menuIds)
+        if (!menuError && menuItems && menuItems.length > 0) {
+          console.log(`✅ Encontrado en tabla: ${tableName}`)
 
-        console.log("📅 Información de menús:", { menus, menusError })
+          // Obtener información de los menús
+          const menuIds = menuItems.map((item) => item.weekly_menu_id || item.menu_id)
+          console.log("📝 IDs de menús:", menuIds)
 
-        if (menus && menus.length > 0) {
-          const menuDescription = menus
-            .map((menu) => {
-              const weekStart = menu.week_start ? new Date(menu.week_start).toLocaleDateString() : "fecha desconocida"
-              return `${menu.name || "Menú"} (semana del ${weekStart})`
-            })
-            .join(", ")
-          setMenuInfo(menuDescription)
-        } else {
-          setMenuInfo("menús desconocidos")
+          // Intentar diferentes nombres para la tabla de menús
+          const menuTableNames = ["weekly_menus", "menus", "weekly_menu"]
+
+          for (const menuTableName of menuTableNames) {
+            const { data: menus, error: menusError } = await supabase.from(menuTableName).select("*").in("id", menuIds)
+
+            console.log(`📅 Información de ${menuTableName}:`, { menus, menusError })
+
+            if (!menusError && menus && menus.length > 0) {
+              const menuDescription = menus
+                .map((menu) => {
+                  const weekStart = menu.week_start
+                    ? new Date(menu.week_start).toLocaleDateString()
+                    : "fecha desconocida"
+                  return `${menu.name || "Menú"} (semana del ${weekStart})`
+                })
+                .join(", ")
+              setMenuInfo(menuDescription)
+
+              toast({
+                title: "No se puede eliminar",
+                description: `La receta "${recipeName}" está siendo usada en: ${menuDescription}. Por favor, elimínala primero de los menús.`,
+                variant: "destructive",
+                duration: 7000,
+              })
+              return false
+            }
+          }
+
+          // Si encontramos items pero no pudimos obtener info de menús
+          toast({
+            title: "No se puede eliminar",
+            description: `La receta "${recipeName}" está siendo usada en ${menuItems.length} menú(s). Por favor, elimínala primero de los menús.`,
+            variant: "destructive",
+            duration: 5000,
+          })
+          return false
         }
-
-        // Mostrar toast inmediatamente
-        toast({
-          title: "No se puede eliminar",
-          description: `La receta "${recipeName}" está siendo usada en menús. Por favor, elimínala primero de los menús.`,
-          variant: "destructive",
-          duration: 5000,
-        })
-        return false // No abrir el diálogo
-      } else {
-        console.log("✅ Receta no está en menús")
-        setMenuInfo(null)
-        return true // Puede abrir el diálogo
       }
+
+      console.log("✅ Receta no está en menús")
+      setMenuInfo(null)
+      return true
     } catch (error: any) {
       console.error("❌ Error checking menu usage:", error)
       toast({
