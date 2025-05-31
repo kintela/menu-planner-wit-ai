@@ -5,7 +5,7 @@ import { useParams } from "next/navigation"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { EditRecipeForm } from "@/components/edit-recipe-form"
 import type { Category, Recipe } from "@/lib/types"
-import { Loader2, AlertCircle } from "lucide-react"
+import { Loader2, AlertCircle, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useAuth } from "@/components/auth/auth-provider"
@@ -194,7 +194,16 @@ export default function EditRecipePage() {
   if (canEdit === true && recipe) {
     return (
       <div className="container py-10">
-        <h1 className="text-3xl font-bold mb-6">Editar Receta</h1>
+        <div className="flex items-center justify-between mb-6">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/recipes" className="flex items-center gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Volver a recetas
+            </Link>
+          </Button>
+          <h1 className="text-3xl font-bold flex-1 text-center">Editar Receta</h1>
+          <div className="w-[140px]"></div> {/* Spacer para centrar el título */}
+        </div>
         <EditRecipeForm recipe={recipe} categories={categories} selectedCategoryIds={selectedCategoryIds} />
       </div>
     )
