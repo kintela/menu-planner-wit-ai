@@ -103,7 +103,12 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
         <Button asChild variant="outline">
           <Link href={`/recipes/${recipe.id}/edit`}>Editar</Link>
         </Button>
-        <DeleteRecipeButton recipeId={recipe.id} recipeUserId={recipe.user_id} onDelete={handleDelete} />
+        <DeleteRecipeButton
+          recipeId={recipe.id}
+          recipeUserId={recipe.user_id}
+          recipeName={recipe.name}
+          onDelete={handleDelete}
+        />
       </CardFooter>
     </Card>
   )
