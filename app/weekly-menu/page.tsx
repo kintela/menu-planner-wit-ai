@@ -143,8 +143,77 @@ export default function WeeklyMenuPage() {
   const handleWeekChange = async (newStartDate: string) => {
     setLoading(true)
     setStartDate(newStartDate)
-    await loadDataForWeek(newStartDate)
-    setLoading(false)
+
+    try {
+      const supabase = getSupabaseClient()
+
+      // Calcular la fecha de fin
+      const endOfWeek = new Date(newStartDate)
+      endOfWeek.setDate(endOfWeek.getDate() + 6)
+      const endDate = endOfWeek.toISOString().split("T")[0]
+
+      // Buscar si ya existe un menú para esta semana
+      const { data: existingMenu } = await supabase
+        .from("weekly_menus")
+        .select("*")
+        .eq("start_date", newStartDate)
+        .eq("end_date", endDate)
+        .eq("user_id", user?.id)
+        .maybeSingle()
+
+      if (existingMenu) {
+        // Si existe, cargar sus datos
+        await loadDataForWeek(newStartDate)
+      } else {
+        // Si no existe, crear un nuevo menú semanal
+        const formatDateToDDMMYYYY = (dateString: string): string => {
+          const date = new Date(dateString)
+          return date.toLocaleDateString("es-ES")
+        }
+
+        const { data: newMenu, error: createError } = await supabase
+          .from("weekly_menus")
+          .insert({
+            name: `Menú del ${formatDateToDDMMYYYY(newStartDate)} al ${formatDateToDDMMYYYY(endDate)}`,
+            start_date: newStartDate,
+            end_date: endDate,
+            user_id: user?.id,
+            is_saved: false, // Inicialmente no guardado
+          })
+          .select()
+          .single()
+
+        if (createError) {
+          throw createError
+        }
+
+        // Establecer el nuevo menú y limpiar los items
+        setWeeklyMenu(newMenu)
+        setMenuItems([])
+
+        // Cargar las recetas si no están cargadas
+        if (recipes.length === 0) {
+          const { data: recipesData } = await supabase.from("recipes").select("*").order("name")
+          setRecipes(recipesData || [])
+        }
+
+        console.log("✅ Nuevo menú semanal creado para:", newStartDate)
+
+        toast({
+          title: "Nuevo menú creado",
+          description: `Se ha creado un nuevo menú para la semana del ${formatDateToDDMMYYYY(newStartDate)}`,
+        })
+      }
+    } catch (error) {
+      console.error("Error al cambiar de semana:", error)
+      toast({
+        title: "Error",
+        description: "Ha ocurrido un error al cambiar de semana.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleMenuSelect = async (selectedMenu: WeeklyMenu) => {

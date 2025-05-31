@@ -261,7 +261,7 @@ export function WeeklyMenuView({
         }
       }
 
-      // Marcar el menú como guardado si no lo está ya
+      // Marcar el menú como guardado cuando se añade la primera receta
       if (currentWeeklyMenu && !currentWeeklyMenu.is_saved) {
         await supabase
           .from("weekly_menus")
@@ -273,6 +273,11 @@ export function WeeklyMenuView({
 
         // Actualizar el estado local
         setWeeklyMenu({ ...currentWeeklyMenu, is_saved: true, saved_at: new Date().toISOString() })
+
+        toast({
+          title: "Menú guardado",
+          description: "El menú se ha guardado automáticamente al añadir la primera receta.",
+        })
       }
 
       toast({
@@ -307,24 +312,39 @@ export function WeeklyMenuView({
           .toISOString()
           .split("T")[0]
 
-        const { data: newMenu, error: createError } = await supabase
+        // Buscar menú existente primero
+        const { data: existingMenu } = await supabase
           .from("weekly_menus")
-          .insert({
-            name: `Menú del ${formatDateToDDMMYYYY(currentStartDate)} al ${formatDateToDDMMYYYY(endDateStr)}`,
-            start_date: currentStartDate,
-            end_date: endDateStr,
-            user_id: user?.id,
-            is_saved: true,
-            saved_at: new Date().toISOString(),
-          })
-          .select()
-          .single()
+          .select("*")
+          .eq("start_date", currentStartDate)
+          .eq("end_date", endDateStr)
+          .eq("user_id", user?.id)
+          .maybeSingle()
 
-        if (createError) {
-          throw createError
+        if (existingMenu) {
+          currentWeeklyMenu = existingMenu
+          setWeeklyMenu(currentWeeklyMenu)
+        } else {
+          // Crear nuevo menú
+          const { data: newMenu, error: createError } = await supabase
+            .from("weekly_menus")
+            .insert({
+              name: `Menú del ${formatDateToDDMMYYYY(currentStartDate)} al ${formatDateToDDMMYYYY(endDateStr)}`,
+              start_date: currentStartDate,
+              end_date: endDateStr,
+              user_id: user?.id,
+              is_saved: true, // Se marca como guardado al generar
+              saved_at: new Date().toISOString(),
+            })
+            .select()
+            .single()
+
+          if (createError) {
+            throw createError
+          }
+          currentWeeklyMenu = newMenu
+          setWeeklyMenu(currentWeeklyMenu)
         }
-        currentWeeklyMenu = newMenu
-        setWeeklyMenu(currentWeeklyMenu)
       }
 
       // Eliminar los platos existentes
