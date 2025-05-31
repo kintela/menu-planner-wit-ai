@@ -4,6 +4,9 @@ import Image from "next/image"
 import Link from "next/link"
 import { ChefHat, Flame, Users, User } from "lucide-react"
 
+import { useRouter } from "next/navigation"
+
+
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -23,12 +26,22 @@ interface RecipeCardProps {
 
 // Update the RecipeCard component to check if the user is the creator
 export function RecipeCard({ recipe, className }: RecipeCardProps) {
+  const router = useRouter()
+
   // Ahora solo usamos el campo calories
   const caloriesPerServing = recipe.calories ? getCaloriesPerServing(recipe.calories) : null
   const calorieLevel = caloriesPerServing ? getCalorieLevel(caloriesPerServing) : null
 
   // Obtener la información del creador (puede venir de creator o user_profiles)
   const creatorInfo = recipe.creator || recipe.user_profiles || null
+
+
+  // Función para manejar la eliminación de la receta
+  const handleDelete = () => {
+    // Refrescar la página para mostrar la lista actualizada
+    router.refresh()
+  }
+
 
   return (
     <Card className={cn("overflow-hidden", className)}>
@@ -96,7 +109,12 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
         <Button asChild variant="outline">
           <Link href={`/recipes/${recipe.id}/edit`}>Editar</Link>
         </Button>
-        <DeleteRecipeButton recipeId={recipe.id} recipeName={recipe.name} />
+        <DeleteRecipeButton
+          recipeId={recipe.id}
+          recipeUserId={recipe.user_id}
+          recipeName={recipe.name}
+          onDelete={handleDelete}
+        />
       </CardFooter>
     </Card>
   )
