@@ -1,5 +1,7 @@
 "use client"
 
+import { DialogTrigger } from "@/components/ui/dialog"
+
 import { useState, useEffect } from "react"
 
 import { Sparkles, Loader2, Plus, Check, ImageOff } from "lucide-react"
@@ -14,14 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { calculateCalories } from "@/lib/calories-calculator"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface AiRecipeSuggestionProps {
@@ -474,16 +469,33 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                     <CardContent className="space-y-3">
                       <div>
                         <h4 className="font-medium text-sm mb-2 text-green-700">🥘 Ingredientes principales:</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {suggestion.ingredients.split("\n").slice(0, 4).join(" • ")}
-                          {suggestion.ingredients.split("\n").length > 4 && " • ..."}
-                        </p>
+                        <div className="text-sm text-muted-foreground max-h-32 overflow-y-auto">
+                          <ul className="list-disc list-inside space-y-1">
+                            {suggestion.ingredients
+                              .split("\n")
+                              .filter((ingredient) => ingredient.trim())
+                              .map((ingredient, idx) => (
+                                <li key={idx} className="text-sm">
+                                  {ingredient.trim()}
+                                </li>
+                              ))}
+                          </ul>
+                        </div>
                       </div>
                       <div>
                         <h4 className="font-medium text-sm mb-2 text-blue-700">👨‍🍳 Preparación:</h4>
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {suggestion.preparation.split("\n")[0]}...
-                        </p>
+                        <div className="text-sm text-muted-foreground max-h-40 overflow-y-auto">
+                          <div className="space-y-2">
+                            {suggestion.preparation
+                              .split("\n")
+                              .filter((step) => step.trim())
+                              .map((step, idx) => (
+                                <p key={idx} className="text-sm leading-relaxed">
+                                  <span className="font-medium text-blue-600">{idx + 1}.</span> {step.trim()}
+                                </p>
+                              ))}
+                          </div>
+                        </div>
                       </div>
 
                       {/* Botones de acción */}
