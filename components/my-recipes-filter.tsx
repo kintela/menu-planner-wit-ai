@@ -31,15 +31,18 @@ export function MyRecipesFilter() {
   }
 
   return (
-    <div className="flex items-center space-x-2">
+    <div className="flex items-center space-x-2 ml-4">
       <input
         type="checkbox"
         id="my-recipes"
         checked={isMyRecipes}
         onChange={toggleMyRecipes}
-        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-2 cursor-pointer"
       />
-      <label htmlFor="my-recipes" className="text-sm font-medium text-gray-700">
+      <label
+        htmlFor="my-recipes"
+        className="text-sm font-medium text-white cursor-pointer hover:text-gray-200 select-none"
+      >
         Solo mis recetas
       </label>
     </div>
