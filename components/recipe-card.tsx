@@ -3,7 +3,9 @@
 import Image from "next/image"
 import Link from "next/link"
 import { ChefHat, Flame, Users, User } from "lucide-react"
+
 import { useRouter } from "next/navigation"
+
 
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -16,7 +18,9 @@ import { getCaloriesPerServing, getCalorieLevel } from "@/lib/calories-calculato
 
 // Define the RecipeCardProps interface
 interface RecipeCardProps {
+
   recipe: any
+
   className?: string
 }
 
@@ -31,11 +35,13 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
   // Obtener la información del creador (puede venir de creator o user_profiles)
   const creatorInfo = recipe.creator || recipe.user_profiles || null
 
+
   // Función para manejar la eliminación de la receta
   const handleDelete = () => {
     // Refrescar la página para mostrar la lista actualizada
     router.refresh()
   }
+
 
   return (
     <Card className={cn("overflow-hidden", className)}>
