@@ -20,12 +20,16 @@ import { Button } from "@/components/ui/button"
 
 interface DeleteRecipeButtonProps {
   recipeId: string
+  recipeUserId?: string // Agregar esta prop
   onDelete: () => void
 }
 
-const DeleteRecipeButton: React.FC<DeleteRecipeButtonProps> = ({ recipeId, onDelete }) => {
+const DeleteRecipeButton: React.FC<DeleteRecipeButtonProps> = ({ recipeId, recipeUserId, onDelete }) => {
   const { user } = useAuth()
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Verificar si el usuario puede eliminar esta receta
+  const canDelete = user && user.id === recipeUserId
 
   const handleDelete = async () => {
     setIsDeleting(true)
@@ -50,7 +54,7 @@ const DeleteRecipeButton: React.FC<DeleteRecipeButtonProps> = ({ recipeId, onDel
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="destructive" disabled={!user}>
+        <Button variant="destructive" disabled={!canDelete}>
           <Trash2 className="h-4 w-4 mr-2" />
           Eliminar
         </Button>
@@ -64,7 +68,7 @@ const DeleteRecipeButton: React.FC<DeleteRecipeButtonProps> = ({ recipeId, onDel
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete} disabled={isDeleting || !user}>
+          <AlertDialogAction onClick={handleDelete} disabled={isDeleting || !canDelete}>
             {isDeleting ? "Eliminando..." : "Eliminar"}
           </AlertDialogAction>
         </AlertDialogFooter>
