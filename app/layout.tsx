@@ -8,12 +8,21 @@ import { AuthProvider } from "@/components/auth/auth-provider"
 import { SimpleNavigation } from "@/components/simple-navigation"
 import { SessionWrapper } from "@/components/providers/session-wrapper"
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  preload: true,
+})
 
 export const metadata: Metadata = {
   title: "Planificador de Menús Semanales",
   description: "Planifica tus comidas y cenas semanales de manera sencilla",
   generator: "v0.dev",
+  viewport: "width=device-width, initial-scale=1",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "white" },
+    { media: "(prefers-color-scheme: dark)", color: "black" },
+  ],
 }
 
 export default function RootLayout({
@@ -23,6 +32,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <SessionWrapper>
