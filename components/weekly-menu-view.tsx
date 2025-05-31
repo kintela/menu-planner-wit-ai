@@ -2,7 +2,10 @@
 
 import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
-import { Loader2, RefreshCw } from "lucide-react"
+import Link from "next/link"
+
+import { Loader2, RefreshCw, Eye, Trash2 } from "lucide-react"
+
 
 import { getSupabaseClient } from "@/lib/supabase/client"
 import type { WeeklyMenu, MenuItem, Recipe, DayMenu } from "@/lib/types"
@@ -11,6 +14,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
+import { AiRecipeSuggestion } from "@/components/ai-recipe-suggestion"
+
+import { useAuth } from "@/components/auth/auth-provider"
+
 
 interface WeeklyMenuViewProps {
   weeklyMenu: WeeklyMenu | null
@@ -28,6 +35,7 @@ export function WeeklyMenuView({
   onDataUpdate,
 }: WeeklyMenuViewProps) {
   const { toast } = useToast()
+  const { user } = useAuth()
   const [isGenerating, setIsGenerating] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [isClearing, setIsClearing] = useState(false)
@@ -111,6 +119,7 @@ export function WeeklyMenuView({
           .select("*")
           .eq("start_date", startDate)
           .eq("end_date", endDate)
+          .eq("user_id", user?.id)
           .maybeSingle()
 
         if (existingMenu) {
@@ -124,6 +133,9 @@ export function WeeklyMenuView({
               name: `Menú del ${startDate} al ${endDate}`,
               start_date: startDate,
               end_date: endDate,
+              user_id: user?.id,
+              is_saved: true,
+              saved_at: new Date().toISOString(),
             })
             .select()
             .single()
@@ -190,6 +202,20 @@ export function WeeklyMenuView({
         }
       }
 
+      // Marcar el menú como guardado si no lo está ya
+      if (currentWeeklyMenu && !currentWeeklyMenu.is_saved) {
+        await supabase
+          .from("weekly_menus")
+          .update({
+            is_saved: true,
+            saved_at: new Date().toISOString(),
+          })
+          .eq("id", currentWeeklyMenu.id)
+
+        // Actualizar el estado local
+        setWeeklyMenu({ ...currentWeeklyMenu, is_saved: true, saved_at: new Date().toISOString() })
+      }
+
       toast({
         title: "Menú actualizado",
         description: "El menú se ha actualizado correctamente.",
@@ -225,6 +251,9 @@ export function WeeklyMenuView({
             name: `Menú del ${startDate} al ${endDate}`,
             start_date: startDate,
             end_date: endDate,
+            user_id: user?.id,
+            is_saved: true,
+            saved_at: new Date().toISOString(),
           })
           .select()
           .single()
@@ -291,6 +320,73 @@ export function WeeklyMenuView({
     }
   }
 
+  // Función para manejar la creación de una nueva receta desde la IA
+  const handleRecipeCreated = async (
+    newRecipe: Recipe,
+    dayOfWeek: number,
+    mealType: "comida" | "cena",
+    dishOrder = 1,
+  ) => {
+    // Añadir la nueva receta a la lista primero
+    setRecipes((prev) => [...prev, newRecipe])
+
+    // Esperar un momento para que el estado se actualice
+    setTimeout(async () => {
+      // Seleccionar automáticamente la nueva receta
+      await handleRecipeChange(dayOfWeek, mealType, newRecipe.id.toString(), dishOrder)
+    }, 100)
+  }
+
+
+  const handleRemoveRecipe = async (dayOfWeek: number, mealType: "comida" | "cena", dishOrder?: number) => {
+    if (!weeklyMenu) return
+
+    setIsUpdating(true)
+
+    try {
+      const supabase = getSupabaseClient()
+      const finalDishOrder = mealType === "comida" ? dishOrder || 1 : 1
+
+      // Buscar y eliminar el plato existente
+      const { error } = await supabase
+        .from("menu_items")
+        .delete()
+        .eq("weekly_menu_id", weeklyMenu.id)
+        .eq("day_of_week", dayOfWeek)
+        .eq("meal_type", mealType)
+        .eq("dish_order", finalDishOrder)
+
+      if (error) throw error
+
+      // Actualizar el estado local eliminando el item
+      const updatedMenuItems = menuItems.filter(
+        (item) =>
+          !(
+            item.weekly_menu_id === weeklyMenu.id &&
+            item.day_of_week === dayOfWeek &&
+            item.meal_type === mealType &&
+            item.dish_order === finalDishOrder
+          ),
+      )
+      setMenuItems(updatedMenuItems)
+
+      toast({
+        title: "Receta eliminada",
+        description: "La receta se ha eliminado del menú.",
+      })
+    } catch (error) {
+      console.error("Error removing recipe:", error)
+      toast({
+        title: "Error",
+        description: "Ha ocurrido un error al eliminar la receta.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -342,71 +438,174 @@ export function WeeklyMenuView({
                 {/* Primer plato */}
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">1er plato</Label>
-                  <Select
-                    value={dayMenu.meals.comida[0]?.id.toString() || ""}
-                    onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 1)}
-                    disabled={isUpdating || recipes.length === 0}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar receta" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {recipes
-                        .sort((a, b) => a.name.localeCompare(b.name))
-                        .map((recipe) => (
-                          <SelectItem key={recipe.id} value={recipe.id.toString()}>
-                            {recipe.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex flex-col gap-2">
+                    <Select
+                      value={dayMenu.meals.comida[0]?.id.toString() || ""}
+                      onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 1)}
+                      disabled={isUpdating || recipes.length === 0}
+                    >
+                      <SelectTrigger
+                        className={
+                          dayMenu.meals.comida[0] ? "font-semibold text-green-700 border-green-300 bg-green-50" : ""
+                        }
+                      >
+                        <SelectValue placeholder="Seleccionar receta" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {recipes
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .map((recipe) => (
+                            <SelectItem key={recipe.id} value={recipe.id.toString()}>
+                              {recipe.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex gap-2">
+                      {dayMenu.meals.comida[0] && (
+                        <Button asChild variant="outline" size="sm" className="flex-1">
+                          <Link href={`/recipes/${dayMenu.meals.comida[0].id}`}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            Ver receta
+                          </Link>
+                        </Button>
+                      )}
+
+                      {dayMenu.meals.comida[0] && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRemoveRecipe(dayMenu.day, "comida", 1)}
+                          disabled={isUpdating}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+
+                      <AiRecipeSuggestion
+                        onRecipeCreated={(newRecipe) => handleRecipeCreated(newRecipe, dayMenu.day, "comida", 1)}
+                        mealType="comida"
+                        dishOrder={1}
+                        dayName={dayMenu.dayName}
+                        useSaveAndSelect={true}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {/* Segundo plato */}
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">2do plato</Label>
-                  <Select
-                    value={dayMenu.meals.comida[1]?.id.toString() || ""}
-                    onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 2)}
-                    disabled={isUpdating || recipes.length === 0}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar receta" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {recipes
-                        .sort((a, b) => a.name.localeCompare(b.name))
-                        .map((recipe) => (
-                          <SelectItem key={recipe.id} value={recipe.id.toString()}>
-                            {recipe.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex flex-col gap-2">
+                    <Select
+                      value={dayMenu.meals.comida[1]?.id.toString() || ""}
+                      onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 2)}
+                      disabled={isUpdating || recipes.length === 0}
+                    >
+                      <SelectTrigger
+                        className={
+                          dayMenu.meals.comida[1] ? "font-semibold text-green-700 border-green-300 bg-green-50" : ""
+                        }
+                      >
+                        <SelectValue placeholder="Seleccionar receta" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {recipes
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .map((recipe) => (
+                            <SelectItem key={recipe.id} value={recipe.id.toString()}>
+                              {recipe.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex gap-2">
+                      {dayMenu.meals.comida[1] && (
+                        <Button asChild variant="outline" size="sm" className="flex-1">
+                          <Link href={`/recipes/${dayMenu.meals.comida[1].id}`}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            Ver receta
+                          </Link>
+                        </Button>
+                      )}
+
+                      {dayMenu.meals.comida[1] && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRemoveRecipe(dayMenu.day, "comida", 2)}
+                          disabled={isUpdating}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+
+                      <AiRecipeSuggestion
+                        onRecipeCreated={(newRecipe) => handleRecipeCreated(newRecipe, dayMenu.day, "comida", 2)}
+                        mealType="comida"
+                        dishOrder={2}
+                        dayName={dayMenu.dayName}
+                        useSaveAndSelect={true}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
               {/* Cena - 1 plato */}
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">Cena</h3>
-                <Select
-                  value={dayMenu.meals.cena?.id.toString() || ""}
-                  onValueChange={(value) => handleRecipeChange(dayMenu.day, "cena", value)}
-                  disabled={isUpdating || recipes.length === 0}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar receta" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {recipes
-                      .sort((a, b) => a.name.localeCompare(b.name))
-                      .map((recipe) => (
-                        <SelectItem key={recipe.id} value={recipe.id.toString()}>
-                          {recipe.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-col gap-2">
+                  <Select
+                    value={dayMenu.meals.cena?.id.toString() || ""}
+                    onValueChange={(value) => handleRecipeChange(dayMenu.day, "cena", value)}
+                    disabled={isUpdating || recipes.length === 0}
+                  >
+                    <SelectTrigger
+                      className={dayMenu.meals.cena ? "font-semibold text-green-700 border-green-300 bg-green-50" : ""}
+                    >
+                      <SelectValue placeholder="Seleccionar receta" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {recipes
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map((recipe) => (
+                          <SelectItem key={recipe.id} value={recipe.id.toString()}>
+                            {recipe.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex gap-2">
+                    {dayMenu.meals.cena && (
+                      <Button asChild variant="outline" size="sm" className="flex-1">
+                        <Link href={`/recipes/${dayMenu.meals.cena.id}`}>
+                          <Eye className="h-4 w-4 mr-2" />
+
+                          Ver receta
+                        </Link>
+                      </Button>
+                    )}
+                    {dayMenu.meals.cena && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRemoveRecipe(dayMenu.day, "cena")}
+                        disabled={isUpdating}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+
+                    <AiRecipeSuggestion
+                      onRecipeCreated={(newRecipe) => handleRecipeCreated(newRecipe, dayMenu.day, "cena")}
+                      mealType="cena"
+                      dishOrder={1}
+                      dayName={dayMenu.dayName}
+                      useSaveAndSelect={true}
+                    />
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -419,7 +618,7 @@ export function WeeklyMenuView({
             No hay recetas disponibles. Añade algunas recetas antes de crear un menú semanal.
           </p>
           <Button asChild className="mt-4">
-            <a href="/recipes/add">Añadir Receta</a>
+            <Link href="/recipes/add">Añadir Receta</Link>
           </Button>
         </div>
       )}
