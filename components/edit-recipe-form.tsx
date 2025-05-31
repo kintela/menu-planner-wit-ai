@@ -36,7 +36,9 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(recipe.image_url || null)
   const [imageUrl, setImageUrl] = useState<string>(recipe.image_url || "")
+
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
+
 
   const [imageTab, setImageTab] = useState<string>("url")
   const [ingredients, setIngredients] = useState<string>("")
@@ -139,7 +141,9 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
       if (data.url) {
         setUploadedImageUrl(data.url)
+
         setImageUrl(data.url) // También actualizar imageUrl para consistencia
+
 
         toast({
           title: "Imagen subida y asociada",
@@ -181,6 +185,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     e.preventDefault()
     setIsLoading(true)
 
+
     // Verificar que el usuario esté autenticado
     if (!user) {
       toast({
@@ -191,6 +196,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       setIsLoading(false)
       return
     }
+
 
     const formData = new FormData(e.currentTarget)
     const name = formData.get("name") as string
@@ -261,6 +267,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
             variant: "destructive",
           })
         }
+
       }
 
       console.log("URL final de imagen:", finalImageUrl)
@@ -295,6 +302,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       // Actualizar la receta
       const { data: updateResult, error: updateError } = await supabase
         .from("recipes")
+
         .update({
           name,
           ingredients: ingredients || "",
@@ -303,11 +311,15 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
           video_url: video_url,
           source_url: source_url,
           calories: finalCalories,
+          updated_at: new Date().toISOString(),
         })
+
+       
         .eq("id", recipe.id)
         .select()
 
       console.log("Resultado de actualización:", updateResult)
+
 
       if (updateError) {
         console.error("Error al actualizar receta:", updateError)
@@ -315,6 +327,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       }
 
       console.log("Receta actualizada exitosamente")
+
 
       // Actualizar las categorías seleccionadas
       // Primero eliminar todas las categorías existentes
@@ -350,7 +363,9 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       // Redirigir después de un breve delay
       setTimeout(() => {
         router.push(`/recipes/${recipe.id}`)
+
       }, 1000)
+
     } catch (error) {
       console.error("=== ERROR EN GUARDADO ===", error)
       toast({
@@ -585,11 +600,13 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
         <div className="text-sm text-muted-foreground mb-4">* Los campos marcados con asterisco son obligatorios</div>
 
+
         <div className="flex justify-end space-x-4">
           <Button type="button" variant="outline" onClick={() => router.back()}>
             Cancelar
           </Button>
           <Button type="submit" disabled={isLoading}>
+
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

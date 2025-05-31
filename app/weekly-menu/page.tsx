@@ -6,7 +6,7 @@ import { getSupabaseClient } from "@/lib/supabase/client"
 import { WeeklyMenuView } from "@/components/weekly-menu-view"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, Loader2 } from "lucide-react"
+import { AlertCircle, Loader2 } from 'lucide-react'
 import Link from "next/link"
 import type { MenuItem, Recipe, WeeklyMenu } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
@@ -37,7 +37,9 @@ export default function WeeklyMenuPage() {
         .select("*")
         .eq("start_date", weekStartDate)
         .eq("end_date", endDate)
+
         .eq("user_id", user?.id)
+
         .maybeSingle()
 
       console.log("📅 Menú semanal encontrado:", weeklyMenuData)

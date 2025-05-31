@@ -15,6 +15,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "API key de OpenAI no configurada" }, { status: 500 })
     }
 
+
     // Crear un prompt muy simple y seguro
     const cleanRecipeName = recipeName
       .replace(/[^\w\s]/gi, "") // Remove special characters
@@ -27,6 +28,7 @@ export async function POST(request: Request) {
     console.log("Generating image with safe prompt:", imagePrompt)
 
     // Generar imagen usando DALL-E con configuración más conservadora
+
     const imageResponse = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: {
@@ -42,6 +44,7 @@ export async function POST(request: Request) {
         style: "natural",
       }),
     })
+
 
     const responseText = await imageResponse.text()
     console.log("OpenAI Response Status:", imageResponse.status)
@@ -74,6 +77,7 @@ export async function POST(request: Request) {
     }
 
     const imageData = JSON.parse(responseText)
+
     const imageUrl = imageData.data[0]?.url
 
     if (!imageUrl) {
@@ -120,7 +124,9 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Error interno del servidor",
+
         suggestion: "Recipe will be created without image",
+
       },
       { status: 500 },
     )

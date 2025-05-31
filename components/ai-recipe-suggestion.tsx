@@ -1,7 +1,9 @@
 "use client"
 
 import { useState } from "react"
+
 import { Sparkles, Loader2, Plus, Check, ImageOff } from "lucide-react"
+
 import { ImageIcon } from "lucide-react"
 
 import { getSupabaseClient } from "@/lib/supabase/client"
@@ -99,6 +101,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   }
 
   const generateRecipeImage = async (recipeName: string, ingredients: string) => {
+
     // Skip image generation if disabled
     if (!enableImageGeneration) {
       console.log("Image generation disabled, skipping...")
@@ -107,6 +110,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
     try {
       console.log("Attempting to generate image for:", recipeName)
+
 
       const response = await fetch("/api/generate-recipe-image", {
         method: "POST",
@@ -122,6 +126,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       const data = await response.json()
 
       if (!response.ok) {
+
         console.warn("Image generation failed:", data.error, data.suggestion)
         return null // Fail silently, recipe creation continues
       }
@@ -131,6 +136,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     } catch (error) {
       console.warn("Image generation error (non-critical):", error)
       return null // Always return null on error, don't throw
+
     }
   }
 
@@ -152,6 +158,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
 
+
       // Intentar generar imagen solo si está habilitado
       let imageUrl = null
       if (enableImageGeneration) {
@@ -161,6 +168,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           console.warn("Image generation failed, continuing without image:", error)
         }
       }
+
 
       // Guardar la receta en la base de datos
       const { data: newRecipe, error } = await supabase
@@ -218,6 +226,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
 
+
       // Mostrar mensaje inicial
       toast({
         title: "Creando receta...",
@@ -235,6 +244,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       }
 
       // Guardar la receta en la base de datos (con o sin imagen)
+
       const { data: newRecipe, error } = await supabase
         .from("recipes")
         .insert({
@@ -243,7 +253,9 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           preparation: suggestion.preparation,
           calories: calories > 0 ? calories : null,
           is_ai_generated: true,
+
           image_url: imageUrl, // Puede ser null si falló la generación o está deshabilitada
+
           video_url: null,
           source_url: null,
           user_id: user.id, // Añadir el user_id
@@ -299,6 +311,11 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           <DialogDescription>
             Describe qué tipo de plato buscas para {mealType === "comida" ? "la comida" : "la cena"}
             {dishOrder && ` (${dishOrder === 1 ? "primer" : "segundo"} plato)`}
+            <br />
+            <span className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+              <ImageIcon className="h-3 w-3" />
+              Se generará automáticamente una imagen para cada receta
+            </span>
           </DialogDescription>
         </DialogHeader>
 
@@ -398,7 +415,9 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                           {isSaving ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+
                               Creando receta...
+
                             </>
                           ) : (
                             <>
