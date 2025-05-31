@@ -15,9 +15,7 @@ import { getCaloriesPerServing, getCalorieLevel } from "@/lib/calories-calculato
 
 // Define the RecipeCardProps interface
 interface RecipeCardProps {
-
   recipe: any
-
   className?: string
 }
 
@@ -29,6 +27,12 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
 
   // Obtener la información del creador (puede venir de creator o user_profiles)
   const creatorInfo = recipe.creator || recipe.user_profiles || null
+
+  // Función para manejar la eliminación de la receta
+  const handleDelete = () => {
+    // Recargar la página o actualizar la lista de recetas
+    window.location.reload()
+  }
 
   return (
     <Card className={cn("overflow-hidden", className)}>
@@ -96,7 +100,7 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
         <Button asChild variant="outline">
           <Link href={`/recipes/${recipe.id}/edit`}>Editar</Link>
         </Button>
-        <DeleteRecipeButton recipeId={recipe.id} recipeName={recipe.name} />
+        <DeleteRecipeButton recipeId={recipe.id} recipeUserId={recipe.user_id} onDelete={handleDelete} />
       </CardFooter>
     </Card>
   )
