@@ -7,6 +7,9 @@ import { ChefHat, Flame, Users, User } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 
+import { useAuth } from "@/components/auth/auth-provider"
+
+
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,6 +30,14 @@ interface RecipeCardProps {
 // Update the RecipeCard component to check if the user is the creator
 export function RecipeCard({ recipe, className }: RecipeCardProps) {
   const router = useRouter()
+
+
+  const { user } = useAuth()
+
+  // Verificar si el usuario actual es el propietario de la receta
+  const isOwner = user && recipe.user_id === user.id
+  const canEdit = user && isOwner
+
 
   // Ahora solo usamos el campo calories
   const caloriesPerServing = recipe.calories ? getCaloriesPerServing(recipe.calories) : null
@@ -106,9 +117,17 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
         <Button asChild className="flex-1">
           <Link href={`/recipes/${recipe.id}`}>Ver</Link>
         </Button>
-        <Button asChild variant="outline">
-          <Link href={`/recipes/${recipe.id}/edit`}>Editar</Link>
-        </Button>
+
+        {canEdit ? (
+          <Button asChild variant="outline">
+            <Link href={`/recipes/${recipe.id}/edit`}>Editar</Link>
+          </Button>
+        ) : (
+          <Button variant="outline" disabled>
+            Editar
+          </Button>
+        )}
+
         <DeleteRecipeButton
           recipeId={recipe.id}
           recipeUserId={recipe.user_id}
