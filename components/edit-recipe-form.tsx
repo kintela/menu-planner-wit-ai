@@ -37,6 +37,9 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const [imagePreview, setImagePreview] = useState<string | null>(recipe.image_url || null)
   const [imageUrl, setImageUrl] = useState<string>(recipe.image_url || "")
 
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
+
+
   const [imageTab, setImageTab] = useState<string>("url")
   const [ingredients, setIngredients] = useState<string>("")
   const [estimatedCalories, setEstimatedCalories] = useState<number | null>(null)
@@ -68,7 +71,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       setImagePreview(recipe.image_url)
     }
   }, [recipe])
-
 
   // Calcular calorías cuando cambian los ingredientes
   useEffect(() => {
@@ -139,6 +141,9 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
       if (data.url) {
         setUploadedImageUrl(data.url)
+
+        setImageUrl(data.url) // También actualizar imageUrl para consistencia
+
 
         toast({
           title: "Imagen subida y asociada",
@@ -231,11 +236,15 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       // Determinar la URL de la imagen
       let finalImageUrl = null
 
-      if (imageTab === "url" && imageUrl) {
+      if (uploadedImageUrl) {
+        // Si hay una imagen subida, usar esa URL
+        finalImageUrl = uploadedImageUrl
+      } else if (imageTab === "url" && imageUrl) {
+        // Si no hay imagen subida pero hay URL, usar la URL
         finalImageUrl = imageUrl
       } else if (imageTab === "upload" && imageFile) {
+        // Si hay un archivo pero no se subió aún, intentar subirlo
         try {
-          // Intentar subir la imagen usando FormData y fetch
           const uploadFormData = new FormData()
           uploadFormData.append("file", imageFile)
 
@@ -310,6 +319,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         .select()
 
       console.log("Resultado de actualización:", updateResult)
+
 
       if (updateError) {
         console.error("Error al actualizar receta:", updateError)

@@ -4,7 +4,9 @@ import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 
-import { Loader2, RefreshCw, Eye, Trash2 } from "lucide-react"
+
+import { Loader2, RefreshCw, Eye, Trash2, ChevronDown, ChevronRight } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 
 import { getSupabaseClient } from "@/lib/supabase/client"
@@ -25,6 +27,38 @@ interface WeeklyMenuViewProps {
   initialRecipes: Recipe[]
   startDate: string
   onDataUpdate?: () => void
+  menuHistory?: WeeklyMenu[]
+  onMenuSelect?: (menu: WeeklyMenu) => void
+  onWeekChange?: (newStartDate: string) => void
+}
+
+// Función para formatear fechas de yyyy-mm-dd a dd/mm/yyyy
+const formatDateToDDMMYYYY = (dateString: string): string => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString("es-ES")
+}
+
+// Función para generar el nombre del menú con fechas formateadas
+const getFormattedMenuName = (menu: WeeklyMenu): string => {
+  return `Menú del ${formatDateToDDMMYYYY(menu.start_date)} al ${formatDateToDDMMYYYY(menu.end_date)}`
+}
+
+// Función para obtener el inicio de la semana actual
+const getCurrentWeekStart = (): string => {
+  const today = new Date()
+  const dayOfWeek = today.getDay()
+  const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+  const startOfWeek = new Date(today)
+  startOfWeek.setDate(today.getDate() - daysToSubtract)
+  return startOfWeek.toISOString().split("T")[0]
+}
+
+// Función para obtener el inicio de la semana siguiente
+const getNextWeekStart = (): string => {
+  const currentWeekStart = new Date(getCurrentWeekStart())
+  const nextWeekStart = new Date(currentWeekStart)
+  nextWeekStart.setDate(currentWeekStart.getDate() + 7)
+  return nextWeekStart.toISOString().split("T")[0]
 }
 
 export function WeeklyMenuView({
@@ -33,6 +67,9 @@ export function WeeklyMenuView({
   initialRecipes,
   startDate,
   onDataUpdate,
+  menuHistory = [],
+  onMenuSelect,
+  onWeekChange,
 }: WeeklyMenuViewProps) {
   const { toast } = useToast()
   const { user } = useAuth()
@@ -43,6 +80,13 @@ export function WeeklyMenuView({
   const [recipes, setRecipes] = useState<Recipe[]>(initialRecipes)
   const [weeklyMenu, setWeeklyMenu] = useState<WeeklyMenu | null>(initialWeeklyMenu)
   const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems)
+  const [currentStartDate, setCurrentStartDate] = useState<string>(startDate)
+
+  // Determinar si estamos viendo la semana actual o la siguiente
+  const currentWeekStart = getCurrentWeekStart()
+  const nextWeekStart = getNextWeekStart()
+  const isCurrentWeek = currentStartDate === currentWeekStart
+  const isNextWeek = currentStartDate === nextWeekStart
 
   // Actualizar estados cuando cambien las props
   useEffect(() => {
@@ -57,11 +101,15 @@ export function WeeklyMenuView({
     setMenuItems(initialMenuItems)
   }, [initialMenuItems])
 
+  useEffect(() => {
+    setCurrentStartDate(startDate)
+  }, [startDate])
+
   // Preparar los datos del menú por día
   const dayNames = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
   const daysMenu: DayMenu[] = Array.from({ length: 7 }, (_, i) => {
-    const date = new Date(startDate)
+    const date = new Date(currentStartDate)
     date.setDate(date.getDate() + i)
 
     return {
@@ -95,6 +143,17 @@ export function WeeklyMenuView({
     }
   })
 
+  const handleWeekChangeLocal = async (targetWeek: "current" | "next") => {
+    const newStartDate = targetWeek === "current" ? currentWeekStart : nextWeekStart
+
+    if (newStartDate === currentStartDate) return
+
+    // Llamar al callback del componente padre para cambiar la semana
+    if (onWeekChange) {
+      onWeekChange(newStartDate)
+    }
+  }
+
   const handleRecipeChange = async (
     dayOfWeek: number,
     mealType: "comida" | "cena",
@@ -108,34 +167,44 @@ export function WeeklyMenuView({
     try {
       const supabase = getSupabaseClient()
 
-      // Si no existe un menú semanal, crearlo primero
+      // Asegurar que tenemos un menú semanal
       let currentWeeklyMenu = weeklyMenu
       if (!currentWeeklyMenu) {
-        const endDate = new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+        console.log("⚠️ No hay menú semanal, esto no debería pasar")
+
+        // Calcular la fecha de fin
+        const endDateStr = new Date(new Date(currentStartDate).getTime() + 6 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split("T")[0]
 
         // Buscar menú existente primero
         const { data: existingMenu } = await supabase
           .from("weekly_menus")
           .select("*")
-          .eq("start_date", startDate)
-          .eq("end_date", endDate)
+
+          .eq("start_date", currentStartDate)
+          .eq("end_date", endDateStr)
+
           .eq("user_id", user?.id)
           .maybeSingle()
 
         if (existingMenu) {
           currentWeeklyMenu = existingMenu
           setWeeklyMenu(currentWeeklyMenu)
+          console.log("✅ Menú existente encontrado y establecido")
         } else {
-          // Crear nuevo menú solo si no existe
+          // Solo crear si realmente no existe
+          console.log("📝 Creando menú porque no existe")
           const { data: newMenu, error: createError } = await supabase
             .from("weekly_menus")
             .insert({
-              name: `Menú del ${startDate} al ${endDate}`,
-              start_date: startDate,
-              end_date: endDate,
+
+              name: `Menú del ${formatDateToDDMMYYYY(currentStartDate)} al ${formatDateToDDMMYYYY(endDateStr)}`,
+              start_date: currentStartDate,
+              end_date: endDateStr,
               user_id: user?.id,
-              is_saved: true,
-              saved_at: new Date().toISOString(),
+              is_saved: false,
+
             })
             .select()
             .single()
@@ -202,7 +271,9 @@ export function WeeklyMenuView({
         }
       }
 
-      // Marcar el menú como guardado si no lo está ya
+
+      // Marcar el menú como guardado cuando se añade la primera receta (solo si no estaba guardado)
+
       if (currentWeeklyMenu && !currentWeeklyMenu.is_saved) {
         await supabase
           .from("weekly_menus")
@@ -214,12 +285,19 @@ export function WeeklyMenuView({
 
         // Actualizar el estado local
         setWeeklyMenu({ ...currentWeeklyMenu, is_saved: true, saved_at: new Date().toISOString() })
+
+
+        toast({
+          title: "Menú guardado",
+          description: "El menú se ha guardado automáticamente al añadir la primera receta.",
+        })
+      } else {
+        toast({
+          title: "Menú actualizado",
+          description: "El menú se ha actualizado correctamente.",
+        })
       }
 
-      toast({
-        title: "Menú actualizado",
-        description: "El menú se ha actualizado correctamente.",
-      })
 
       console.log("✅ Receta actualizada correctamente")
     } catch (error) {
@@ -243,26 +321,46 @@ export function WeeklyMenuView({
       // Si no existe un menú semanal, crearlo primero
       let currentWeeklyMenu = weeklyMenu
       if (!currentWeeklyMenu) {
-        const endDate = new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+        // Calcular la fecha de fin para mostrar en el título
+        const endDateStr = new Date(new Date(currentStartDate).getTime() + 6 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split("T")[0]
 
-        const { data: newMenu, error: createError } = await supabase
+        // Buscar menú existente primero
+        const { data: existingMenu } = await supabase
           .from("weekly_menus")
-          .insert({
-            name: `Menú del ${startDate} al ${endDate}`,
-            start_date: startDate,
-            end_date: endDate,
-            user_id: user?.id,
-            is_saved: true,
-            saved_at: new Date().toISOString(),
-          })
-          .select()
-          .single()
 
-        if (createError) {
-          throw createError
+          .select("*")
+          .eq("start_date", currentStartDate)
+          .eq("end_date", endDateStr)
+          .eq("user_id", user?.id)
+          .maybeSingle()
+
+
+        if (existingMenu) {
+          currentWeeklyMenu = existingMenu
+          setWeeklyMenu(currentWeeklyMenu)
+        } else {
+          // Crear nuevo menú
+          const { data: newMenu, error: createError } = await supabase
+            .from("weekly_menus")
+            .insert({
+              name: `Menú del ${formatDateToDDMMYYYY(currentStartDate)} al ${formatDateToDDMMYYYY(endDateStr)}`,
+              start_date: currentStartDate,
+              end_date: endDateStr,
+              user_id: user?.id,
+              is_saved: true, // Se marca como guardado al generar
+              saved_at: new Date().toISOString(),
+            })
+            .select()
+            .single()
+
+          if (createError) {
+            throw createError
+          }
+          currentWeeklyMenu = newMenu
+          setWeeklyMenu(currentWeeklyMenu)
         }
-        currentWeeklyMenu = newMenu
-        setWeeklyMenu(currentWeeklyMenu)
       }
 
       // Eliminar los platos existentes
@@ -387,12 +485,21 @@ export function WeeklyMenuView({
   }
 
 
+  // Calcular la fecha de fin para mostrar en el título
+  const endDateStr = new Date(new Date(currentStartDate).getTime() + 6 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0]
+
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold flex items-center gap-2">
-          {weeklyMenu?.name ||
-            `Menú del ${startDate} al ${new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]}`}
+          {isCurrentWeek
+            ? "Menú Semana Actual"
+            : isNextWeek
+              ? "Menú Semana Siguiente"
+              : `Menú del ${formatDateToDDMMYYYY(currentStartDate)} al ${formatDateToDDMMYYYY(endDateStr)}`}
           {weeklyMenu?.is_saved && (
             <Badge variant="secondary" className="text-xs">
               Guardado
@@ -400,6 +507,46 @@ export function WeeklyMenuView({
           )}
         </h2>
         <div className="flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={menuHistory.length === 0}>
+                Historial de Menús
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              {menuHistory.length === 0 ? (
+                <DropdownMenuItem disabled>No hay menús guardados</DropdownMenuItem>
+              ) : (
+                menuHistory.map((menu) => (
+                  <DropdownMenuItem
+                    key={menu.id}
+                    onClick={() => onMenuSelect?.(menu)}
+                    className="flex flex-col items-start gap-1 p-3"
+                  >
+                    <div className="font-medium">{getFormattedMenuName(menu)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {formatDateToDDMMYYYY(menu.start_date)} al {formatDateToDDMMYYYY(menu.end_date)}
+                    </div>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {isCurrentWeek && (
+            <Button variant="outline" onClick={() => handleWeekChangeLocal("next")}>
+              La semana que viene
+              <ChevronRight className="ml-2 h-4 w-4" />
+            </Button>
+          )}
+
+          {isNextWeek && (
+            <Button variant="outline" onClick={() => handleWeekChangeLocal("current")}>
+              Semana actual
+            </Button>
+          )}
+
           <Button onClick={handleGenerateMenu} disabled={isGenerating || recipes.length === 0}>
             {isGenerating ? (
               <>
@@ -416,13 +563,18 @@ export function WeeklyMenuView({
         </div>
       </div>
 
+      {/* Mostrar las fechas debajo de la cabecera */}
+      <div className="text-sm text-muted-foreground">
+        {formatDateToDDMMYYYY(currentStartDate)} al {formatDateToDDMMYYYY(endDateStr)}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {daysMenu.map((dayMenu) => (
           <Card key={dayMenu.day}>
             <CardHeader>
               <CardTitle className="flex justify-between items-center">
                 <span>{dayMenu.dayName}</span>
-                <span className="text-sm font-normal text-muted-foreground">{dayMenu.date}</span>
+                <span className="text-sm font-normal text-muted-foreground">{formatDateToDDMMYYYY(dayMenu.date)}</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">

@@ -1,10 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { Sparkles, Loader2, Plus, Check } from "lucide-react"
+
+import { Sparkles, Loader2, Plus, Check, ImageOff } from "lucide-react"
+
 import { ImageIcon } from "lucide-react"
 
 import { getSupabaseClient } from "@/lib/supabase/client"
+import { useAuth } from "@/components/auth/auth-provider"
 import type { Recipe } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,6 +39,7 @@ interface GeneratedRecipe {
 }
 
 export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayName }: AiRecipeSuggestionProps) {
+  const { user } = useAuth()
   const { toast } = useToast()
   const [isOpen, setIsOpen] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -43,6 +47,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   const [searchQuery, setSearchQuery] = useState("")
   const [suggestions, setSuggestions] = useState<GeneratedRecipe[]>([])
   const [savedRecipes, setSavedRecipes] = useState<Set<number>>(new Set())
+  const [enableImageGeneration, setEnableImageGeneration] = useState(false) // Disabled by default
 
   const generateSuggestions = async () => {
     if (!searchQuery.trim()) {
@@ -96,7 +101,17 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   }
 
   const generateRecipeImage = async (recipeName: string, ingredients: string) => {
+
+    // Skip image generation if disabled
+    if (!enableImageGeneration) {
+      console.log("Image generation disabled, skipping...")
+      return null
+    }
+
     try {
+      console.log("Attempting to generate image for:", recipeName)
+
+
       const response = await fetch("/api/generate-recipe-image", {
         method: "POST",
         headers: {
@@ -111,18 +126,30 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       const data = await response.json()
 
       if (!response.ok) {
-        console.error("Error generating image:", data.error)
-        return null // No fallar si la imagen no se puede generar
+
+        console.warn("Image generation failed:", data.error, data.suggestion)
+        return null // Fail silently, recipe creation continues
       }
 
+      console.log("Image generated successfully:", data.imageUrl)
       return data.imageUrl
     } catch (error) {
-      console.error("Error generating recipe image:", error)
-      return null // No fallar si la imagen no se puede generar
+      console.warn("Image generation error (non-critical):", error)
+      return null // Always return null on error, don't throw
+
     }
   }
 
   const saveRecipeToCollection = async (suggestion: GeneratedRecipe, index: number) => {
+    if (!user) {
+      toast({
+        title: "Error de autenticación",
+        description: "Debes estar autenticado para guardar recetas.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsSaving(true)
 
     try {
@@ -131,8 +158,17 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
 
-      // Generar imagen para la receta
-      const imageUrl = await generateRecipeImage(suggestion.name, suggestion.ingredients)
+
+      // Intentar generar imagen solo si está habilitado
+      let imageUrl = null
+      if (enableImageGeneration) {
+        try {
+          imageUrl = await generateRecipeImage(suggestion.name, suggestion.ingredients)
+        } catch (error) {
+          console.warn("Image generation failed, continuing without image:", error)
+        }
+      }
+
 
       // Guardar la receta en la base de datos
       const { data: newRecipe, error } = await supabase
@@ -146,6 +182,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           image_url: imageUrl,
           video_url: null,
           source_url: null,
+          user_id: user.id, // Añadir el user_id
         })
         .select()
         .single()
@@ -172,6 +209,15 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   }
 
   const saveAndSelectRecipe = async (suggestion: GeneratedRecipe) => {
+    if (!user) {
+      toast({
+        title: "Error de autenticación",
+        description: "Debes estar autenticado para crear recetas.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsSaving(true)
 
     try {
@@ -180,15 +226,25 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
 
-      // Generar imagen para la receta
+
+      // Mostrar mensaje inicial
       toast({
-        title: "Generando receta...",
-        description: "Creando la receta y generando imagen con IA...",
+        title: "Creando receta...",
+        description: "Guardando la receta en tu colección...",
       })
 
-      const imageUrl = await generateRecipeImage(suggestion.name, suggestion.ingredients)
+      // Intentar generar imagen solo si está habilitado
+      let imageUrl = null
+      if (enableImageGeneration) {
+        try {
+          imageUrl = await generateRecipeImage(suggestion.name, suggestion.ingredients)
+        } catch (error) {
+          console.warn("Image generation failed, continuing without image:", error)
+        }
+      }
 
-      // Guardar la receta en la base de datos
+      // Guardar la receta en la base de datos (con o sin imagen)
+
       const { data: newRecipe, error } = await supabase
         .from("recipes")
         .insert({
@@ -197,9 +253,12 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           preparation: suggestion.preparation,
           calories: calories > 0 ? calories : null,
           is_ai_generated: true,
-          image_url: imageUrl,
+
+          image_url: imageUrl, // Puede ser null si falló la generación o está deshabilitada
+
           video_url: null,
           source_url: null,
+          user_id: user.id, // Añadir el user_id
         })
         .select()
         .single()
@@ -211,7 +270,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
         description: `"${suggestion.name}" se ha añadido a tu colección y seleccionado para el menú${imageUrl ? " con imagen generada" : ""}.`,
       })
 
-      // Llamar al callback con la nueva receta para que se seleccione automáticamente
+      // Llamar al callback con la nueva receta
       onRecipeCreated(newRecipe as Recipe)
 
       // Cerrar el modal y limpiar
@@ -229,6 +288,11 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     } finally {
       setIsSaving(false)
     }
+  }
+
+  // No mostrar el componente si no hay usuario autenticado
+  if (!user) {
+    return null
   }
 
   return (
@@ -256,6 +320,25 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Image generation toggle */}
+          <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+            <input
+              type="checkbox"
+              id="enable-images"
+              checked={enableImageGeneration}
+              onChange={(e) => setEnableImageGeneration(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="enable-images" className="text-sm flex items-center gap-2">
+              {enableImageGeneration ? (
+                <ImageIcon className="h-4 w-4 text-green-600" />
+              ) : (
+                <ImageOff className="h-4 w-4 text-gray-400" />
+              )}
+              Generar imágenes con IA (experimental)
+            </label>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="search-query">¿Qué tipo de plato buscas?</Label>
             <div className="flex gap-2">
@@ -332,7 +415,9 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                           {isSaving ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Creando receta e imagen...
+
+                              Creando receta...
+
                             </>
                           ) : (
                             <>

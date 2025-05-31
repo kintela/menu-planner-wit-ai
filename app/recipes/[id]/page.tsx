@@ -16,6 +16,8 @@ interface Recipe {
   instructions: string[] | string
   preparation: string
   image: string
+
+  image_url: string // Añadido para manejar ambos campos
   user_id: string
 
 }
@@ -24,18 +26,18 @@ async function getRecipe(id: string): Promise<Recipe> {
   try {
     const supabase = createServerClient()
 
-
     const { data: recipe, error } = await supabase.from("recipes").select("*").eq("id", id).single()
-
 
     if (error || !recipe) {
       return notFound()
     }
 
+
     return recipe
   } catch (error) {
     console.error("Error fetching recipe:", error)
     notFound()
+
   }
 }
 
@@ -66,11 +68,12 @@ export default async function RecipePage({ params }: { params: { id: string } })
   // Use instructions if available, otherwise fall back to preparation
   const instructionsArray = recipe?.instructions ? ensureArray(recipe?.instructions) : ensureArray(recipe?.preparation)
 
+  // Determinar la URL de la imagen correcta
+  const imageUrl = recipe?.image_url || recipe?.image || "/placeholder.svg"
 
   return (
     <div className="container mx-auto py-8">
       <div className="mb-6 flex justify-between items-center">
-
         <Button asChild variant="outline">
           <Link href="/recipes" className="flex items-center gap-1">
             <ArrowLeft className="h-4 w-4" />
@@ -86,11 +89,27 @@ export default async function RecipePage({ params }: { params: { id: string } })
         </Button>
       </div>
 
-      <img
-        src={recipe?.image || "/placeholder.svg"}
-        alt={recipe?.title}
-        className="w-full max-h-96 object-cover rounded-lg mb-6"
-      />
+
+      <div className="relative w-full h-96 mb-6">
+        {imageUrl ? (
+          <img
+            src={imageUrl || "/placeholder.svg"}
+            alt={recipe?.title || "Imagen de receta"}
+            className="w-full h-full object-cover rounded-lg"
+            onError={(e) => {
+              // Fallback a placeholder si la imagen falla
+              const target = e.target as HTMLImageElement
+              target.onerror = null
+              target.src = "/placeholder.svg"
+            }}
+          />
+        ) : (
+          <div className="w-full h-full bg-gray-200 flex items-center justify-center rounded-lg">
+            <span className="text-gray-400">Sin imagen</span>
+          </div>
+        )}
+      </div>
+
 
       <div className="grid md:grid-cols-2 gap-8">
         <div>
