@@ -4,23 +4,20 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
-
 interface Recipe {
   id: string
   created_at: string
   title: string
-
   ingredients: string[] | string
   instructions: string[] | string
+  preparation: string // Add this field
   image: string
   user_id: string
-
 }
 
 async function getRecipe(id: string): Promise<Recipe> {
   try {
     const supabase = createServerClient()
-
 
     const { data: recipe, error } = await supabase.from("recipes").select("*").eq("id", id).single()
 
@@ -58,7 +55,8 @@ export default async function RecipePage({ params }: { params: { id: string } })
 
   // Asegurarse de que ingredients e instructions sean arrays
   const ingredientsArray = ensureArray(recipe?.ingredients)
-  const instructionsArray = ensureArray(recipe?.instructions)
+  // Use instructions if available, otherwise fall back to preparation
+  const instructionsArray = recipe?.instructions ? ensureArray(recipe?.instructions) : ensureArray(recipe?.preparation)
 
   return (
     <div className="container mx-auto py-8">
@@ -94,7 +92,6 @@ export default async function RecipePage({ params }: { params: { id: string } })
           </ol>
         </div>
       </div>
-
     </div>
   )
 }
