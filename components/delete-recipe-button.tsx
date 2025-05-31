@@ -1,7 +1,8 @@
 "use client"
 import { useState } from "react"
-import { Trash2 } from "lucide-react"
+import { Trash2, ExternalLink } from "lucide-react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useRouter } from "next/navigation"
 
 import { useAuth } from "@/components/auth/auth-provider"
 import { useToast } from "@/hooks/use-toast"
@@ -33,10 +34,10 @@ export function DeleteRecipeButton({
 }: DeleteRecipeButtonProps) {
   const { user } = useAuth()
   const { toast } = useToast()
+  const router = useRouter()
   const [isDeleting, setIsDeleting] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [isChecking, setIsChecking] = useState(false)
-  const [menuInfo, setMenuInfo] = useState<string | null>(null)
   const [isInMenu, setIsInMenu] = useState(false)
   const supabase = createClientComponentClient()
 
@@ -64,41 +65,13 @@ export function DeleteRecipeButton({
       }
 
       if (menuItems && menuItems.length > 0) {
-        console.log("🚫 Receta está en menús, obteniendo detalles...")
-
-        // Obtener los IDs de los menús semanales
-        const weeklyMenuIds = menuItems.map((item) => item.weekly_menu_id)
-        console.log("📝 IDs de menús semanales:", weeklyMenuIds)
-
-        // Obtener información de los menús semanales
-        const { data: weeklyMenus, error: menusError } = await supabase
-          .from("weekly_menus")
-          .select("*")
-          .in("id", weeklyMenuIds)
-
-        console.log("📅 Información de weekly_menus:", { weeklyMenus, menusError })
-
-        let menuDescription = "menús desconocidos"
-        if (weeklyMenus && weeklyMenus.length > 0) {
-          menuDescription = weeklyMenus
-            .map((menu) => {
-              const weekStart = menu.week_start ? new Date(menu.week_start).toLocaleDateString() : "fecha desconocida"
-              return `${menu.name || "Menú semanal"} (semana del ${weekStart})`
-            })
-            .join(", ")
-        } else {
-          // Si no encontramos info de menús, mostrar al menos los IDs
-          menuDescription = `menú(s) con ID: ${weeklyMenuIds.join(", ")}`
-        }
-
-        setMenuInfo(menuDescription)
+        console.log("🚫 Receta está en menús")
         setIsInMenu(true)
         setIsOpen(true) // Abrir el diálogo pero con mensaje diferente
         return false
       }
 
       console.log("✅ Receta no está en menús")
-      setMenuInfo(null)
       setIsInMenu(false)
       setIsOpen(true) // Abrir el diálogo normal
       return true
@@ -126,6 +99,11 @@ export function DeleteRecipeButton({
     }
 
     await checkMenuUsage()
+  }
+
+  const handleGoToMenu = () => {
+    setIsOpen(false)
+    router.push("/weekly-menu")
   }
 
   const handleDelete = async () => {
@@ -175,7 +153,7 @@ export function DeleteRecipeButton({
           <AlertDialogDescription>
             {isInMenu ? (
               <>
-                La receta "{recipeName}" está asignada al siguiente menú: <strong>{menuInfo}</strong>.
+                La receta "{recipeName}" ya está asignada a un menú semanal.
                 <br />
                 <br />
                 No se puede eliminar una receta que ya está asignada a un menú. Por favor, elimínala primero del menú si
@@ -188,7 +166,13 @@ export function DeleteRecipeButton({
         </AlertDialogHeader>
         <AlertDialogFooter>
           {isInMenu ? (
-            <AlertDialogCancel>Entendido</AlertDialogCancel>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleGoToMenu}>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Ver menú semanal
+              </Button>
+              <AlertDialogCancel>Entendido</AlertDialogCancel>
+            </div>
           ) : (
             <>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
