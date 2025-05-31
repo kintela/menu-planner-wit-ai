@@ -1,6 +1,7 @@
 "use client"
 import { useState } from "react"
 import { Trash2 } from "lucide-react"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 import { useAuth } from "@/components/auth/auth-provider"
 import {
@@ -25,32 +26,30 @@ interface DeleteRecipeButtonProps {
 export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteRecipeButtonProps) {
   const { user } = useAuth()
   const [isDeleting, setIsDeleting] = useState(false)
+  const supabase = createClientComponentClient()
 
   // Verificar si el usuario puede eliminar esta receta
   const canDelete = user && recipeUserId && String(user.id) === String(recipeUserId)
 
   const handleDelete = async () => {
+    if (!user || !canDelete) {
+      alert("No tienes permisos para eliminar esta receta")
+      return
+    }
+
     setIsDeleting(true)
     try {
-      console.log("Attempting to delete recipe:", { recipeId, userId: user?.id })
+      console.log("Attempting to delete recipe:", { recipeId, userId: user.id })
 
-      const response = await fetch(`/api/recipes/${recipeId}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
+      // Eliminar directamente usando el cliente de Supabase
+      const { error } = await supabase.from("recipes").delete().eq("id", recipeId).eq("user_id", user.id) // Doble verificación de seguridad
 
-      console.log("Delete response status:", response.status)
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error("Delete error response:", errorData)
-        throw new Error(errorData.error || `Failed to delete recipe: ${response.status}`)
+      if (error) {
+        console.error("Error deleting recipe:", error)
+        throw new Error(error.message || "Error al eliminar la receta")
       }
 
-      const successData = await response.json()
-      console.log("Delete success:", successData)
+      console.log("Recipe deleted successfully")
 
       // Mostrar mensaje de éxito
       alert("Receta eliminada correctamente")
