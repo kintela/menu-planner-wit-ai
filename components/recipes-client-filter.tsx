@@ -40,18 +40,15 @@ export function RecipesClientFilter({
 }: RecipesClientFilterProps) {
   const { user } = useAuth()
   const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>(recipes)
-  const [userRecipesCount, setUserRecipesCount] = useState(0)
 
   useEffect(() => {
     if (showOnlyMyRecipes && user?.id) {
       // Filtrar recetas del usuario actual
       const myRecipes = recipes.filter((recipe) => recipe.user_id === user.id)
       setFilteredRecipes(myRecipes)
-      setUserRecipesCount(myRecipes.length)
     } else {
       // Mostrar todas las recetas
       setFilteredRecipes(recipes)
-      setUserRecipesCount(recipes.length)
     }
   }, [recipes, showOnlyMyRecipes, user?.id])
 
@@ -75,14 +72,6 @@ export function RecipesClientFilter({
           </Button>
         )}
       </div>
-
-      {/* Debug info */}
-      {showOnlyMyRecipes && (
-        <div className="mb-4 p-2 bg-yellow-100 text-yellow-800 text-xs rounded">
-          Debug: Usuario detectado: {user?.email || "No detectado"} | ID: {user?.id || "N/A"} | Recetas filtradas:{" "}
-          {filteredRecipes.length}
-        </div>
-      )}
 
       {/* Filtros aplicados */}
       {(hasActiveFilters || showOnlyMyRecipes) && (
