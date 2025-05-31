@@ -58,10 +58,13 @@ export async function GET(request: NextRequest) {
             email: data.user.email!,
             full_name: userName,
             role: userRole,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           })
 
           if (profileError) {
             console.error("❌ Error creating user profile:", profileError)
+            console.error("❌ Profile error details:", JSON.stringify(profileError, null, 2))
           } else {
             console.log(`✅ User profile created successfully for: ${data.user.email} with role: ${userRole}`)
           }

@@ -1,62 +1,45 @@
-export type Recipe = {
+export interface Recipe {
   id: number
   name: string
   ingredients: string
   preparation: string
-  image_url: string | null
-  video_url: string | null
-  source_url: string | null
-  is_ai_generated: boolean
-  calories: number | null
+  image_url?: string
   created_at: string
+  is_ai_generated?: boolean
+  video_url?: string
+  source_url?: string
+  calories?: number
+  user_id?: string // Añadido para la relación con el usuario
   categories?: Category[]
 }
 
-export type Category = {
+export interface Category {
   id: number
   name: string
   created_at: string
-  recipeCount?: number
 }
 
-export type WeeklyMenu = {
+export interface WeeklyMenu {
   id: number
-  name: string | null
-  start_date: string
-  end_date: string
+  name: string
   created_at: string
-  is_saved: boolean
-  saved_at: string | null
-  menu_items?: MenuItem[]
+  user_id?: string // Añadido para la relación con el usuario
 }
 
-export type MenuItem = {
+export interface MenuItem {
   id: number
   weekly_menu_id: number
   recipe_id: number
   day_of_week: number
-  meal_type: "comida" | "cena"
+  meal_type: string
   dish_order: number
-  recipe?: Recipe
 }
 
-export type DayMenu = {
-  day: number
-  dayName: string
-  date: string
-  meals: {
-    comida: Recipe[] // Ahora es un array para múltiples platos
-    cena: Recipe | null // Sigue siendo un solo plato
-  }
-}
-
-export type UserRole = "admin" | "user_full" | "user_restricted"
-
-export type UserProfile = {
+export interface UserProfile {
   id: string
   email: string
-  full_name: string
-  role: UserRole
+  full_name?: string
+  role: "admin" | "user"
   created_at: string
   updated_at: string
 }

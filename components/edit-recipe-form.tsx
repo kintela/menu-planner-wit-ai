@@ -8,6 +8,7 @@ import { Loader2, Upload, X, Calculator } from "lucide-react"
 import Image from "next/image"
 
 import { getSupabaseClient } from "@/lib/supabase/client"
+import { useAuth } from "@/components/auth/auth-provider"
 import type { Category, Recipe } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -28,29 +29,58 @@ interface EditRecipeFormProps {
 export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: EditRecipeFormProps) {
   const router = useRouter()
   const { toast } = useToast()
+  const { user } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
+  const [isImageUploading, setIsImageUploading] = useState(false)
   const [selectedCategories, setSelectedCategories] = useState<number[]>(selectedCategoryIds)
   const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(recipe.image_url)
+  const [imagePreview, setImagePreview] = useState<string | null>(recipe.image_url || null)
   const [imageUrl, setImageUrl] = useState<string>(recipe.image_url || "")
-  const [imageTab, setImageTab] = useState<string>(recipe.image_url ? "url" : "upload")
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [ingredients, setIngredients] = useState<string>(recipe.ingredients || "")
+
+  const [imageTab, setImageTab] = useState<string>("url")
+  const [ingredients, setIngredients] = useState<string>("")
   const [estimatedCalories, setEstimatedCalories] = useState<number | null>(null)
-  const [manualCalories, setManualCalories] = useState<string>(recipe.calories?.toString() || "")
-  const [useManualCalories, setUseManualCalories] = useState(!!recipe.calories)
+  const [manualCalories, setManualCalories] = useState<string>("")
+  const [useManualCalories, setUseManualCalories] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+
+  // Inicializar el formulario con los datos de la receta
+  useEffect(() => {
+    // Convertir ingredientes a string
+    let ingredientsText = ""
+    if (Array.isArray(recipe.ingredients)) {
+      ingredientsText = recipe.ingredients.join("\n")
+    } else if (typeof recipe.ingredients === "string") {
+      ingredientsText = recipe.ingredients
+    }
+    setIngredients(ingredientsText)
+
+    // Configurar calorías
+    if (recipe.calories) {
+      setManualCalories(recipe.calories.toString())
+      setUseManualCalories(true)
+    }
+
+    // Configurar imagen
+    if (recipe.image_url) {
+      setImageUrl(recipe.image_url)
+      setImagePreview(recipe.image_url)
+    }
+  }, [recipe])
+
 
   // Calcular calorías cuando cambian los ingredientes
   useEffect(() => {
     if (ingredients.trim() && !useManualCalories) {
       const calories = calculateCalories(ingredients)
       setEstimatedCalories(calories)
-    } else if (!useManualCalories) {
+    } else {
       setEstimatedCalories(null)
     }
   }, [ingredients, useManualCalories])
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -83,12 +113,57 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       setImagePreview(reader.result as string)
     }
     reader.readAsDataURL(file)
+
+    // Subir la imagen inmediatamente
+    try {
+      setIsImageUploading(true)
+
+      toast({
+        title: "Subiendo imagen",
+        description: "Por favor espera mientras se sube la imagen...",
+      })
+
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error(`Error al subir la imagen: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      if (data.url) {
+        setUploadedImageUrl(data.url)
+
+        toast({
+          title: "Imagen subida y asociada",
+          description: "La imagen se ha subido y asociada a la receta correctamente.",
+        })
+      } else {
+        throw new Error("No se recibió URL de la imagen")
+      }
+    } catch (error) {
+      console.error("Error uploading image:", error)
+      toast({
+        title: "Error al subir la imagen",
+        description: `No se pudo subir la imagen: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        variant: "destructive",
+      })
+    } finally {
+      setIsImageUploading(false)
+    }
   }
 
-  const handleRemoveImage = () => {
+  const handleRemoveImage = async () => {
     setImageFile(null)
     setImagePreview(null)
     setImageUrl("")
+    setUploadedImageUrl(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
@@ -98,17 +173,48 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     setImageUrl(e.target.value)
     setImageFile(null)
     setImagePreview(e.target.value)
+    setUploadedImageUrl(null)
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
 
+
+    // Verificar que el usuario esté autenticado
+    if (!user) {
+      toast({
+        title: "Error de autenticación",
+        description: "Debes estar autenticado para editar una receta.",
+        variant: "destructive",
+      })
+      setIsLoading(false)
+      return
+    }
+
+
     const formData = new FormData(e.currentTarget)
     const name = formData.get("name") as string
     const preparation = formData.get("preparation") as string
     const video_url = (formData.get("video_url") as string) || null
     const source_url = (formData.get("source_url") as string) || null
+
+    // Usar el estado local para ingredientes
+    const finalIngredients = ingredients.trim()
+
+    console.log("Datos del formulario:", {
+      name,
+      ingredients,
+      preparation,
+      video_url,
+      source_url,
+      selectedCategories,
+      imageUrl,
+      uploadedImageUrl,
+    })
+
+    console.log("Ingredientes del estado local:", ingredients)
+    console.log("Ingredientes finales:", finalIngredients)
 
     // Validación del nombre (único campo obligatorio)
     if (!name.trim()) {
@@ -133,7 +239,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
           const uploadFormData = new FormData()
           uploadFormData.append("file", imageFile)
 
-          const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
+          const response = await fetch("/api/upload-image", {
             method: "POST",
             body: uploadFormData,
           })
@@ -148,28 +254,46 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
           console.error("Error uploading image:", uploadError)
           toast({
             title: "Error al subir la imagen",
-            description: "No se pudo subir la imagen. La receta se actualizará sin imagen.",
+            description: "No se pudo subir la imagen. La receta se guardará sin imagen.",
             variant: "destructive",
           })
         }
+
       }
+
+      console.log("URL final de imagen:", finalImageUrl)
 
       // Determinar las calorías finales
       let finalCalories = null
 
       if (useManualCalories && manualCalories) {
-        // Si el usuario eligió calorías manuales, usar esas
         finalCalories = Number.parseInt(manualCalories)
       } else if (estimatedCalories) {
-        // Si no usa calorías manuales, usar las calculadas
         finalCalories = estimatedCalories
       }
 
+      console.log("Calorías finales:", finalCalories)
+
       const supabase = getSupabaseClient()
 
+      // Preparar datos para actualizar
+      const updateData = {
+        name: name.trim(),
+        ingredients: finalIngredients,
+        preparation: preparation.trim(),
+        image_url: finalImageUrl,
+        video_url: video_url?.trim() || null,
+        source_url: source_url?.trim() || null,
+        calories: finalCalories,
+      }
+
+      console.log("Datos a actualizar:", updateData)
+      console.log("ID de receta:", recipe.id)
+
       // Actualizar la receta
-      const { error } = await supabase
+      const { data: updateResult, error: updateError } = await supabase
         .from("recipes")
+
         .update({
           name,
           ingredients: ingredients || "",
@@ -178,43 +302,65 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
           video_url: video_url,
           source_url: source_url,
           calories: finalCalories,
+          updated_at: new Date().toISOString(),
         })
+
+       
         .eq("id", recipe.id)
+        .select()
 
-      if (error) throw error
+      console.log("Resultado de actualización:", updateResult)
 
-      // Actualizar las categorías
-      // Primero, eliminar todas las relaciones existentes
+      if (updateError) {
+        console.error("Error al actualizar receta:", updateError)
+        throw new Error(`Error de base de datos: ${updateError.message}`)
+      }
+
+      console.log("Receta actualizada exitosamente")
+
+
+      // Actualizar las categorías seleccionadas
+      // Primero eliminar todas las categorías existentes
       await supabase.from("recipe_categories").delete().eq("recipe_id", recipe.id)
 
-      // Luego, insertar las nuevas relaciones
+      // Luego insertar las nuevas categorías seleccionadas
+
       if (selectedCategories.length > 0) {
         const categoryRelations = selectedCategories.map((categoryId) => ({
           recipe_id: recipe.id,
           category_id: categoryId,
         }))
 
+        console.log("Insertando categorías:", categoryRelations)
+
         const { error: categoryError } = await supabase.from("recipe_categories").insert(categoryRelations)
 
-        if (categoryError) throw categoryError
+        if (categoryError) {
+          console.error("Error al insertar categorías:", categoryError)
+          throw new Error(`Error al guardar categorías: ${categoryError.message}`)
+        } else {
+          console.log("Categorías insertadas exitosamente")
+        }
       }
 
-      // Mostrar toast de éxito
       toast({
-        title: "Receta actualizada",
-        description: "La receta se ha actualizado correctamente. Redirigiendo...",
+        title: "¡Receta actualizada!",
+        description: "La receta se ha actualizado correctamente.",
       })
 
-      // Esperar un momento para que el toast se muestre y luego redirigir
+      console.log("=== GUARDADO COMPLETADO EXITOSAMENTE ===")
+
+      // Redirigir después de un breve delay
       setTimeout(() => {
-        console.log("Ejecutando redirección a /recipes desde edición")
-        router.push("/recipes")
+        router.push(`/recipes/${recipe.id}`)
+
       }, 1000)
+
     } catch (error) {
-      console.error("Error updating recipe:", error)
+      console.error("=== ERROR EN GUARDADO ===", error)
       toast({
-        title: "Error",
-        description: `Ha ocurrido un error al actualizar la receta: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        title: "Error al guardar",
+        description: `Ha ocurrido un error: ${error instanceof Error ? error.message : "Error desconocido"}`,
         variant: "destructive",
       })
     } finally {
@@ -224,10 +370,10 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
   return (
     <Card className="p-6">
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
           <Label htmlFor="name">Nombre de la receta *</Label>
-          <Input id="name" name="name" defaultValue={recipe.name} required />
+          <Input id="name" name="name" required defaultValue={recipe.name || ""} />
         </div>
 
         <div className="space-y-2">
@@ -235,10 +381,10 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
           <Textarea
             id="ingredients"
             name="ingredients"
-            value={ingredients}
-            onChange={(e) => setIngredients(e.target.value)}
             placeholder="Escribe los ingredientes, uno por línea (ej: 200g de arroz, 1 pollo, 2 cebollas...)"
             className="min-h-32"
+            value={ingredients}
+            onChange={(e) => setIngredients(e.target.value)}
           />
         </div>
 
@@ -289,9 +435,15 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
           <Textarea
             id="preparation"
             name="preparation"
-            defaultValue={recipe.preparation}
             placeholder="Describe los pasos para preparar la receta"
             className="min-h-32"
+            defaultValue={
+              Array.isArray(recipe.preparation)
+                ? recipe.preparation.join("\n")
+                : typeof recipe.preparation === "string"
+                  ? recipe.preparation
+                  : ""
+            }
           />
         </div>
 
@@ -359,6 +511,19 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
                   >
                     <X className="h-4 w-4" />
                   </Button>
+                  {uploadedImageUrl && (
+                    <div className="absolute bottom-2 right-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-md">
+                      ✅ Imagen guardada
+                    </div>
+                  )}
+                  {isImageUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <div className="bg-white p-4 rounded-md flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Subiendo y guardando imagen...</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center justify-center w-full">
@@ -380,6 +545,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
                       accept="image/*"
                       className="hidden"
                       onChange={handleImageChange}
+                      disabled={isImageUploading}
                     />
                   </label>
                 </div>
@@ -416,34 +582,29 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
           </p>
         </div>
 
-        <div className="space-y-2 border p-4 rounded-md">
-          <h3 className="text-lg font-medium mb-4">Categorías</h3>
-          {categories && categories.length > 0 ? (
-            <CategorySelector
-              categories={categories}
-              selectedCategories={selectedCategories}
-              onCategoriesChange={setSelectedCategories}
-            />
-          ) : (
-            <p className="text-muted-foreground">No hay categorías disponibles.</p>
-          )}
-        </div>
+        <CategorySelector
+          categories={categories}
+          selectedCategories={selectedCategories}
+          onCategoriesChange={setSelectedCategories}
+        />
 
         <div className="text-sm text-muted-foreground mb-4">* Los campos marcados con asterisco son obligatorios</div>
 
-        <div className="flex gap-4">
-          <Button type="submit" className="flex-1" disabled={isLoading}>
+
+        <div className="flex justify-end space-x-4">
+          <Button type="button" variant="outline" onClick={() => router.back()}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={isLoading}>
+
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Guardando...
+                Guardando cambios...
               </>
             ) : (
-              "Guardar Cambios"
+              "Guardar cambios"
             )}
-          </Button>
-          <Button type="button" variant="outline" onClick={() => router.push("/recipes")}>
-            Cancelar
           </Button>
         </div>
       </form>
