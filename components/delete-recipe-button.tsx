@@ -28,6 +28,7 @@ export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteR
   const { user } = useAuth()
   const { toast } = useToast()
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
   const supabase = createClientComponentClient()
 
   // Verificar si el usuario puede eliminar esta receta
@@ -45,17 +46,34 @@ export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteR
 
     setIsDeleting(true)
     try {
-      console.log("Attempting to delete recipe:", { recipeId, userId: user.id })
+      // Primero verificamos si la receta está siendo usada en algún menú
+      const { data: menuItems, error: menuError } = await supabase
+        .from("menu_items")
+        .select("id, menu_id")
+        .eq("recipe_id", recipeId)
 
-      // Eliminar directamente usando el cliente de Supabase
+      if (menuError) {
+        throw new Error(menuError.message || "Error al verificar menús")
+      }
+
+      // Si la receta está siendo usada en menús, prevenimos la eliminación
+      if (menuItems && menuItems.length > 0) {
+        setIsOpen(false) // Cerrar el diálogo
+        toast({
+          title: "No se puede eliminar",
+          description: `Esta receta está siendo usada en ${menuItems.length} menú(s). Por favor, elimínala primero de los menús.`,
+          variant: "destructive",
+          duration: 5000, // Mostrar por más tiempo
+        })
+        return
+      }
+
+      // Si no está siendo usada, procedemos con la eliminación
       const { error } = await supabase.from("recipes").delete().eq("id", recipeId).eq("user_id", user.id) // Doble verificación de seguridad
 
       if (error) {
-        console.error("Error deleting recipe:", error)
         throw new Error(error.message || "Error al eliminar la receta")
       }
-
-      console.log("Recipe deleted successfully")
 
       // Mostrar toast de éxito
       toast({
@@ -64,7 +82,8 @@ export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteR
         variant: "default",
       })
 
-      // Llamar al callback para actualizar la UI
+      // Cerrar el diálogo y llamar al callback para actualizar la UI
+      setIsOpen(false)
       onDelete()
     } catch (error: any) {
       console.error("Error deleting recipe:", error)
@@ -79,7 +98,7 @@ export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteR
   }
 
   return (
-    <AlertDialog>
+    <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
       <AlertDialogTrigger asChild>
         <Button variant="destructive" disabled={!canDelete}>
           <Trash2 className="h-4 w-4 mr-2" />
@@ -95,8 +114,8 @@ export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteR
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete} disabled={isDeleting || !canDelete}>
-            {isDeleting ? "Eliminando..." : "Eliminar"}
+          <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+            {isDeleting ? "Verificando..." : "Eliminar"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
