@@ -1,6 +1,6 @@
 "use client"
 
-import { useAuth } from "@/hooks/use-session"
+import { useAuth } from "@/components/auth/auth-provider"
 import { RecipeCard } from "@/components/recipe-card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
