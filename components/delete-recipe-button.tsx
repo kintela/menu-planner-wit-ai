@@ -4,6 +4,7 @@ import { Trash2 } from "lucide-react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 import { useAuth } from "@/components/auth/auth-provider"
+import { useToast } from "@/hooks/use-toast"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +26,7 @@ interface DeleteRecipeButtonProps {
 
 export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteRecipeButtonProps) {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [isDeleting, setIsDeleting] = useState(false)
   const supabase = createClientComponentClient()
 
@@ -33,7 +35,11 @@ export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteR
 
   const handleDelete = async () => {
     if (!user || !canDelete) {
-      alert("No tienes permisos para eliminar esta receta")
+      toast({
+        title: "Error",
+        description: "No tienes permisos para eliminar esta receta",
+        variant: "destructive",
+      })
       return
     }
 
@@ -51,14 +57,22 @@ export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteR
 
       console.log("Recipe deleted successfully")
 
-      // Mostrar mensaje de éxito
-      alert("Receta eliminada correctamente")
+      // Mostrar toast de éxito
+      toast({
+        title: "¡Éxito!",
+        description: "Receta eliminada correctamente",
+        variant: "default",
+      })
 
       // Llamar al callback para actualizar la UI
       onDelete()
     } catch (error: any) {
       console.error("Error deleting recipe:", error)
-      alert(`Error al eliminar la receta: ${error.message}`)
+      toast({
+        title: "Error",
+        description: `Error al eliminar la receta: ${error.message}`,
+        variant: "destructive",
+      })
     } finally {
       setIsDeleting(false)
     }
