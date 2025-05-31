@@ -73,4 +73,4 @@ const DeleteRecipeButton: React.FC<DeleteRecipeButtonProps> = ({ recipeId, onDel
   )
 }
 
-export default DeleteRecipeButton
+export { DeleteRecipeButton }
