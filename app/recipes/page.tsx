@@ -17,7 +17,8 @@ interface RecipesPageProps {
   }
 }
 
-export const dynamic = "force_dynamic"
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 export default async function RecipesPage({ searchParams }: RecipesPageProps) {
   try {
@@ -28,34 +29,43 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
 
     // Obtener el usuario actual si necesitamos filtrar por "mis recetas"
     let currentUserId: string | null = null
+    let userDebugInfo = "No user found"
+
     if (showOnlyMyRecipes) {
       const {
         data: { user },
       } = await supabase.auth.getUser()
       currentUserId = user?.id || null
+      userDebugInfo = user ? `User ID: ${user.id}` : "No user found"
+      console.log("Current user for filtering:", userDebugInfo)
     }
 
     // Obtener todas las categorías para el filtro
     const { data: categories } = await supabase.from("categories").select("*").order("name")
 
-    // Obtener TODAS las recetas primero (sin filtrar por usuario en servidor)
-    const { data: allRecipes, error: recipesError } = await supabase
-      .from("recipes")
-      .select(`
+    // Consulta base para recetas
+    let recipesQuery = supabase.from("recipes").select(`
         *,
         user_profiles (
           full_name,
           email
         )
       `)
-      .order("created_at", { ascending: false })
+
+    // Si estamos filtrando por usuario, aplicar el filtro directamente en la consulta SQL
+    if (showOnlyMyRecipes && currentUserId) {
+      recipesQuery = recipesQuery.eq("user_id", currentUserId)
+    }
+
+    // Ejecutar la consulta con el orden
+    const { data: recipes, error: recipesError } = await recipesQuery.order("created_at", { ascending: false })
 
     if (recipesError) {
       console.error("Error fetching recipes:", recipesError)
       throw new Error(`Error fetching recipes: ${recipesError.message}`)
     }
 
-    if (!allRecipes) {
+    if (!recipes) {
       return (
         <div className="container py-10">
           <div className="flex justify-center items-center min-h-[400px]">
@@ -77,7 +87,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
 
     // Crear un mapa de categorías por receta
     const recipeCategoriesMap = new Map<number, number[]>()
-    allRecipes?.forEach((recipe) => {
+    recipes?.forEach((recipe) => {
       recipeCategoriesMap.set(recipe.id, [])
     })
 
@@ -106,7 +116,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     })
 
     // Combinar recetas con sus categorías y información del creador
-    const recipesWithCategories = allRecipes?.map((recipe) => {
+    const recipesWithCategories = recipes?.map((recipe) => {
       const categoryIds = recipeCategoriesMap.get(recipe.id) || []
       const recipeCategories = categoryIds
         .map((id) => {
@@ -122,13 +132,8 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       }
     })
 
-    // Aplicar filtros
+    // Aplicar filtros adicionales (búsqueda y categorías)
     let filteredRecipes = [...recipesWithCategories]
-
-    // Filtrar por usuario si está activado "Solo mis recetas"
-    if (showOnlyMyRecipes && currentUserId) {
-      filteredRecipes = filteredRecipes.filter((recipe) => recipe.user_id === currentUserId)
-    }
 
     // Filtrar por término de búsqueda
     if (searchParams.search && searchParams.search.trim()) {
@@ -163,6 +168,17 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     // Obtener conteos para mostrar estadísticas
     const { count: totalRecipesCount } = await supabase.from("recipes").select("*", { count: "exact", head: true })
 
+    // Si estamos filtrando por usuario, obtener el conteo de recetas del usuario
+    let userRecipesCount = displayedRecipes.length
+    if (showOnlyMyRecipes && currentUserId) {
+      const { count } = await supabase
+        .from("recipes")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", currentUserId)
+
+      userRecipesCount = count || 0
+    }
+
     return (
       <div className="container py-10">
         <div className="flex justify-between items-center mb-6">
@@ -193,6 +209,13 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
                 </Button>
               )}
             </div>
+
+            {/* Debug info */}
+            {showOnlyMyRecipes && (
+              <div className="mt-2 p-2 bg-yellow-100 text-yellow-800 text-xs rounded">
+                Debug: {userDebugInfo} | Recetas encontradas: {userRecipesCount}
+              </div>
+            )}
           </div>
           <div className="flex gap-2">
             <Button asChild>
