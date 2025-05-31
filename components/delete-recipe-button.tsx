@@ -45,13 +45,15 @@ export function DeleteRecipeButton({
   const checkMenuUsage = async () => {
     setIsChecking(true)
     try {
-      console.log("🔍 Verificando si la receta está en menús:", { recipeId, recipeName })
+      // Convertir recipeId a número para la consulta
+      const recipeIdNumber = Number.parseInt(recipeId)
+      console.log("🔍 Verificando si la receta está en menús:", { recipeId, recipeIdNumber, recipeName })
 
       // Verificar si la receta está siendo usada en menu_items
       const { data: menuItems, error: menuError } = await supabase
         .from("menu_items")
         .select("*")
-        .eq("recipe_id", recipeId)
+        .eq("recipe_id", recipeIdNumber)
 
       console.log("📋 Resultado de menu_items:", { menuItems, menuError })
 
