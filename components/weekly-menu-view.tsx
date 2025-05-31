@@ -3,7 +3,7 @@
 import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Loader2, RefreshCw, Eye } from "lucide-react"
+import { Loader2, RefreshCw, Eye, Trash2 } from "lucide-react"
 
 import { getSupabaseClient } from "@/lib/supabase/client"
 import type { WeeklyMenu, MenuItem, Recipe, DayMenu } from "@/lib/types"
@@ -333,6 +333,54 @@ export function WeeklyMenuView({
     }, 100)
   }
 
+  const handleRemoveRecipe = async (dayOfWeek: number, mealType: "comida" | "cena", dishOrder?: number) => {
+    if (!weeklyMenu) return
+
+    setIsUpdating(true)
+
+    try {
+      const supabase = getSupabaseClient()
+      const finalDishOrder = mealType === "comida" ? dishOrder || 1 : 1
+
+      // Buscar y eliminar el plato existente
+      const { error } = await supabase
+        .from("menu_items")
+        .delete()
+        .eq("weekly_menu_id", weeklyMenu.id)
+        .eq("day_of_week", dayOfWeek)
+        .eq("meal_type", mealType)
+        .eq("dish_order", finalDishOrder)
+
+      if (error) throw error
+
+      // Actualizar el estado local eliminando el item
+      const updatedMenuItems = menuItems.filter(
+        (item) =>
+          !(
+            item.weekly_menu_id === weeklyMenu.id &&
+            item.day_of_week === dayOfWeek &&
+            item.meal_type === mealType &&
+            item.dish_order === finalDishOrder
+          ),
+      )
+      setMenuItems(updatedMenuItems)
+
+      toast({
+        title: "Receta eliminada",
+        description: "La receta se ha eliminado del menú.",
+      })
+    } catch (error) {
+      console.error("Error removing recipe:", error)
+      toast({
+        title: "Error",
+        description: "Ha ocurrido un error al eliminar la receta.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -416,6 +464,16 @@ export function WeeklyMenuView({
                           </Link>
                         </Button>
                       )}
+                      {dayMenu.meals.comida[0] && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRemoveRecipe(dayMenu.day, "comida", 1)}
+                          disabled={isUpdating}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                       <AiRecipeSuggestion
                         onRecipeCreated={(newRecipe) => handleRecipeCreated(newRecipe, dayMenu.day, "comida", 1)}
                         mealType="comida"
@@ -462,6 +520,16 @@ export function WeeklyMenuView({
                           </Link>
                         </Button>
                       )}
+                      {dayMenu.meals.comida[1] && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRemoveRecipe(dayMenu.day, "comida", 2)}
+                          disabled={isUpdating}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                       <AiRecipeSuggestion
                         onRecipeCreated={(newRecipe) => handleRecipeCreated(newRecipe, dayMenu.day, "comida", 2)}
                         mealType="comida"
@@ -505,6 +573,16 @@ export function WeeklyMenuView({
                           <Eye className="h-4 w-4 mr-2" />
                           Ver receta
                         </Link>
+                      </Button>
+                    )}
+                    {dayMenu.meals.cena && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRemoveRecipe(dayMenu.day, "cena")}
+                        disabled={isUpdating}
+                      >
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
                     <AiRecipeSuggestion
