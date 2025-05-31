@@ -1,8 +1,10 @@
 "use client"
 
+
 import { DialogTrigger } from "@/components/ui/dialog"
 
 import { useState, useEffect } from "react"
+
 
 import { Sparkles, Loader2, Plus, Check, ImageOff } from "lucide-react"
 
@@ -43,6 +45,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   const [suggestions, setSuggestions] = useState<GeneratedRecipe[]>([])
   const [savedRecipes, setSavedRecipes] = useState<Set<number>>(new Set())
   const [enableImageGeneration, setEnableImageGeneration] = useState(false) // Disabled by default
+
   const [dailyUsage, setDailyUsage] = useState<number>(0)
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   const [usageLimitReached, setUsageLimitReached] = useState<boolean>(false)
@@ -76,6 +79,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       console.error("Error checking user limits:", error)
     }
   }
+
 
   const generateSuggestions = async () => {
     if (!searchQuery.trim()) {
@@ -161,6 +165,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   }
 
   const generateRecipeImage = async (recipeName: string, ingredients: string) => {
+
     // Skip image generation if disabled
     if (!enableImageGeneration) {
       console.log("Image generation disabled, skipping...")
@@ -169,6 +174,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
     try {
       console.log("Attempting to generate image for:", recipeName)
+
 
       const response = await fetch("/api/generate-recipe-image", {
         method: "POST",
@@ -184,6 +190,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       const data = await response.json()
 
       if (!response.ok) {
+
         console.warn("Image generation failed:", data.error, data.suggestion)
         return null // Fail silently, recipe creation continues
       }
@@ -193,6 +200,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     } catch (error) {
       console.warn("Image generation error (non-critical):", error)
       return null // Always return null on error, don't throw
+
     }
   }
 
@@ -214,6 +222,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
 
+
       // Intentar generar imagen solo si está habilitado
       let imageUrl = null
       if (enableImageGeneration) {
@@ -223,6 +232,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           console.warn("Image generation failed, continuing without image:", error)
         }
       }
+
 
       // Guardar la receta en la base de datos
       const { data: newRecipe, error } = await supabase
@@ -279,6 +289,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
+
 
       // Mostrar mensaje inicial
       toast({
@@ -349,6 +360,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     }
   }, [isOpen, user])
 
+
   // No mostrar el componente si no hay usuario autenticado
   if (!user) {
     return null
@@ -375,6 +387,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
               <ImageIcon className="h-3 w-3" />
               Se generará automáticamente una imagen para cada receta
             </span>
+
             {!isAdmin && (
               <span className="text-xs text-muted-foreground mt-1 block">
                 💡 Límite: 2 generaciones por día ({dailyUsage}/2 usadas hoy)
@@ -384,6 +397,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
             {isAdmin && (
               <span className="text-xs text-green-600 mt-1 block">👑 Administrador: Generaciones ilimitadas</span>
             )}
+
           </DialogDescription>
         </DialogHeader>
 
@@ -509,7 +523,9 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                           {isSaving ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+
                               Creando receta...
+
                             </>
                           ) : (
                             <>
