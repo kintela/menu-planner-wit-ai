@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 import { Sparkles, Loader2, Plus, Check, ImageOff } from "lucide-react"
 
@@ -48,6 +48,39 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   const [suggestions, setSuggestions] = useState<GeneratedRecipe[]>([])
   const [savedRecipes, setSavedRecipes] = useState<Set<number>>(new Set())
   const [enableImageGeneration, setEnableImageGeneration] = useState(false) // Disabled by default
+  const [dailyUsage, setDailyUsage] = useState<number>(0)
+  const [isAdmin, setIsAdmin] = useState<boolean>(false)
+  const [usageLimitReached, setUsageLimitReached] = useState<boolean>(false)
+
+  const checkUserLimits = async () => {
+    if (!user) return
+
+    try {
+      const supabase = getSupabaseClient()
+
+      // Verificar si es administrador
+      const { data: profile } = await supabase.from("user_profiles").select("role").eq("user_id", user.id).single()
+
+      const userIsAdmin = profile?.role === "admin"
+      setIsAdmin(userIsAdmin)
+
+      // Si es admin, no hay límites
+      if (userIsAdmin) {
+        setUsageLimitReached(false)
+        setDailyUsage(0)
+        return
+      }
+
+      // Para usuarios normales, verificar uso diario
+      const { data: usageData } = await supabase.rpc("get_daily_ai_usage", { p_user_id: user.id })
+
+      const currentUsage = usageData || 0
+      setDailyUsage(currentUsage)
+      setUsageLimitReached(currentUsage >= 2)
+    } catch (error) {
+      console.error("Error checking user limits:", error)
+    }
+  }
 
   const generateSuggestions = async () => {
     if (!searchQuery.trim()) {
@@ -59,11 +92,34 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       return
     }
 
+    // Verificar límites para usuarios no admin
+    if (!isAdmin && usageLimitReached) {
+      toast({
+        title: "Límite diario alcanzado",
+        description: "Has usado el generador de IA 2 veces hoy. Podrás usarlo nuevamente mañana.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsGenerating(true)
     setSuggestions([])
-    setSavedRecipes(new Set()) // Reset saved recipes when generating new ones
+    setSavedRecipes(new Set())
 
     try {
+      // Incrementar contador de uso para usuarios no admin
+      if (!isAdmin) {
+        const supabase = getSupabaseClient()
+        const { data: newUsage } = await supabase.rpc("increment_ai_usage", { p_user_id: user?.id })
+
+        setDailyUsage(newUsage || 0)
+
+        // Verificar si alcanzó el límite después de este uso
+        if (newUsage >= 2) {
+          setUsageLimitReached(true)
+        }
+      }
+
       const response = await fetch("/api/generate-recipe-suggestions", {
         method: "POST",
         headers: {
@@ -85,6 +141,15 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       if (data.recipes && Array.isArray(data.recipes)) {
         setSuggestions(data.recipes)
+
+        // Mostrar mensaje de límite si es necesario
+        if (!isAdmin && dailyUsage + 1 >= 2) {
+          toast({
+            title: "Último uso del día",
+            description: "Has alcanzado el límite diario de 2 generaciones. Podrás usar la IA nuevamente mañana.",
+            variant: "default",
+          })
+        }
       } else {
         throw new Error("Formato de respuesta inválido")
       }
@@ -101,7 +166,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   }
 
   const generateRecipeImage = async (recipeName: string, ingredients: string) => {
-
     // Skip image generation if disabled
     if (!enableImageGeneration) {
       console.log("Image generation disabled, skipping...")
@@ -110,7 +174,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
     try {
       console.log("Attempting to generate image for:", recipeName)
-
 
       const response = await fetch("/api/generate-recipe-image", {
         method: "POST",
@@ -126,7 +189,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       const data = await response.json()
 
       if (!response.ok) {
-
         console.warn("Image generation failed:", data.error, data.suggestion)
         return null // Fail silently, recipe creation continues
       }
@@ -136,7 +198,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     } catch (error) {
       console.warn("Image generation error (non-critical):", error)
       return null // Always return null on error, don't throw
-
     }
   }
 
@@ -158,7 +219,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
 
-
       // Intentar generar imagen solo si está habilitado
       let imageUrl = null
       if (enableImageGeneration) {
@@ -168,7 +228,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           console.warn("Image generation failed, continuing without image:", error)
         }
       }
-
 
       // Guardar la receta en la base de datos
       const { data: newRecipe, error } = await supabase
@@ -225,7 +284,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
-
 
       // Mostrar mensaje inicial
       toast({
@@ -290,6 +348,12 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     }
   }
 
+  useEffect(() => {
+    if (isOpen && user) {
+      checkUserLimits()
+    }
+  }, [isOpen, user])
+
   // No mostrar el componente si no hay usuario autenticado
   if (!user) {
     return null
@@ -316,6 +380,15 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
               <ImageIcon className="h-3 w-3" />
               Se generará automáticamente una imagen para cada receta
             </span>
+            {!isAdmin && (
+              <span className="text-xs text-muted-foreground mt-1 block">
+                💡 Límite: 2 generaciones por día ({dailyUsage}/2 usadas hoy)
+                {usageLimitReached && " - Límite alcanzado hasta mañana"}
+              </span>
+            )}
+            {isAdmin && (
+              <span className="text-xs text-green-600 mt-1 block">👑 Administrador: Generaciones ilimitadas</span>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -354,14 +427,23 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                 }}
                 className="flex-1"
               />
-              <Button onClick={generateSuggestions} disabled={isGenerating || !searchQuery.trim()}>
+              <Button
+                onClick={generateSuggestions}
+                disabled={isGenerating || !searchQuery.trim() || (!isAdmin && usageLimitReached)}
+                className={!isAdmin && usageLimitReached ? "opacity-50" : ""}
+              >
                 {isGenerating ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Generando...
                   </>
+                ) : !isAdmin && usageLimitReached ? (
+                  "Límite diario alcanzado"
                 ) : (
-                  "Generar"
+                  <>
+                    Generar
+                    {!isAdmin && <span className="ml-2 text-xs opacity-75">({dailyUsage}/2 usos hoy)</span>}
+                  </>
                 )}
               </Button>
             </div>
@@ -415,9 +497,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                           {isSaving ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-
                               Creando receta...
-
                             </>
                           ) : (
                             <>
