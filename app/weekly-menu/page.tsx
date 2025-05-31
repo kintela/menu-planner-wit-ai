@@ -6,10 +6,10 @@ import { getSupabaseClient } from "@/lib/supabase/client"
 import { WeeklyMenuView } from "@/components/weekly-menu-view"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, Loader2, ChevronDown } from "lucide-react"
+import { AlertCircle, Loader2 } from "lucide-react"
 import Link from "next/link"
 import type { MenuItem, Recipe, WeeklyMenu } from "@/lib/types"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useToast } from "@/hooks/use-toast"
 
 export default function WeeklyMenuPage() {
   const { user, loading: authLoading } = useAuth()
@@ -20,6 +20,7 @@ export default function WeeklyMenuPage() {
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [startDate, setStartDate] = useState<string>("")
   const [menuHistory, setMenuHistory] = useState<WeeklyMenu[]>([])
+  const { toast } = useToast()
 
   const loadData = async () => {
     try {
@@ -123,10 +124,44 @@ export default function WeeklyMenuPage() {
     loadData()
   }
 
-  const handleMenuSelect = (selectedMenu: WeeklyMenu) => {
-    // Navigate to the selected menu's week
-    const startDate = selectedMenu.start_date
-    window.location.href = `/weekly-menu?date=${startDate}`
+  const handleMenuSelect = async (selectedMenu: WeeklyMenu) => {
+    setLoading(true)
+    try {
+      const supabase = getSupabaseClient()
+
+      // Set the selected menu as current
+      setWeeklyMenu(selectedMenu)
+      setStartDate(selectedMenu.start_date)
+
+      // Load menu items for the selected menu
+      const { data: items } = await supabase
+        .from("menu_items")
+        .select(`
+          *,
+          recipe:recipe_id (*)
+        `)
+        .eq("weekly_menu_id", selectedMenu.id)
+        .order("day_of_week")
+        .order("meal_type")
+        .order("dish_order")
+
+      if (items) {
+        setMenuItems(items as unknown as MenuItem[])
+      } else {
+        setMenuItems([])
+      }
+
+      console.log("✅ Menú histórico cargado:", selectedMenu.name)
+    } catch (error) {
+      console.error("Error loading selected menu:", error)
+      toast({
+        title: "Error",
+        description: "Ha ocurrido un error al cargar el menú seleccionado.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (authLoading || loading) {
@@ -210,23 +245,6 @@ export default function WeeklyMenuPage() {
             onMenuSelect={handleMenuSelect}
           />
         </div>
-        {menuHistory.length > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                Menús Anteriores
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {menuHistory.map((menu) => (
-                <DropdownMenuItem key={menu.id} onClick={() => handleMenuSelect(menu)}>
-                  {new Date(menu.start_date).toLocaleDateString()} - {new Date(menu.end_date).toLocaleDateString()}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
       </div>
     </div>
   )
