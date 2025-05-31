@@ -26,6 +26,7 @@ interface WeeklyMenuViewProps {
   onDataUpdate?: () => void
   menuHistory?: WeeklyMenu[]
   onMenuSelect?: (menu: WeeklyMenu) => void
+  onWeekChange?: (newStartDate: string) => void
 }
 
 // Función para formatear fechas de yyyy-mm-dd a dd/mm/yyyy
@@ -65,6 +66,7 @@ export function WeeklyMenuView({
   onDataUpdate,
   menuHistory = [],
   onMenuSelect,
+  onWeekChange,
 }: WeeklyMenuViewProps) {
   const { toast } = useToast()
   const { user } = useAuth()
@@ -138,23 +140,14 @@ export function WeeklyMenuView({
     }
   })
 
-  const handleWeekChange = async (targetWeek: "current" | "next") => {
+  const handleWeekChangeLocal = async (targetWeek: "current" | "next") => {
     const newStartDate = targetWeek === "current" ? currentWeekStart : nextWeekStart
 
     if (newStartDate === currentStartDate) return
 
-    setCurrentStartDate(newStartDate)
-
-    // Limpiar el menú actual
-    setWeeklyMenu(null)
-    setMenuItems([])
-
-    // Llamar a onDataUpdate para que el componente padre cargue los datos de la nueva semana
-    if (onDataUpdate) {
-      // Simular un cambio en el startDate para que el componente padre recargue
-      setTimeout(() => {
-        onDataUpdate()
-      }, 100)
+    // Llamar al callback del componente padre para cambiar la semana
+    if (onWeekChange) {
+      onWeekChange(newStartDate)
     }
   }
 
@@ -503,14 +496,14 @@ export function WeeklyMenuView({
           </DropdownMenu>
 
           {isCurrentWeek && (
-            <Button variant="outline" onClick={() => handleWeekChange("next")}>
+            <Button variant="outline" onClick={() => handleWeekChangeLocal("next")}>
               La semana que viene
               <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
           )}
 
           {isNextWeek && (
-            <Button variant="outline" onClick={() => handleWeekChange("current")}>
+            <Button variant="outline" onClick={() => handleWeekChangeLocal("current")}>
               Semana actual
             </Button>
           )}

@@ -11,16 +11,6 @@ import Link from "next/link"
 import type { MenuItem, Recipe, WeeklyMenu } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 
-// Función para obtener el inicio de la semana actual
-const getCurrentWeekStart = (): string => {
-  const today = new Date()
-  const dayOfWeek = today.getDay()
-  const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-  const startOfWeek = new Date(today)
-  startOfWeek.setDate(today.getDate() - daysToSubtract)
-  return startOfWeek.toISOString().split("T")[0]
-}
-
 export default function WeeklyMenuPage() {
   const { user, loading: authLoading } = useAuth()
   const [loading, setLoading] = useState(true)
@@ -28,32 +18,24 @@ export default function WeeklyMenuPage() {
   const [weeklyMenu, setWeeklyMenu] = useState<WeeklyMenu | null>(null)
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [recipes, setRecipes] = useState<Recipe[]>([])
-  const [startDate, setStartDate] = useState<string>(getCurrentWeekStart())
+  const [startDate, setStartDate] = useState<string>("")
   const [menuHistory, setMenuHistory] = useState<WeeklyMenu[]>([])
   const { toast } = useToast()
 
-  const loadData = async (targetStartDate?: string) => {
-    const dateToLoad = targetStartDate || startDate
-
+  const loadDataForWeek = async (weekStartDate: string) => {
     try {
-      console.log("🔄 Cargando datos del menú semanal para usuario:", user?.email, "fecha:", dateToLoad)
+      console.log("🔄 Cargando datos del menú semanal para fecha:", weekStartDate)
       const supabase = getSupabaseClient()
 
-      // Calcular fechas de la semana
-      const startOfWeek = new Date(dateToLoad)
-      const endOfWeek = new Date(startOfWeek)
-      endOfWeek.setDate(startOfWeek.getDate() + 6)
-
-      const startDateStr = startOfWeek.toISOString().split("T")[0]
+      const endOfWeek = new Date(weekStartDate)
+      endOfWeek.setDate(endOfWeek.getDate() + 6)
       const endDate = endOfWeek.toISOString().split("T")[0]
 
-      setStartDate(startDateStr)
-
-      // Buscar menú semanal existente
+      // Buscar menú semanal existente para la semana específica
       const { data: weeklyMenuData } = await supabase
         .from("weekly_menus")
         .select("*")
-        .eq("start_date", startDateStr)
+        .eq("start_date", weekStartDate)
         .eq("end_date", endDate)
         .eq("user_id", user?.id)
         .maybeSingle()
@@ -83,11 +65,38 @@ export default function WeeklyMenuPage() {
 
       setMenuItems(menuItemsData)
 
-      // Obtener todas las recetas
-      const { data: recipesData } = await supabase.from("recipes").select("*").order("name")
+      // Obtener todas las recetas (solo una vez)
+      if (recipes.length === 0) {
+        const { data: recipesData } = await supabase.from("recipes").select("*").order("name")
+        setRecipes(recipesData || [])
+        console.log("📝 Recetas cargadas:", recipesData?.length || 0, "recetas")
+      }
 
-      setRecipes(recipesData || [])
-      console.log("📝 Recetas cargadas:", recipesData?.length || 0, "recetas")
+      console.log("✅ Datos cargados correctamente para la semana:", weekStartDate)
+    } catch (err) {
+      console.error("❌ Error cargando datos:", err)
+      setError("Error al cargar los datos del menú semanal")
+    }
+  }
+
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      console.log("🔄 Cargando datos del menú semanal para usuario:", user?.email)
+      const supabase = getSupabaseClient()
+
+      // Calcular fechas de la semana actual
+      const today = new Date()
+      const startOfWeek = new Date(today)
+      const dayOfWeek = today.getDay()
+      const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      startOfWeek.setDate(today.getDate() - daysToSubtract)
+
+      const startDateStr = startOfWeek.toISOString().split("T")[0]
+      setStartDate(startDateStr)
+
+      // Cargar datos para la semana actual
+      await loadDataForWeek(startDateStr)
 
       console.log("✅ Datos cargados correctamente")
     } catch (err) {
@@ -128,7 +137,14 @@ export default function WeeklyMenuPage() {
 
   const handleDataUpdate = () => {
     console.log("🔄 Recargando datos...")
-    loadData()
+    loadDataForWeek(startDate)
+  }
+
+  const handleWeekChange = async (newStartDate: string) => {
+    setLoading(true)
+    setStartDate(newStartDate)
+    await loadDataForWeek(newStartDate)
+    setLoading(false)
   }
 
   const handleMenuSelect = async (selectedMenu: WeeklyMenu) => {
@@ -250,6 +266,7 @@ export default function WeeklyMenuPage() {
             onDataUpdate={handleDataUpdate}
             menuHistory={menuHistory}
             onMenuSelect={handleMenuSelect}
+            onWeekChange={handleWeekChange}
           />
         </div>
       </div>
