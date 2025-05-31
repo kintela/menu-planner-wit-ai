@@ -21,10 +21,16 @@ import { Button } from "@/components/ui/button"
 interface DeleteRecipeButtonProps {
   recipeId: string
   recipeUserId?: string
+  recipeName?: string // Añadimos el nombre de la receta como prop
   onDelete: () => void
 }
 
-export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteRecipeButtonProps) {
+export function DeleteRecipeButton({
+  recipeId,
+  recipeUserId,
+  recipeName = "esta receta",
+  onDelete,
+}: DeleteRecipeButtonProps) {
   const { user } = useAuth()
   const { toast } = useToast()
   const [isDeleting, setIsDeleting] = useState(false)
@@ -49,7 +55,15 @@ export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteR
       // Primero verificamos si la receta está siendo usada en algún menú
       const { data: menuItems, error: menuError } = await supabase
         .from("menu_items")
-        .select("id, menu_id")
+        .select(`
+          id, 
+          menu_id,
+          menus:menu_id (
+            id,
+            name,
+            week_start
+          )
+        `)
         .eq("recipe_id", recipeId)
 
       if (menuError) {
@@ -58,12 +72,21 @@ export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteR
 
       // Si la receta está siendo usada en menús, prevenimos la eliminación
       if (menuItems && menuItems.length > 0) {
+        // Formatear los nombres de los menús
+        const menuNames = menuItems
+          .map((item) => {
+            const menu = item.menus
+            const weekStart = menu?.week_start ? new Date(menu.week_start).toLocaleDateString() : "fecha desconocida"
+            return `${menu?.name || "Menú"} (semana del ${weekStart})`
+          })
+          .join(", ")
+
         setIsOpen(false) // Cerrar el diálogo
         toast({
           title: "No se puede eliminar",
-          description: `Esta receta está siendo usada en ${menuItems.length} menú(s). Por favor, elimínala primero de los menús.`,
+          description: `La receta "${recipeName}" está siendo usada en: ${menuNames}. Por favor, elimínala primero de estos menús.`,
           variant: "destructive",
-          duration: 5000, // Mostrar por más tiempo
+          duration: 7000, // Mostrar por más tiempo
         })
         return
       }
@@ -78,7 +101,7 @@ export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteR
       // Mostrar toast de éxito
       toast({
         title: "¡Éxito!",
-        description: "Receta eliminada correctamente",
+        description: `La receta "${recipeName}" ha sido eliminada correctamente`,
         variant: "default",
       })
 
@@ -89,7 +112,7 @@ export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteR
       console.error("Error deleting recipe:", error)
       toast({
         title: "Error",
-        description: `Error al eliminar la receta: ${error.message}`,
+        description: `Error al eliminar la receta "${recipeName}": ${error.message}`,
         variant: "destructive",
       })
     } finally {
@@ -109,7 +132,7 @@ export function DeleteRecipeButton({ recipeId, recipeUserId, onDelete }: DeleteR
         <AlertDialogHeader>
           <AlertDialogTitle>¿Estás completamente seguro?</AlertDialogTitle>
           <AlertDialogDescription>
-            Esta acción no se puede deshacer. ¿Estás seguro de que quieres eliminar esta receta?
+            Esta acción no se puede deshacer. ¿Estás seguro de que quieres eliminar la receta "{recipeName}"?
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
