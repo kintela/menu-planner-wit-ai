@@ -49,6 +49,25 @@ export function DeleteRecipeButton({
       const recipeIdNumber = Number.parseInt(recipeId)
       console.log("🔍 Verificando si la receta está en menús:", { recipeId, recipeIdNumber, recipeName })
 
+      // AGREGAR ESTOS LOGS ADICIONALES:
+      console.log("🔍 Tipos de datos:", {
+        recipeIdType: typeof recipeId,
+        recipeIdNumberType: typeof recipeIdNumber,
+        recipeIdValue: recipeId,
+        recipeIdNumberValue: recipeIdNumber,
+      })
+
+      // También probar con ambos tipos
+      console.log("🔍 Probando consulta con string...")
+      const { data: menuItemsString, error: menuErrorString } = await supabase
+        .from("menu_items")
+        .select("*")
+        .eq("recipe_id", recipeId)
+
+      console.log("📋 Resultado con string:", { menuItemsString, menuErrorString })
+
+      console.log("🔍 Probando consulta con número...")
+
       // Verificar si la receta está siendo usada en menu_items
       const { data: menuItems, error: menuError } = await supabase
         .from("menu_items")
