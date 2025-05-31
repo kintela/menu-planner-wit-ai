@@ -15,16 +15,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "API key de OpenAI no configurada" }, { status: 500 })
     }
 
-    // Crear un prompt más seguro para generar la imagen
-    const imagePrompt = `A delicious ${recipeName.replace(/[^\w\s]/gi, "")} dish, professional food photography, appetizing presentation, high quality, realistic style`
+    // Crear un prompt muy simple y seguro
+    const cleanRecipeName = recipeName
+      .replace(/[^\w\s]/gi, "") // Remove special characters
+      .replace(/\b(alcohol|wine|beer|liquor)\b/gi, "") // Remove alcohol-related words
+      .trim()
 
-    // Limitar la longitud del prompt
-    const safePrompt = imagePrompt.length > 1000 ? imagePrompt.substring(0, 1000) : imagePrompt
+    // Usar un prompt muy básico y genérico
+    const imagePrompt = `A plate of food, restaurant style, appetizing, professional food photography`
 
-    console.log("Generating image with prompt:", safePrompt)
-    console.log("Using model: dall-e-3")
+    console.log("Generating image with safe prompt:", imagePrompt)
 
-    // Generar imagen usando DALL-E
+    // Generar imagen usando DALL-E con configuración más conservadora
     const imageResponse = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: {
@@ -33,7 +35,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         model: "dall-e-3",
-        prompt: safePrompt,
+        prompt: imagePrompt,
         n: 1,
         size: "1024x1024",
         quality: "standard",
@@ -41,25 +43,37 @@ export async function POST(request: Request) {
       }),
     })
 
+    const responseText = await imageResponse.text()
+    console.log("OpenAI Response Status:", imageResponse.status)
+    console.log("OpenAI Response:", responseText)
+
     if (!imageResponse.ok) {
-      const errorData = await imageResponse.json()
-      console.error("Detailed OpenAI error:", {
+      let errorData
+      try {
+        errorData = JSON.parse(responseText)
+      } catch {
+        errorData = { error: { message: responseText } }
+      }
+
+      console.error("OpenAI API Error Details:", {
         status: imageResponse.status,
         statusText: imageResponse.statusText,
-        error: errorData,
+        headers: Object.fromEntries(imageResponse.headers.entries()),
+        body: errorData,
       })
 
-      // Return a more specific error message
+      // Return a more informative error
       return NextResponse.json(
         {
-          error: `Error generating image: ${errorData.error?.message || "Unknown OpenAI error"}`,
-          details: errorData,
+          error: "Image generation temporarily unavailable",
+          details: errorData.error?.message || "OpenAI service error",
+          suggestion: "Recipe will be created without image",
         },
-        { status: 500 },
+        { status: 503 }, // Service unavailable instead of 500
       )
     }
 
-    const imageData = await imageResponse.json()
+    const imageData = JSON.parse(responseText)
     const imageUrl = imageData.data[0]?.url
 
     if (!imageUrl) {
@@ -106,6 +120,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Error interno del servidor",
+        suggestion: "Recipe will be created without image",
       },
       { status: 500 },
     )
