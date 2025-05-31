@@ -15,8 +15,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "API key de OpenAI no configurada" }, { status: 500 })
     }
 
-    // Crear un prompt para generar la imagen
-    const imagePrompt = `A beautiful, appetizing photo of ${recipeName}. Professional food photography, well-lit, colorful, restaurant quality presentation. The dish should look delicious and inviting. High resolution, detailed, realistic style.`
+    // Crear un prompt más seguro para generar la imagen
+    const imagePrompt = `A delicious ${recipeName.replace(/[^\w\s]/gi, "")} dish, professional food photography, appetizing presentation, high quality, realistic style`
+
+    // Limitar la longitud del prompt
+    const safePrompt = imagePrompt.length > 1000 ? imagePrompt.substring(0, 1000) : imagePrompt
+
+    console.log("Generating image with prompt:", safePrompt)
+    console.log("Using model: dall-e-3")
 
     // Generar imagen usando DALL-E
     const imageResponse = await fetch("https://api.openai.com/v1/images/generations", {
@@ -27,7 +33,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         model: "dall-e-3",
-        prompt: imagePrompt,
+        prompt: safePrompt,
         n: 1,
         size: "1024x1024",
         quality: "standard",
@@ -37,8 +43,20 @@ export async function POST(request: Request) {
 
     if (!imageResponse.ok) {
       const errorData = await imageResponse.json()
-      console.error("Error from OpenAI:", errorData)
-      throw new Error("Error al generar imagen con DALL-E")
+      console.error("Detailed OpenAI error:", {
+        status: imageResponse.status,
+        statusText: imageResponse.statusText,
+        error: errorData,
+      })
+
+      // Return a more specific error message
+      return NextResponse.json(
+        {
+          error: `Error generating image: ${errorData.error?.message || "Unknown OpenAI error"}`,
+          details: errorData,
+        },
+        { status: 500 },
+      )
     }
 
     const imageData = await imageResponse.json()

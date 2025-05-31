@@ -97,6 +97,8 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
   const generateRecipeImage = async (recipeName: string, ingredients: string) => {
     try {
+      console.log("Attempting to generate image for:", recipeName)
+
       const response = await fetch("/api/generate-recipe-image", {
         method: "POST",
         headers: {
@@ -111,14 +113,15 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       const data = await response.json()
 
       if (!response.ok) {
-        console.error("Error generating image:", data.error)
-        return null // No fallar si la imagen no se puede generar
+        console.warn("Image generation failed:", data.error)
+        return null // Fail silently, recipe creation continues
       }
 
+      console.log("Image generated successfully:", data.imageUrl)
       return data.imageUrl
     } catch (error) {
-      console.error("Error generating recipe image:", error)
-      return null // No fallar si la imagen no se puede generar
+      console.warn("Image generation error (non-critical):", error)
+      return null // Always return null on error, don't throw
     }
   }
 
@@ -131,8 +134,13 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
 
-      // Generar imagen para la receta
-      const imageUrl = await generateRecipeImage(suggestion.name, suggestion.ingredients)
+      // Intentar generar imagen (opcional)
+      let imageUrl = null
+      try {
+        imageUrl = await generateRecipeImage(suggestion.name, suggestion.ingredients)
+      } catch (error) {
+        console.warn("Image generation failed, continuing without image:", error)
+      }
 
       // Guardar la receta en la base de datos
       const { data: newRecipe, error } = await supabase
@@ -180,15 +188,21 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
 
-      // Generar imagen para la receta
+      // Mostrar mensaje inicial
       toast({
-        title: "Generando receta...",
-        description: "Creando la receta y generando imagen con IA...",
+        title: "Creando receta...",
+        description: "Guardando la receta en tu colección...",
       })
 
-      const imageUrl = await generateRecipeImage(suggestion.name, suggestion.ingredients)
+      // Intentar generar imagen (opcional)
+      let imageUrl = null
+      try {
+        imageUrl = await generateRecipeImage(suggestion.name, suggestion.ingredients)
+      } catch (error) {
+        console.warn("Image generation failed, continuing without image:", error)
+      }
 
-      // Guardar la receta en la base de datos
+      // Guardar la receta en la base de datos (con o sin imagen)
       const { data: newRecipe, error } = await supabase
         .from("recipes")
         .insert({
@@ -197,7 +211,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           preparation: suggestion.preparation,
           calories: calories > 0 ? calories : null,
           is_ai_generated: true,
-          image_url: imageUrl,
+          image_url: imageUrl, // Puede ser null si falló la generación
           video_url: null,
           source_url: null,
         })
@@ -211,7 +225,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
         description: `"${suggestion.name}" se ha añadido a tu colección y seleccionado para el menú${imageUrl ? " con imagen generada" : ""}.`,
       })
 
-      // Llamar al callback con la nueva receta para que se seleccione automáticamente
+      // Llamar al callback con la nueva receta
       onRecipeCreated(newRecipe as Recipe)
 
       // Cerrar el modal y limpiar
