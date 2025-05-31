@@ -6,9 +6,10 @@ import { getSupabaseClient } from "@/lib/supabase/client"
 import { WeeklyMenuView } from "@/components/weekly-menu-view"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle, Loader2, ChevronDown } from "lucide-react"
 import Link from "next/link"
 import type { MenuItem, Recipe, WeeklyMenu } from "@/lib/types"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 export default function WeeklyMenuPage() {
   const { user, loading: authLoading } = useAuth()
@@ -18,6 +19,7 @@ export default function WeeklyMenuPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [startDate, setStartDate] = useState<string>("")
+  const [menuHistory, setMenuHistory] = useState<WeeklyMenu[]>([])
 
   const loadData = async () => {
     try {
@@ -88,6 +90,22 @@ export default function WeeklyMenuPage() {
     }
   }
 
+  const loadMenuHistory = async () => {
+    try {
+      const supabase = getSupabaseClient()
+
+      const { data: historyData } = await supabase
+        .from("weekly_menus")
+        .select("*")
+        .eq("user_id", user?.id)
+        .order("start_date", { ascending: false })
+
+      setMenuHistory(historyData || [])
+    } catch (err) {
+      console.error("Error loading menu history:", err)
+    }
+  }
+
   useEffect(() => {
     if (authLoading) return
 
@@ -97,11 +115,18 @@ export default function WeeklyMenuPage() {
     }
 
     loadData()
+    loadMenuHistory()
   }, [user, authLoading])
 
   const handleDataUpdate = () => {
     console.log("🔄 Recargando datos...")
     loadData()
+  }
+
+  const handleMenuSelect = (selectedMenu: WeeklyMenu) => {
+    // Navigate to the selected menu's week
+    const startDate = selectedMenu.start_date
+    window.location.href = `/weekly-menu?date=${startDate}`
   }
 
   if (authLoading || loading) {
@@ -173,13 +198,36 @@ export default function WeeklyMenuPage() {
   return (
     <div className="container py-10">
       <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
-      <WeeklyMenuView
-        weeklyMenu={weeklyMenu}
-        menuItems={menuItems}
-        initialRecipes={recipes}
-        startDate={startDate}
-        onDataUpdate={handleDataUpdate}
-      />
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <WeeklyMenuView
+            weeklyMenu={weeklyMenu}
+            menuItems={menuItems}
+            initialRecipes={recipes}
+            startDate={startDate}
+            onDataUpdate={handleDataUpdate}
+            menuHistory={menuHistory}
+            onMenuSelect={handleMenuSelect}
+          />
+        </div>
+        {menuHistory.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                Menús Anteriores
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {menuHistory.map((menu) => (
+                <DropdownMenuItem key={menu.id} onClick={() => handleMenuSelect(menu)}>
+                  {new Date(menu.start_date).toLocaleDateString()} - {new Date(menu.end_date).toLocaleDateString()}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
     </div>
   )
 }

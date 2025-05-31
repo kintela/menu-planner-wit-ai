@@ -4,8 +4,8 @@ import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 
-import { Loader2, RefreshCw, Eye, Trash2 } from "lucide-react"
-
+import { Loader2, RefreshCw, Eye, Trash2, ChevronDown } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 import { getSupabaseClient } from "@/lib/supabase/client"
 import type { WeeklyMenu, MenuItem, Recipe, DayMenu } from "@/lib/types"
@@ -18,13 +18,14 @@ import { AiRecipeSuggestion } from "@/components/ai-recipe-suggestion"
 
 import { useAuth } from "@/components/auth/auth-provider"
 
-
 interface WeeklyMenuViewProps {
   weeklyMenu: WeeklyMenu | null
   menuItems: MenuItem[]
   initialRecipes: Recipe[]
   startDate: string
   onDataUpdate?: () => void
+  menuHistory?: WeeklyMenu[]
+  onMenuSelect?: (menu: WeeklyMenu) => void
 }
 
 export function WeeklyMenuView({
@@ -33,6 +34,8 @@ export function WeeklyMenuView({
   initialRecipes,
   startDate,
   onDataUpdate,
+  menuHistory = [],
+  onMenuSelect,
 }: WeeklyMenuViewProps) {
   const { toast } = useToast()
   const { user } = useAuth()
@@ -337,7 +340,6 @@ export function WeeklyMenuView({
     }, 100)
   }
 
-
   const handleRemoveRecipe = async (dayOfWeek: number, mealType: "comida" | "cena", dishOrder?: number) => {
     if (!weeklyMenu) return
 
@@ -386,7 +388,6 @@ export function WeeklyMenuView({
     }
   }
 
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -400,6 +401,33 @@ export function WeeklyMenuView({
           )}
         </h2>
         <div className="flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={menuHistory.length === 0}>
+                Historial de Menús
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              {menuHistory.length === 0 ? (
+                <DropdownMenuItem disabled>No hay menús guardados</DropdownMenuItem>
+              ) : (
+                menuHistory.map((menu) => (
+                  <DropdownMenuItem
+                    key={menu.id}
+                    onClick={() => onMenuSelect?.(menu)}
+                    className="flex flex-col items-start gap-1 p-3"
+                  >
+                    <div className="font-medium">{menu.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {menu.start_date} al {menu.end_date}
+                    </div>
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button onClick={handleGenerateMenu} disabled={isGenerating || recipes.length === 0}>
             {isGenerating ? (
               <>
@@ -581,7 +609,6 @@ export function WeeklyMenuView({
                       <Button asChild variant="outline" size="sm" className="flex-1">
                         <Link href={`/recipes/${dayMenu.meals.cena.id}`}>
                           <Eye className="h-4 w-4 mr-2" />
-
                           Ver receta
                         </Link>
                       </Button>
