@@ -32,12 +32,42 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     let userDebugInfo = "No user found"
 
     if (showOnlyMyRecipes) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      currentUserId = user?.id || null
-      userDebugInfo = user ? `User ID: ${user.id}` : "No user found"
-      console.log("Current user for filtering:", userDebugInfo)
+      try {
+        // Intentar obtener el usuario de diferentes maneras
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser()
+
+        if (userError) {
+          console.error("Error getting user:", userError)
+          userDebugInfo = `Error: ${userError.message}`
+        } else if (user) {
+          currentUserId = user.id
+          userDebugInfo = `User ID: ${user.id} | Email: ${user.email}`
+        } else {
+          // Intentar obtener la sesión
+          const {
+            data: { session },
+            error: sessionError,
+          } = await supabase.auth.getSession()
+
+          if (sessionError) {
+            console.error("Error getting session:", sessionError)
+            userDebugInfo = `Session Error: ${sessionError.message}`
+          } else if (session?.user) {
+            currentUserId = session.user.id
+            userDebugInfo = `Session User ID: ${session.user.id} | Email: ${session.user.email}`
+          } else {
+            userDebugInfo = "No session found"
+          }
+        }
+      } catch (error) {
+        console.error("Auth error:", error)
+        userDebugInfo = `Exception: ${error instanceof Error ? error.message : "Unknown error"}`
+      }
+
+      console.log("Server-side auth debug:", userDebugInfo)
     }
 
     // Obtener todas las categorías para el filtro
