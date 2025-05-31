@@ -130,6 +130,8 @@ export function WeeklyMenuView({
               start_date: startDate,
               end_date: endDate,
               user_id: user?.id,
+              is_saved: true,
+              saved_at: new Date().toISOString(),
             })
             .select()
             .single()
@@ -196,6 +198,20 @@ export function WeeklyMenuView({
         }
       }
 
+      // Marcar el menú como guardado si no lo está ya
+      if (currentWeeklyMenu && !currentWeeklyMenu.is_saved) {
+        await supabase
+          .from("weekly_menus")
+          .update({
+            is_saved: true,
+            saved_at: new Date().toISOString(),
+          })
+          .eq("id", currentWeeklyMenu.id)
+
+        // Actualizar el estado local
+        setWeeklyMenu({ ...currentWeeklyMenu, is_saved: true, saved_at: new Date().toISOString() })
+      }
+
       toast({
         title: "Menú actualizado",
         description: "El menú se ha actualizado correctamente.",
@@ -232,6 +248,8 @@ export function WeeklyMenuView({
             start_date: startDate,
             end_date: endDate,
             user_id: user?.id,
+            is_saved: true,
+            saved_at: new Date().toISOString(),
           })
           .select()
           .single()
