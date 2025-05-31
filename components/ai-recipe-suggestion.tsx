@@ -1,6 +1,10 @@
 "use client"
 
-import { useState } from "react"
+
+import { DialogTrigger } from "@/components/ui/dialog"
+
+import { useState, useEffect } from "react"
+
 
 import { Sparkles, Loader2, Plus, Check, ImageOff } from "lucide-react"
 
@@ -14,14 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { calculateCalories } from "@/lib/calories-calculator"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface AiRecipeSuggestionProps {
@@ -49,6 +46,41 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   const [savedRecipes, setSavedRecipes] = useState<Set<number>>(new Set())
   const [enableImageGeneration, setEnableImageGeneration] = useState(false) // Disabled by default
 
+  const [dailyUsage, setDailyUsage] = useState<number>(0)
+  const [isAdmin, setIsAdmin] = useState<boolean>(false)
+  const [usageLimitReached, setUsageLimitReached] = useState<boolean>(false)
+
+  const checkUserLimits = async () => {
+    if (!user) return
+
+    try {
+      const supabase = getSupabaseClient()
+
+      // Verificar si es administrador
+      const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
+
+      const userIsAdmin = profile?.role === "admin"
+      setIsAdmin(userIsAdmin)
+
+      // Si es admin, no hay límites
+      if (userIsAdmin) {
+        setUsageLimitReached(false)
+        setDailyUsage(0)
+        return
+      }
+
+      // Para usuarios normales, verificar uso diario
+      const { data: usageData } = await supabase.rpc("get_daily_ai_usage", { p_user_id: user.id })
+
+      const currentUsage = usageData || 0
+      setDailyUsage(currentUsage)
+      setUsageLimitReached(currentUsage >= 2)
+    } catch (error) {
+      console.error("Error checking user limits:", error)
+    }
+  }
+
+
   const generateSuggestions = async () => {
     if (!searchQuery.trim()) {
       toast({
@@ -59,11 +91,34 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       return
     }
 
+    // Verificar límites para usuarios no admin
+    if (!isAdmin && usageLimitReached) {
+      toast({
+        title: "Límite diario alcanzado",
+        description: "Has usado el generador de IA 2 veces hoy. Podrás usarlo nuevamente mañana.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsGenerating(true)
     setSuggestions([])
-    setSavedRecipes(new Set()) // Reset saved recipes when generating new ones
+    setSavedRecipes(new Set())
 
     try {
+      // Incrementar contador de uso para usuarios no admin
+      if (!isAdmin) {
+        const supabase = getSupabaseClient()
+        const { data: newUsage } = await supabase.rpc("increment_ai_usage", { p_user_id: user?.id })
+
+        setDailyUsage(newUsage || 0)
+
+        // Verificar si alcanzó el límite después de este uso
+        if (newUsage >= 2) {
+          setUsageLimitReached(true)
+        }
+      }
+
       const response = await fetch("/api/generate-recipe-suggestions", {
         method: "POST",
         headers: {
@@ -85,6 +140,15 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       if (data.recipes && Array.isArray(data.recipes)) {
         setSuggestions(data.recipes)
+
+        // Mostrar mensaje de límite si es necesario
+        if (!isAdmin && dailyUsage + 1 >= 2) {
+          toast({
+            title: "Último uso del día",
+            description: "Has alcanzado el límite diario de 2 generaciones. Podrás usar la IA nuevamente mañana.",
+            variant: "default",
+          })
+        }
       } else {
         throw new Error("Formato de respuesta inválido")
       }
@@ -290,6 +354,13 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     }
   }
 
+  useEffect(() => {
+    if (isOpen && user) {
+      checkUserLimits()
+    }
+  }, [isOpen, user])
+
+
   // No mostrar el componente si no hay usuario autenticado
   if (!user) {
     return null
@@ -316,6 +387,17 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
               <ImageIcon className="h-3 w-3" />
               Se generará automáticamente una imagen para cada receta
             </span>
+
+            {!isAdmin && (
+              <span className="text-xs text-muted-foreground mt-1 block">
+                💡 Límite: 2 generaciones por día ({dailyUsage}/2 usadas hoy)
+                {usageLimitReached && " - Límite alcanzado hasta mañana"}
+              </span>
+            )}
+            {isAdmin && (
+              <span className="text-xs text-green-600 mt-1 block">👑 Administrador: Generaciones ilimitadas</span>
+            )}
+
           </DialogDescription>
         </DialogHeader>
 
@@ -354,14 +436,23 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                 }}
                 className="flex-1"
               />
-              <Button onClick={generateSuggestions} disabled={isGenerating || !searchQuery.trim()}>
+              <Button
+                onClick={generateSuggestions}
+                disabled={isGenerating || !searchQuery.trim() || (!isAdmin && usageLimitReached)}
+                className={!isAdmin && usageLimitReached ? "opacity-50" : ""}
+              >
                 {isGenerating ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Generando...
                   </>
+                ) : !isAdmin && usageLimitReached ? (
+                  "Límite diario alcanzado"
                 ) : (
-                  "Generar"
+                  <>
+                    Generar
+                    {!isAdmin && <span className="ml-2 text-xs opacity-75">({dailyUsage}/2 usos hoy)</span>}
+                  </>
                 )}
               </Button>
             </div>
@@ -392,16 +483,33 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                     <CardContent className="space-y-3">
                       <div>
                         <h4 className="font-medium text-sm mb-2 text-green-700">🥘 Ingredientes principales:</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {suggestion.ingredients.split("\n").slice(0, 4).join(" • ")}
-                          {suggestion.ingredients.split("\n").length > 4 && " • ..."}
-                        </p>
+                        <div className="text-sm text-muted-foreground max-h-32 overflow-y-auto">
+                          <ul className="list-disc list-inside space-y-1">
+                            {suggestion.ingredients
+                              .split("\n")
+                              .filter((ingredient) => ingredient.trim())
+                              .map((ingredient, idx) => (
+                                <li key={idx} className="text-sm">
+                                  {ingredient.trim()}
+                                </li>
+                              ))}
+                          </ul>
+                        </div>
                       </div>
                       <div>
                         <h4 className="font-medium text-sm mb-2 text-blue-700">👨‍🍳 Preparación:</h4>
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {suggestion.preparation.split("\n")[0]}...
-                        </p>
+                        <div className="text-sm text-muted-foreground max-h-40 overflow-y-auto">
+                          <div className="space-y-2">
+                            {suggestion.preparation
+                              .split("\n")
+                              .filter((step) => step.trim())
+                              .map((step, idx) => (
+                                <p key={idx} className="text-sm leading-relaxed">
+                                  <span className="font-medium text-blue-600">{idx + 1}.</span> {step.trim()}
+                                </p>
+                              ))}
+                          </div>
+                        </div>
                       </div>
 
                       {/* Botones de acción */}
