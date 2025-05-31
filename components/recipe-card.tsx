@@ -6,7 +6,6 @@ import { ChefHat, Flame, Users, User } from "lucide-react"
 
 import { useRouter } from "next/navigation"
 
-
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -18,7 +17,6 @@ import { getCaloriesPerServing, getCalorieLevel } from "@/lib/calories-calculato
 
 // Define the RecipeCardProps interface
 interface RecipeCardProps {
-
   recipe: any
 
   className?: string
@@ -35,16 +33,14 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
   // Obtener la información del creador (puede venir de creator o user_profiles)
   const creatorInfo = recipe.creator || recipe.user_profiles || null
 
-
   // Función para manejar la eliminación de la receta
   const handleDelete = () => {
     // Refrescar la página para mostrar la lista actualizada
     router.refresh()
   }
 
-
   return (
-    <Card className={cn("overflow-hidden", className)}>
+    <Card className={cn("overflow-hidden flex flex-col h-full", className)}>
       <div className="aspect-video relative">
         {recipe.image_url ? (
           <Image src={recipe.image_url || "/placeholder.svg"} alt={recipe.name} fill className="object-cover" />
@@ -99,10 +95,10 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
           </div>
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-grow">
         <p className="line-clamp-3 text-sm text-muted-foreground">{recipe.ingredients.split("\n")[0]}...</p>
       </CardContent>
-      <CardFooter className="flex gap-2">
+      <CardFooter className="flex gap-2 mt-auto">
         <Button asChild className="flex-1">
           <Link href={`/recipes/${recipe.id}`}>Ver</Link>
         </Button>
