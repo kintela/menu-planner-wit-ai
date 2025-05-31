@@ -54,7 +54,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       const supabase = getSupabaseClient()
 
       // Verificar si es administrador
-      const { data: profile } = await supabase.from("user_profiles").select("role").eq("user_id", user.id).single()
+      const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
 
       const userIsAdmin = profile?.role === "admin"
       setIsAdmin(userIsAdmin)
