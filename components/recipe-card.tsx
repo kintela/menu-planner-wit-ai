@@ -1,9 +1,10 @@
+"use client"
+
 import Image from "next/image"
 import Link from "next/link"
-import { ChefHat, Flame, Users } from "lucide-react"
+import { ChefHat, Flame, Users, User } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import type { Recipe } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,15 +13,22 @@ import { VideoModal } from "@/components/video-modal"
 import { SourceLinkButton } from "@/components/source-link-button"
 import { getCaloriesPerServing, getCalorieLevel } from "@/lib/calories-calculator"
 
+// Define the RecipeCardProps interface
 interface RecipeCardProps {
-  recipe: Recipe
+
+  recipe: any
+
   className?: string
 }
 
+// Update the RecipeCard component to check if the user is the creator
 export function RecipeCard({ recipe, className }: RecipeCardProps) {
   // Ahora solo usamos el campo calories
   const caloriesPerServing = recipe.calories ? getCaloriesPerServing(recipe.calories) : null
   const calorieLevel = caloriesPerServing ? getCalorieLevel(caloriesPerServing) : null
+
+  // Obtener la información del creador (puede venir de creator o user_profiles)
+  const creatorInfo = recipe.creator || recipe.user_profiles || null
 
   return (
     <Card className={cn("overflow-hidden", className)}>
@@ -42,6 +50,14 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
           {recipe.video_url && <VideoModal videoUrl={recipe.video_url} recipeName={recipe.name} />}
         </div>
         {recipe.source_url && <SourceLinkButton sourceUrl={recipe.source_url} recipeName={recipe.name} />}
+
+        {/* Información del creador en la esquina inferior derecha de la imagen */}
+        {creatorInfo && (
+          <div className="absolute bottom-2 right-2 flex items-center gap-1 text-xs bg-black/60 text-white backdrop-blur-sm rounded px-2 py-1 shadow-md">
+            <User className="h-3 w-3" />
+            <span>{creatorInfo.full_name || creatorInfo.email}</span>
+          </div>
+        )}
       </div>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">

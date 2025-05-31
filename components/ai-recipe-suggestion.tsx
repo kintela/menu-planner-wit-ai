@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Sparkles, Loader2, Plus, Check } from "lucide-react"
+import { ImageIcon } from "lucide-react"
 
 import { getSupabaseClient } from "@/lib/supabase/client"
 import type { Recipe } from "@/lib/types"
@@ -94,6 +95,33 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     }
   }
 
+  const generateRecipeImage = async (recipeName: string, ingredients: string) => {
+    try {
+      const response = await fetch("/api/generate-recipe-image", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recipeName,
+          ingredients,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        console.error("Error generating image:", data.error)
+        return null // No fallar si la imagen no se puede generar
+      }
+
+      return data.imageUrl
+    } catch (error) {
+      console.error("Error generating recipe image:", error)
+      return null // No fallar si la imagen no se puede generar
+    }
+  }
+
   const saveRecipeToCollection = async (suggestion: GeneratedRecipe, index: number) => {
     setIsSaving(true)
 
@@ -102,6 +130,9 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
+
+      // Generar imagen para la receta
+      const imageUrl = await generateRecipeImage(suggestion.name, suggestion.ingredients)
 
       // Guardar la receta en la base de datos
       const { data: newRecipe, error } = await supabase
@@ -112,7 +143,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           preparation: suggestion.preparation,
           calories: calories > 0 ? calories : null,
           is_ai_generated: true,
-          image_url: null,
+          image_url: imageUrl,
           video_url: null,
           source_url: null,
         })
@@ -126,7 +157,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       toast({
         title: "¡Receta guardada!",
-        description: `"${suggestion.name}" se ha añadido a tu colección de recetas.`,
+        description: `"${suggestion.name}" se ha añadido a tu colección de recetas${imageUrl ? " con imagen generada" : ""}.`,
       })
     } catch (error) {
       console.error("Error saving recipe:", error)
@@ -149,6 +180,14 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
 
+      // Generar imagen para la receta
+      toast({
+        title: "Generando receta...",
+        description: "Creando la receta y generando imagen con IA...",
+      })
+
+      const imageUrl = await generateRecipeImage(suggestion.name, suggestion.ingredients)
+
       // Guardar la receta en la base de datos
       const { data: newRecipe, error } = await supabase
         .from("recipes")
@@ -158,7 +197,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           preparation: suggestion.preparation,
           calories: calories > 0 ? calories : null,
           is_ai_generated: true,
-          image_url: null,
+          image_url: imageUrl,
           video_url: null,
           source_url: null,
         })
@@ -169,7 +208,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       toast({
         title: "¡Receta creada y seleccionada!",
-        description: `"${suggestion.name}" se ha añadido a tu colección y seleccionado para el menú.`,
+        description: `"${suggestion.name}" se ha añadido a tu colección y seleccionado para el menú${imageUrl ? " con imagen generada" : ""}.`,
       })
 
       // Llamar al callback con la nueva receta para que se seleccione automáticamente
@@ -208,6 +247,11 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           <DialogDescription>
             Describe qué tipo de plato buscas para {mealType === "comida" ? "la comida" : "la cena"}
             {dishOrder && ` (${dishOrder === 1 ? "primer" : "segundo"} plato)`}
+            <br />
+            <span className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+              <ImageIcon className="h-3 w-3" />
+              Se generará automáticamente una imagen para cada receta
+            </span>
           </DialogDescription>
         </DialogHeader>
 
@@ -288,7 +332,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                           {isSaving ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Guardando...
+                              Creando receta e imagen...
                             </>
                           ) : (
                             <>
@@ -309,6 +353,11 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                             <>
                               <Check className="mr-2 h-4 w-4 text-green-600" />
                               Guardada
+                            </>
+                          ) : isSaving ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Guardando...
                             </>
                           ) : (
                             <>
