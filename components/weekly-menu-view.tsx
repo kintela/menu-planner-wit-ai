@@ -164,10 +164,12 @@ export function WeeklyMenuView({
     try {
       const supabase = getSupabaseClient()
 
-      // Si no existe un menú semanal, crearlo primero
+      // Asegurar que tenemos un menú semanal
       let currentWeeklyMenu = weeklyMenu
       if (!currentWeeklyMenu) {
-        // Calcular la fecha de fin para mostrar en el título
+        console.log("⚠️ No hay menú semanal, esto no debería pasar")
+
+        // Calcular la fecha de fin
         const endDateStr = new Date(new Date(currentStartDate).getTime() + 6 * 24 * 60 * 60 * 1000)
           .toISOString()
           .split("T")[0]
@@ -184,8 +186,10 @@ export function WeeklyMenuView({
         if (existingMenu) {
           currentWeeklyMenu = existingMenu
           setWeeklyMenu(currentWeeklyMenu)
+          console.log("✅ Menú existente encontrado y establecido")
         } else {
-          // Crear nuevo menú solo si no existe
+          // Solo crear si realmente no existe
+          console.log("📝 Creando menú porque no existe")
           const { data: newMenu, error: createError } = await supabase
             .from("weekly_menus")
             .insert({
@@ -193,8 +197,7 @@ export function WeeklyMenuView({
               start_date: currentStartDate,
               end_date: endDateStr,
               user_id: user?.id,
-              is_saved: true,
-              saved_at: new Date().toISOString(),
+              is_saved: false,
             })
             .select()
             .single()
@@ -261,7 +264,7 @@ export function WeeklyMenuView({
         }
       }
 
-      // Marcar el menú como guardado cuando se añade la primera receta
+      // Marcar el menú como guardado cuando se añade la primera receta (solo si no estaba guardado)
       if (currentWeeklyMenu && !currentWeeklyMenu.is_saved) {
         await supabase
           .from("weekly_menus")
@@ -278,12 +281,12 @@ export function WeeklyMenuView({
           title: "Menú guardado",
           description: "El menú se ha guardado automáticamente al añadir la primera receta.",
         })
+      } else {
+        toast({
+          title: "Menú actualizado",
+          description: "El menú se ha actualizado correctamente.",
+        })
       }
-
-      toast({
-        title: "Menú actualizado",
-        description: "El menú se ha actualizado correctamente.",
-      })
 
       console.log("✅ Receta actualizada correctamente")
     } catch (error) {

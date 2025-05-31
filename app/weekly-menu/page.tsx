@@ -152,8 +152,10 @@ export default function WeeklyMenuPage() {
       endOfWeek.setDate(endOfWeek.getDate() + 6)
       const endDate = endOfWeek.toISOString().split("T")[0]
 
+      console.log("🔍 Buscando menú existente para:", newStartDate, "al", endDate)
+
       // Buscar si ya existe un menú para esta semana
-      const { data: existingMenu } = await supabase
+      const { data: existingMenu, error: searchError } = await supabase
         .from("weekly_menus")
         .select("*")
         .eq("start_date", newStartDate)
@@ -161,11 +163,24 @@ export default function WeeklyMenuPage() {
         .eq("user_id", user?.id)
         .maybeSingle()
 
+      if (searchError) {
+        console.error("Error buscando menú:", searchError)
+        throw searchError
+      }
+
       if (existingMenu) {
         // Si existe, cargar sus datos
+        console.log("✅ Menú existente encontrado:", existingMenu.name)
         await loadDataForWeek(newStartDate)
+
+        toast({
+          title: "Menú cargado",
+          description: `Se ha cargado el menú existente para esta semana`,
+        })
       } else {
         // Si no existe, crear un nuevo menú semanal
+        console.log("📝 Creando nuevo menú para la semana")
+
         const formatDateToDDMMYYYY = (dateString: string): string => {
           const date = new Date(dateString)
           return date.toLocaleDateString("es-ES")
@@ -184,6 +199,7 @@ export default function WeeklyMenuPage() {
           .single()
 
         if (createError) {
+          console.error("Error creando menú:", createError)
           throw createError
         }
 
@@ -197,7 +213,7 @@ export default function WeeklyMenuPage() {
           setRecipes(recipesData || [])
         }
 
-        console.log("✅ Nuevo menú semanal creado para:", newStartDate)
+        console.log("✅ Nuevo menú semanal creado:", newMenu.name)
 
         toast({
           title: "Nuevo menú creado",
@@ -205,7 +221,7 @@ export default function WeeklyMenuPage() {
         })
       }
     } catch (error) {
-      console.error("Error al cambiar de semana:", error)
+      console.error("❌ Error al cambiar de semana:", error)
       toast({
         title: "Error",
         description: "Ha ocurrido un error al cambiar de semana.",
