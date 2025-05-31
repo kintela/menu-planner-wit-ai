@@ -11,6 +11,16 @@ import Link from "next/link"
 import type { MenuItem, Recipe, WeeklyMenu } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 
+// Función para obtener el inicio de la semana actual
+const getCurrentWeekStart = (): string => {
+  const today = new Date()
+  const dayOfWeek = today.getDay()
+  const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+  const startOfWeek = new Date(today)
+  startOfWeek.setDate(today.getDate() - daysToSubtract)
+  return startOfWeek.toISOString().split("T")[0]
+}
+
 export default function WeeklyMenuPage() {
   const { user, loading: authLoading } = useAuth()
   const [loading, setLoading] = useState(true)
@@ -18,22 +28,19 @@ export default function WeeklyMenuPage() {
   const [weeklyMenu, setWeeklyMenu] = useState<WeeklyMenu | null>(null)
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
   const [recipes, setRecipes] = useState<Recipe[]>([])
-  const [startDate, setStartDate] = useState<string>("")
+  const [startDate, setStartDate] = useState<string>(getCurrentWeekStart())
   const [menuHistory, setMenuHistory] = useState<WeeklyMenu[]>([])
   const { toast } = useToast()
 
-  const loadData = async () => {
+  const loadData = async (targetStartDate?: string) => {
+    const dateToLoad = targetStartDate || startDate
+
     try {
-      console.log("🔄 Cargando datos del menú semanal para usuario:", user?.email)
+      console.log("🔄 Cargando datos del menú semanal para usuario:", user?.email, "fecha:", dateToLoad)
       const supabase = getSupabaseClient()
 
       // Calcular fechas de la semana
-      const today = new Date()
-      const startOfWeek = new Date(today)
-      const dayOfWeek = today.getDay()
-      const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-      startOfWeek.setDate(today.getDate() - daysToSubtract)
-
+      const startOfWeek = new Date(dateToLoad)
       const endOfWeek = new Date(startOfWeek)
       endOfWeek.setDate(startOfWeek.getDate() + 6)
 
@@ -48,7 +55,7 @@ export default function WeeklyMenuPage() {
         .select("*")
         .eq("start_date", startDateStr)
         .eq("end_date", endDate)
-        .eq("user_id", user?.id) // Add this line
+        .eq("user_id", user?.id)
         .maybeSingle()
 
       console.log("📅 Menú semanal encontrado:", weeklyMenuData)
