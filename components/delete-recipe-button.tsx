@@ -37,6 +37,7 @@ export function DeleteRecipeButton({
   const [isOpen, setIsOpen] = useState(false)
   const [isChecking, setIsChecking] = useState(false)
   const [menuInfo, setMenuInfo] = useState<string | null>(null)
+  const [isInMenu, setIsInMenu] = useState(false)
   const supabase = createClientComponentClient()
 
   // Verificar si el usuario puede eliminar esta receta
@@ -91,19 +92,16 @@ export function DeleteRecipeButton({
         }
 
         setMenuInfo(menuDescription)
-
-        toast({
-          title: "No se puede eliminar",
-          description: `La receta "${recipeName}" está siendo usada en: ${menuDescription}. Por favor, elimínala primero de estos menús.`,
-          variant: "destructive",
-          duration: 7000,
-        })
-        return false // No abrir el diálogo
+        setIsInMenu(true)
+        setIsOpen(true) // Abrir el diálogo pero con mensaje diferente
+        return false
       }
 
       console.log("✅ Receta no está en menús")
       setMenuInfo(null)
-      return true // Puede abrir el diálogo
+      setIsInMenu(false)
+      setIsOpen(true) // Abrir el diálogo normal
+      return true
     } catch (error: any) {
       console.error("❌ Error checking menu usage:", error)
       toast({
@@ -127,10 +125,7 @@ export function DeleteRecipeButton({
       return
     }
 
-    const canProceed = await checkMenuUsage()
-    if (canProceed) {
-      setIsOpen(true)
-    }
+    await checkMenuUsage()
   }
 
   const handleDelete = async () => {
@@ -176,21 +171,32 @@ export function DeleteRecipeButton({
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>¿Estás completamente seguro?</AlertDialogTitle>
+          <AlertDialogTitle>{isInMenu ? "No se puede eliminar" : "¿Estás completamente seguro?"}</AlertDialogTitle>
           <AlertDialogDescription>
-            Esta acción no se puede deshacer. ¿Estás seguro de que quieres eliminar la receta "{recipeName}"?
-            {menuInfo && (
-              <div className="mt-2 p-2 bg-yellow-100 rounded text-yellow-800">
-                ⚠️ Esta receta está siendo usada en: {menuInfo}
-              </div>
+            {isInMenu ? (
+              <>
+                La receta "{recipeName}" está asignada al siguiente menú: <strong>{menuInfo}</strong>.
+                <br />
+                <br />
+                No se puede eliminar una receta que ya está asignada a un menú. Por favor, elimínala primero del menú si
+                deseas borrarla.
+              </>
+            ) : (
+              <>Esta acción no se puede deshacer. ¿Estás seguro de que quieres eliminar la receta "{recipeName}"?</>
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
-            {isDeleting ? "Eliminando..." : "Eliminar"}
-          </AlertDialogAction>
+          {isInMenu ? (
+            <AlertDialogCancel>Entendido</AlertDialogCancel>
+          ) : (
+            <>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+                {isDeleting ? "Eliminando..." : "Eliminar"}
+              </AlertDialogAction>
+            </>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
