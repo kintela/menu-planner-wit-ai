@@ -4,8 +4,23 @@ import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
 import { Loader2, RefreshCw, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import type { WeeklyMenu, MenuItem, Recipe } from "@/lib/types"
 
-export default function WeeklyMenuView({ weeklyMenu, menuItems, initialRecipes, startDate, onDataUpdate }) {
+interface WeeklyMenuViewProps {
+  weeklyMenu: WeeklyMenu | null
+  menuItems: MenuItem[]
+  initialRecipes: Recipe[]
+  startDate: string
+  onDataUpdate?: () => void
+}
+
+export function WeeklyMenuView({
+  weeklyMenu,
+  menuItems,
+  initialRecipes,
+  startDate,
+  onDataUpdate,
+}: WeeklyMenuViewProps) {
   const [recipes, setRecipes] = useState(initialRecipes)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
