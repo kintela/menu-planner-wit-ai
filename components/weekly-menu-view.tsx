@@ -120,14 +120,15 @@ export function WeeklyMenuView({
       // Si no existe un menú semanal, crearlo primero
       let currentWeeklyMenu = weeklyMenu
       if (!currentWeeklyMenu) {
-        const endDate = new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+        // Calcular la fecha de fin para mostrar en el título
+        const endDateStr = new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
         // Buscar menú existente primero
         const { data: existingMenu } = await supabase
           .from("weekly_menus")
           .select("*")
           .eq("start_date", startDate)
-          .eq("end_date", endDate)
+          .eq("end_date", endDateStr)
           .eq("user_id", user?.id)
           .maybeSingle()
 
@@ -139,9 +140,9 @@ export function WeeklyMenuView({
           const { data: newMenu, error: createError } = await supabase
             .from("weekly_menus")
             .insert({
-              name: `Menú del ${formatDateToDDMMYYYY(startDate)} al ${formatDateToDDMMYYYY(endDate)}`,
+              name: `Menú del ${formatDateToDDMMYYYY(startDate)} al ${formatDateToDDMMYYYY(endDateStr)}`,
               start_date: startDate,
-              end_date: endDate,
+              end_date: endDateStr,
               user_id: user?.id,
               is_saved: true,
               saved_at: new Date().toISOString(),
@@ -252,14 +253,15 @@ export function WeeklyMenuView({
       // Si no existe un menú semanal, crearlo primero
       let currentWeeklyMenu = weeklyMenu
       if (!currentWeeklyMenu) {
-        const endDate = new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+        // Calcular la fecha de fin para mostrar en el título
+        const endDateStr = new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
         const { data: newMenu, error: createError } = await supabase
           .from("weekly_menus")
           .insert({
-            name: `Menú del ${formatDateToDDMMYYYY(startDate)} al ${formatDateToDDMMYYYY(endDate)}`,
+            name: `Menú del ${formatDateToDDMMYYYY(startDate)} al ${formatDateToDDMMYYYY(endDateStr)}`,
             start_date: startDate,
-            end_date: endDate,
+            end_date: endDateStr,
             user_id: user?.id,
             is_saved: true,
             saved_at: new Date().toISOString(),
@@ -395,13 +397,13 @@ export function WeeklyMenuView({
   }
 
   // Calcular la fecha de fin para mostrar en el título
-  const endDate = new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+  const endDateStr = new Date(new Date(startDate).getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold flex items-center gap-2">
-          {weeklyMenu?.name || `Menú del ${formatDateToDDMMYYYY(startDate)} al ${formatDateToDDMMYYYY(endDate)}`}
+          {weeklyMenu?.name || `Menú del ${formatDateToDDMMYYYY(startDate)} al ${formatDateToDDMMYYYY(endDateStr)}`}
           {weeklyMenu?.is_saved && (
             <Badge variant="secondary" className="text-xs">
               Guardado
