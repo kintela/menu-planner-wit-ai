@@ -5,14 +5,18 @@ import { RecipesClientFilter } from "@/components/recipes-client-filter"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
+
 import { PlusCircle, AlertCircle } from "lucide-react"
+
 import type { Category } from "@/lib/types"
 
 interface RecipesPageProps {
   searchParams: {
     search?: string
     categories?: string
+
     my?: string
+
   }
 }
 
@@ -23,14 +27,17 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
   try {
     const supabase = createServerClient()
 
+
     // Determinar si mostrar solo las recetas del usuario o todas
     const showOnlyMyRecipes = searchParams.my === "true"
 
     // Obtener todas las categorías para el filtro
     const { data: categories } = await supabase.from("categories").select("*").order("name")
 
+
     // Obtener TODAS las recetas (sin filtrar por usuario en el servidor)
     const { data: allRecipes, error: recipesError } = await supabase
+
       .from("recipes")
       .select(`
         *,
@@ -40,6 +47,14 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
         )
       `)
       .order("created_at", { ascending: false })
+
+    // Filtrar por usuario solo si está autenticado y solicita ver solo sus recetas
+    if (showOnlyMyRecipes && user) {
+      recipesQuery = recipesQuery.eq("user_id", user.id)
+    }
+
+    // Ejecutar la consulta
+    const { data: allRecipes, error: recipesError } = await recipesQuery
 
     if (recipesError) {
       console.error("Error fetching recipes:", recipesError)
@@ -148,10 +163,18 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     // Obtener conteos para mostrar estadísticas
     const { count: totalRecipesCount } = await supabase.from("recipes").select("*", { count: "exact", head: true })
 
+    // Obtener conteos para mostrar estadísticas
+    const { count: totalRecipesCount } = await supabase.from("recipes").select("*", { count: "exact", head: true })
+
+    const userRecipesCount = user
+      ? await supabase.from("recipes").select("*", { count: "exact", head: true }).eq("user_id", user.id)
+      : null
+
     return (
       <div className="container py-10">
         <div className="flex justify-between items-center mb-6">
           <div>
+
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold">
                 {hasActiveFilters ? "Resultados de búsqueda" : showOnlyMyRecipes ? "Mis Recetas" : "Todas las Recetas"}
@@ -162,6 +185,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
             </div>
           </div>
           <div className="flex gap-2">
+
             <Button asChild>
               <Link href="/recipes/add">
                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -180,6 +204,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
           }
         />
 
+
         {/* Componente cliente que maneja el filtrado y renderizado */}
         <RecipesClientFilter
           recipes={filteredRecipes}
@@ -188,6 +213,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
           totalRecipesCount={totalRecipesCount || 0}
           searchParams={searchParams}
         />
+
       </div>
     )
   } catch (error) {
