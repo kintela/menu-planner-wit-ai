@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button"
 interface DeleteRecipeButtonProps {
   recipeId: string
   recipeUserId?: string
-  recipeName?: string // Añadimos el nombre de la receta como prop
+  recipeName?: string
   onDelete: () => void
 }
 
@@ -52,51 +52,63 @@ export function DeleteRecipeButton({
 
     setIsDeleting(true)
     try {
+      console.log("🔍 Verificando si la receta está en menús:", { recipeId, recipeName })
+
       // Primero verificamos si la receta está siendo usada en algún menú
       const { data: menuItems, error: menuError } = await supabase
         .from("menu_items")
-        .select(`
-          id, 
-          menu_id,
-          menus:menu_id (
-            id,
-            name,
-            week_start
-          )
-        `)
+        .select("*")
         .eq("recipe_id", recipeId)
 
+      console.log("📋 Resultado de menu_items:", { menuItems, menuError })
+
       if (menuError) {
+        console.error("❌ Error al consultar menu_items:", menuError)
         throw new Error(menuError.message || "Error al verificar menús")
       }
 
       // Si la receta está siendo usada en menús, prevenimos la eliminación
       if (menuItems && menuItems.length > 0) {
-        // Formatear los nombres de los menús
-        const menuNames = menuItems
-          .map((item) => {
-            const menu = item.menus
-            const weekStart = menu?.week_start ? new Date(menu.week_start).toLocaleDateString() : "fecha desconocida"
-            return `${menu?.name || "Menú"} (semana del ${weekStart})`
-          })
-          .join(", ")
+        console.log("🚫 Receta está en menús, preveniendo eliminación")
+
+        // Obtener información de los menús
+        const menuIds = menuItems.map((item) => item.menu_id)
+        console.log("📝 IDs de menús:", menuIds)
+
+        const { data: menus, error: menusError } = await supabase.from("menus").select("*").in("id", menuIds)
+
+        console.log("📅 Información de menús:", { menus, menusError })
+
+        let menuDescription = "menús desconocidos"
+        if (menus && menus.length > 0) {
+          menuDescription = menus
+            .map((menu) => {
+              const weekStart = menu.week_start ? new Date(menu.week_start).toLocaleDateString() : "fecha desconocida"
+              return `${menu.name || "Menú"} (semana del ${weekStart})`
+            })
+            .join(", ")
+        }
 
         setIsOpen(false) // Cerrar el diálogo
         toast({
           title: "No se puede eliminar",
-          description: `La receta "${recipeName}" está siendo usada en: ${menuNames}. Por favor, elimínala primero de estos menús.`,
+          description: `La receta "${recipeName}" está siendo usada en: ${menuDescription}. Por favor, elimínala primero de estos menús.`,
           variant: "destructive",
-          duration: 7000, // Mostrar por más tiempo
+          duration: 7000,
         })
         return
       }
 
+      console.log("✅ Receta no está en menús, procediendo con eliminación")
+
       // Si no está siendo usada, procedemos con la eliminación
-      const { error } = await supabase.from("recipes").delete().eq("id", recipeId).eq("user_id", user.id) // Doble verificación de seguridad
+      const { error } = await supabase.from("recipes").delete().eq("id", recipeId).eq("user_id", user.id)
 
       if (error) {
         throw new Error(error.message || "Error al eliminar la receta")
       }
+
+      console.log("🎉 Receta eliminada exitosamente")
 
       // Mostrar toast de éxito
       toast({
@@ -109,7 +121,7 @@ export function DeleteRecipeButton({
       setIsOpen(false)
       onDelete()
     } catch (error: any) {
-      console.error("Error deleting recipe:", error)
+      console.error("❌ Error deleting recipe:", error)
       toast({
         title: "Error",
         description: `Error al eliminar la receta "${recipeName}": ${error.message}`,
