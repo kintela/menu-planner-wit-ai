@@ -61,18 +61,16 @@ export default async function RecipePage({ params }: { params: { id: string } })
 
   return (
     <div className="container mx-auto py-8">
-      {/* Botón para volver a recetas */}
-      <div className="mb-4">
-        <Button asChild variant="outline" size="sm" className="flex items-center gap-1">
-          <Link href="/recipes">
+      <div className="mb-6 flex justify-between items-center">
+        <Button asChild variant="outline">
+          <Link href="/recipes" className="flex items-center gap-1">
             <ArrowLeft className="h-4 w-4" />
             <span>Volver a recetas</span>
           </Link>
         </Button>
-      </div>
 
-      <div className="mb-6 flex justify-between items-center">
         <h1 className="text-3xl font-bold">{recipe?.title}</h1>
+
         <Button asChild variant="outline">
           <Link href={`/recipes/${id}/edit`}>Editar receta</Link>
         </Button>
