@@ -5,6 +5,7 @@ import { Sparkles, Loader2, Plus, Check, ImageOff } from "lucide-react"
 import { ImageIcon } from "lucide-react"
 
 import { getSupabaseClient } from "@/lib/supabase/client"
+import { useAuth } from "@/components/auth/auth-provider"
 import type { Recipe } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,6 +37,7 @@ interface GeneratedRecipe {
 }
 
 export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayName }: AiRecipeSuggestionProps) {
+  const { user } = useAuth()
   const { toast } = useToast()
   const [isOpen, setIsOpen] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -133,6 +135,15 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   }
 
   const saveRecipeToCollection = async (suggestion: GeneratedRecipe, index: number) => {
+    if (!user) {
+      toast({
+        title: "Error de autenticación",
+        description: "Debes estar autenticado para guardar recetas.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsSaving(true)
 
     try {
@@ -163,6 +174,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           image_url: imageUrl,
           video_url: null,
           source_url: null,
+          user_id: user.id, // Añadir el user_id
         })
         .select()
         .single()
@@ -189,6 +201,15 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   }
 
   const saveAndSelectRecipe = async (suggestion: GeneratedRecipe) => {
+    if (!user) {
+      toast({
+        title: "Error de autenticación",
+        description: "Debes estar autenticado para crear recetas.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsSaving(true)
 
     try {
@@ -225,6 +246,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           image_url: imageUrl, // Puede ser null si falló la generación o está deshabilitada
           video_url: null,
           source_url: null,
+          user_id: user.id, // Añadir el user_id
         })
         .select()
         .single()
@@ -254,6 +276,11 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     } finally {
       setIsSaving(false)
     }
+  }
+
+  // No mostrar el componente si no hay usuario autenticado
+  if (!user) {
+    return null
   }
 
   return (
