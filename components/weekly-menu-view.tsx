@@ -3,7 +3,9 @@
 import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
 import Link from "next/link"
+
 import { Loader2, RefreshCw, Eye, Trash2 } from "lucide-react"
+
 
 import { getSupabaseClient } from "@/lib/supabase/client"
 import type { WeeklyMenu, MenuItem, Recipe, DayMenu } from "@/lib/types"
@@ -13,7 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 import { AiRecipeSuggestion } from "@/components/ai-recipe-suggestion"
+
 import { useAuth } from "@/components/auth/auth-provider"
+
 
 interface WeeklyMenuViewProps {
   weeklyMenu: WeeklyMenu | null
@@ -333,6 +337,7 @@ export function WeeklyMenuView({
     }, 100)
   }
 
+
   const handleRemoveRecipe = async (dayOfWeek: number, mealType: "comida" | "cena", dishOrder?: number) => {
     if (!weeklyMenu) return
 
@@ -380,6 +385,7 @@ export function WeeklyMenuView({
       setIsUpdating(false)
     }
   }
+
 
   return (
     <div className="space-y-6">
@@ -464,6 +470,7 @@ export function WeeklyMenuView({
                           </Link>
                         </Button>
                       )}
+
                       {dayMenu.meals.comida[0] && (
                         <Button
                           variant="outline"
@@ -474,6 +481,7 @@ export function WeeklyMenuView({
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
+
                       <AiRecipeSuggestion
                         onRecipeCreated={(newRecipe) => handleRecipeCreated(newRecipe, dayMenu.day, "comida", 1)}
                         mealType="comida"
@@ -520,6 +528,7 @@ export function WeeklyMenuView({
                           </Link>
                         </Button>
                       )}
+
                       {dayMenu.meals.comida[1] && (
                         <Button
                           variant="outline"
@@ -530,6 +539,7 @@ export function WeeklyMenuView({
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
+
                       <AiRecipeSuggestion
                         onRecipeCreated={(newRecipe) => handleRecipeCreated(newRecipe, dayMenu.day, "comida", 2)}
                         mealType="comida"
@@ -571,6 +581,7 @@ export function WeeklyMenuView({
                       <Button asChild variant="outline" size="sm" className="flex-1">
                         <Link href={`/recipes/${dayMenu.meals.cena.id}`}>
                           <Eye className="h-4 w-4 mr-2" />
+
                           Ver receta
                         </Link>
                       </Button>
@@ -585,6 +596,7 @@ export function WeeklyMenuView({
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
+
                     <AiRecipeSuggestion
                       onRecipeCreated={(newRecipe) => handleRecipeCreated(newRecipe, dayMenu.day, "cena")}
                       mealType="cena"
