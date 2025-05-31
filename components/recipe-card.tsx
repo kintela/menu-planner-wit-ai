@@ -110,9 +110,15 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
         <Button asChild className="flex-1">
           <Link href={`/recipes/${recipe.id}`}>Ver</Link>
         </Button>
-        <Button asChild variant="outline" disabled={!canEdit}>
-          <Link href={canEdit ? `/recipes/${recipe.id}/edit` : "#"}>Editar</Link>
-        </Button>
+        {canEdit ? (
+          <Button asChild variant="outline">
+            <Link href={`/recipes/${recipe.id}/edit`}>Editar</Link>
+          </Button>
+        ) : (
+          <Button variant="outline" disabled>
+            Editar
+          </Button>
+        )}
         <DeleteRecipeButton
           recipeId={recipe.id}
           recipeUserId={recipe.user_id}
