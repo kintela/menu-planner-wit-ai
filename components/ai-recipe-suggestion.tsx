@@ -1,10 +1,8 @@
 "use client"
 
-
 import { DialogTrigger } from "@/components/ui/dialog"
 
 import { useState, useEffect } from "react"
-
 
 import { Sparkles, Loader2, Plus, Check, ImageOff } from "lucide-react"
 
@@ -45,7 +43,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   const [suggestions, setSuggestions] = useState<GeneratedRecipe[]>([])
   const [savedRecipes, setSavedRecipes] = useState<Set<number>>(new Set())
   const [enableImageGeneration, setEnableImageGeneration] = useState(false) // Disabled by default
-
   const [dailyUsage, setDailyUsage] = useState<number>(0)
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   const [usageLimitReached, setUsageLimitReached] = useState<boolean>(false)
@@ -62,24 +59,22 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       const userIsAdmin = profile?.role === "admin"
       setIsAdmin(userIsAdmin)
 
-      // Si es admin, no hay límites
-      if (userIsAdmin) {
-        setUsageLimitReached(false)
-        setDailyUsage(0)
-        return
-      }
-
-      // Para usuarios normales, verificar uso diario
+      // Verificar uso diario para todos los usuarios (admin y no admin)
       const { data: usageData } = await supabase.rpc("get_daily_ai_usage", { p_user_id: user.id })
 
       const currentUsage = usageData || 0
       setDailyUsage(currentUsage)
-      setUsageLimitReached(currentUsage >= 2)
+
+      // Solo establecer el límite para usuarios no admin
+      if (!userIsAdmin) {
+        setUsageLimitReached(currentUsage >= 2)
+      } else {
+        setUsageLimitReached(false) // Los admin nunca alcanzan el límite
+      }
     } catch (error) {
       console.error("Error checking user limits:", error)
     }
   }
-
 
   const generateSuggestions = async () => {
     if (!searchQuery.trim()) {
@@ -106,17 +101,16 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     setSavedRecipes(new Set())
 
     try {
-      // Incrementar contador de uso para usuarios no admin
-      if (!isAdmin) {
-        const supabase = getSupabaseClient()
-        const { data: newUsage } = await supabase.rpc("increment_ai_usage", { p_user_id: user?.id })
+      // Incrementar contador de uso para TODOS los usuarios (admin y no admin)
+      const supabase = getSupabaseClient()
+      const { data: newUsage } = await supabase.rpc("increment_ai_usage", { p_user_id: user?.id })
 
-        setDailyUsage(newUsage || 0)
+      // Actualizar el contador de uso mostrado
+      setDailyUsage(newUsage || 0)
 
-        // Verificar si alcanzó el límite después de este uso
-        if (newUsage >= 2) {
-          setUsageLimitReached(true)
-        }
+      // Verificar si alcanzó el límite después de este uso (solo para no admin)
+      if (!isAdmin && newUsage >= 2) {
+        setUsageLimitReached(true)
       }
 
       const response = await fetch("/api/generate-recipe-suggestions", {
@@ -141,7 +135,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       if (data.recipes && Array.isArray(data.recipes)) {
         setSuggestions(data.recipes)
 
-        // Mostrar mensaje de límite si es necesario
+        // Mostrar mensaje de límite si es necesario (solo para no admin)
         if (!isAdmin && dailyUsage + 1 >= 2) {
           toast({
             title: "Último uso del día",
@@ -165,7 +159,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   }
 
   const generateRecipeImage = async (recipeName: string, ingredients: string) => {
-
     // Skip image generation if disabled
     if (!enableImageGeneration) {
       console.log("Image generation disabled, skipping...")
@@ -174,7 +167,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
     try {
       console.log("Attempting to generate image for:", recipeName)
-
 
       const response = await fetch("/api/generate-recipe-image", {
         method: "POST",
@@ -190,7 +182,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       const data = await response.json()
 
       if (!response.ok) {
-
         console.warn("Image generation failed:", data.error, data.suggestion)
         return null // Fail silently, recipe creation continues
       }
@@ -200,7 +191,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     } catch (error) {
       console.warn("Image generation error (non-critical):", error)
       return null // Always return null on error, don't throw
-
     }
   }
 
@@ -222,7 +212,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
 
-
       // Intentar generar imagen solo si está habilitado
       let imageUrl = null
       if (enableImageGeneration) {
@@ -232,7 +221,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           console.warn("Image generation failed, continuing without image:", error)
         }
       }
-
 
       // Guardar la receta en la base de datos
       const { data: newRecipe, error } = await supabase
@@ -289,7 +277,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
-
 
       // Mostrar mensaje inicial
       toast({
@@ -360,7 +347,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     }
   }, [isOpen, user])
 
-
   // No mostrar el componente si no hay usuario autenticado
   if (!user) {
     return null
@@ -387,7 +373,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
               <ImageIcon className="h-3 w-3" />
               Se generará automáticamente una imagen para cada receta
             </span>
-
             {!isAdmin && (
               <span className="text-xs text-muted-foreground mt-1 block">
                 💡 Límite: 2 generaciones por día ({dailyUsage}/2 usadas hoy)
@@ -395,9 +380,10 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
               </span>
             )}
             {isAdmin && (
-              <span className="text-xs text-green-600 mt-1 block">👑 Administrador: Generaciones ilimitadas</span>
+              <span className="text-xs text-green-600 mt-1 block">
+                👑 Administrador: Generaciones ilimitadas (Uso actual: {dailyUsage})
+              </span>
             )}
-
           </DialogDescription>
         </DialogHeader>
 
@@ -523,9 +509,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                           {isSaving ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-
                               Creando receta...
-
                             </>
                           ) : (
                             <>
