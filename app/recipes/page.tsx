@@ -1,33 +1,32 @@
-// app/recipes/page.tsx
 import { createServerClient } from "@/lib/supabase/server"
-import { RecipeCard } from "@/components/recipe-card"
 import { RecipeSearch } from "@/components/recipe-search"
+import { MyRecipesFilter } from "@/components/my-recipes-filter"
+import { RecipesClientFilter } from "@/components/recipes-client-filter"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
-import { PlusCircle, AlertCircle, User } from "lucide-react"
+
+import { PlusCircle, AlertCircle } from "lucide-react"
+
 import type { Category } from "@/lib/types"
 
 interface RecipesPageProps {
   searchParams: {
     search?: string
     categories?: string
-    my?: string // Parámetro para mostrar solo mis recetas
+
+    my?: string
+
   }
 }
 
-// Forzar renderizado dinámico
 export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 export default async function RecipesPage({ searchParams }: RecipesPageProps) {
   try {
     const supabase = createServerClient()
 
-    // Obtener el usuario actual (opcional)
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
 
     // Determinar si mostrar solo las recetas del usuario o todas
     const showOnlyMyRecipes = searchParams.my === "true"
@@ -35,8 +34,10 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
     // Obtener todas las categorías para el filtro
     const { data: categories } = await supabase.from("categories").select("*").order("name")
 
-    // Construir la consulta base para recetas con información del creador
-    let recipesQuery = supabase
+
+    // Obtener TODAS las recetas (sin filtrar por usuario en el servidor)
+    const { data: allRecipes, error: recipesError } = await supabase
+
       .from("recipes")
       .select(`
         *,
@@ -91,7 +92,6 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       const recipeId = rc.recipe_id
       const categoryId = rc.category_id
 
-      // Añadir la categoría a la receta
       if (recipeCategoriesMap.has(recipeId)) {
         recipeCategoriesMap.get(recipeId)?.push(categoryId)
       }
@@ -128,7 +128,7 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       }
     })
 
-    // Aplicar filtros
+    // Aplicar filtros del servidor (búsqueda y categorías, pero NO filtro de usuario)
     let filteredRecipes = [...recipesWithCategories]
 
     // Filtrar por término de búsqueda
@@ -158,20 +158,10 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       }
     }
 
-    // Información de las categorías seleccionadas para mostrar
-    const selectedCategoryNames = searchParams.categories
-      ? searchParams.categories
-          .split(",")
-          .map((id) => {
-            const categoryId = Number.parseInt(id.trim())
-            const category = categories?.find((cat) => cat.id === categoryId)
-            return category?.name
-          })
-          .filter(Boolean)
-      : []
-
     const hasActiveFilters = Boolean(searchParams.search || searchParams.categories)
-    const displayedRecipes = filteredRecipes || []
+
+    // Obtener conteos para mostrar estadísticas
+    const { count: totalRecipesCount } = await supabase.from("recipes").select("*", { count: "exact", head: true })
 
     // Obtener conteos para mostrar estadísticas
     const { count: totalRecipesCount } = await supabase.from("recipes").select("*", { count: "exact", head: true })
@@ -184,50 +174,18 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
       <div className="container py-10">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold">
-              {hasActiveFilters ? "Resultados de búsqueda" : showOnlyMyRecipes ? "Mis Recetas" : "Todas las Recetas"}
-            </h1>
-            <div className="flex items-center gap-4 mt-2">
-              <Badge variant="outline" className="text-sm">
-                {hasActiveFilters ? (
-                  <>Mostrando {displayedRecipes.length} recetas</>
-                ) : (
-                  <>
-                    Total: {displayedRecipes.length} recetas
-                    {showOnlyMyRecipes && userRecipesCount && <> (de {totalRecipesCount} en total)</>}
-                  </>
-                )}
-              </Badge>
-              {hasActiveFilters && (
-                <Button asChild variant="ghost" size="sm">
-                  <Link href="/recipes">Ver todas las recetas</Link>
-                </Button>
-              )}
-              {user &&
-                !showOnlyMyRecipes &&
-                userRecipesCount &&
-                userRecipesCount.count &&
-                userRecipesCount.count > 0 && (
-                  <Button asChild variant="ghost" size="sm">
-                    <Link href="/recipes?my=true">Ver solo mis recetas</Link>
-                  </Button>
-                )}
-              {showOnlyMyRecipes && (
-                <Button asChild variant="ghost" size="sm">
-                  <Link href="/recipes">Ver todas las recetas</Link>
-                </Button>
-              )}
+
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold">
+                {hasActiveFilters ? "Resultados de búsqueda" : showOnlyMyRecipes ? "Mis Recetas" : "Todas las Recetas"}
+              </h1>
+
+              {/* Componente cliente para el checkbox - SIEMPRE visible */}
+              <MyRecipesFilter />
             </div>
           </div>
           <div className="flex gap-2">
-            {!user && (
-              <Button asChild variant="outline">
-                <Link href="/login">
-                  <User className="mr-2 h-4 w-4" />
-                  Iniciar Sesión
-                </Link>
-              </Button>
-            )}
+
             <Button asChild>
               <Link href="/recipes/add">
                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -246,51 +204,16 @@ export default async function RecipesPage({ searchParams }: RecipesPageProps) {
           }
         />
 
-        <div className="mt-6">
-          {hasActiveFilters && (
-            <div className="mb-4 p-4 bg-muted/50 rounded-lg">
-              <h3 className="font-medium mb-2">Filtros aplicados:</h3>
-              <div className="flex flex-wrap gap-2">
-                {searchParams.search && <Badge variant="secondary">Búsqueda: "{searchParams.search}"</Badge>}
-                {selectedCategoryNames.map((name, index) => (
-                  <Badge key={index} variant="secondary">
-                    Categoría: {name}
-                  </Badge>
-                ))}
-              </div>
-              <p className="text-sm text-muted-foreground mt-2">{displayedRecipes.length} receta(s) encontrada(s)</p>
-            </div>
-          )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {displayedRecipes && displayedRecipes.length > 0 ? (
-              displayedRecipes.map((recipe: any) => <RecipeCard key={recipe.id} recipe={recipe} />)
-            ) : (
-              <div className="col-span-full text-center py-10">
-                <p className="text-muted-foreground">
-                  {hasActiveFilters
-                    ? "No se encontraron recetas con los criterios seleccionados."
-                    : showOnlyMyRecipes
-                      ? "No has añadido ninguna receta todavía."
-                      : "No hay recetas disponibles en el sistema."}
-                </p>
-                <div className="flex gap-2 justify-center mt-4">
-                  {hasActiveFilters && (
-                    <Button asChild variant="outline">
-                      <Link href="/recipes">Ver todas las recetas</Link>
-                    </Button>
-                  )}
-                  <Button asChild>
-                    <Link href="/recipes/add">
-                      <PlusCircle className="mr-2 h-4 w-4" />
-                      Añadir Receta
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Componente cliente que maneja el filtrado y renderizado */}
+        <RecipesClientFilter
+          recipes={filteredRecipes}
+          showOnlyMyRecipes={showOnlyMyRecipes}
+          hasActiveFilters={hasActiveFilters}
+          totalRecipesCount={totalRecipesCount || 0}
+          searchParams={searchParams}
+        />
+
       </div>
     )
   } catch (error) {
