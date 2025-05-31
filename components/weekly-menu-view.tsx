@@ -3,7 +3,9 @@
 import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Loader2, RefreshCw, Eye } from "lucide-react"
+
+import { Loader2, RefreshCw, Eye, Trash2 } from "lucide-react"
+
 
 import { getSupabaseClient } from "@/lib/supabase/client"
 import type { WeeklyMenu, MenuItem, Recipe, DayMenu } from "@/lib/types"
@@ -13,6 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 import { AiRecipeSuggestion } from "@/components/ai-recipe-suggestion"
+
+import { useAuth } from "@/components/auth/auth-provider"
+
 
 interface WeeklyMenuViewProps {
   weeklyMenu: WeeklyMenu | null
@@ -30,6 +35,7 @@ export function WeeklyMenuView({
   onDataUpdate,
 }: WeeklyMenuViewProps) {
   const { toast } = useToast()
+  const { user } = useAuth()
   const [isGenerating, setIsGenerating] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [isClearing, setIsClearing] = useState(false)
@@ -113,6 +119,7 @@ export function WeeklyMenuView({
           .select("*")
           .eq("start_date", startDate)
           .eq("end_date", endDate)
+          .eq("user_id", user?.id)
           .maybeSingle()
 
         if (existingMenu) {
@@ -126,6 +133,9 @@ export function WeeklyMenuView({
               name: `Menú del ${startDate} al ${endDate}`,
               start_date: startDate,
               end_date: endDate,
+              user_id: user?.id,
+              is_saved: true,
+              saved_at: new Date().toISOString(),
             })
             .select()
             .single()
@@ -192,6 +202,20 @@ export function WeeklyMenuView({
         }
       }
 
+      // Marcar el menú como guardado si no lo está ya
+      if (currentWeeklyMenu && !currentWeeklyMenu.is_saved) {
+        await supabase
+          .from("weekly_menus")
+          .update({
+            is_saved: true,
+            saved_at: new Date().toISOString(),
+          })
+          .eq("id", currentWeeklyMenu.id)
+
+        // Actualizar el estado local
+        setWeeklyMenu({ ...currentWeeklyMenu, is_saved: true, saved_at: new Date().toISOString() })
+      }
+
       toast({
         title: "Menú actualizado",
         description: "El menú se ha actualizado correctamente.",
@@ -227,6 +251,9 @@ export function WeeklyMenuView({
             name: `Menú del ${startDate} al ${endDate}`,
             start_date: startDate,
             end_date: endDate,
+            user_id: user?.id,
+            is_saved: true,
+            saved_at: new Date().toISOString(),
           })
           .select()
           .single()
@@ -309,6 +336,56 @@ export function WeeklyMenuView({
       await handleRecipeChange(dayOfWeek, mealType, newRecipe.id.toString(), dishOrder)
     }, 100)
   }
+
+
+  const handleRemoveRecipe = async (dayOfWeek: number, mealType: "comida" | "cena", dishOrder?: number) => {
+    if (!weeklyMenu) return
+
+    setIsUpdating(true)
+
+    try {
+      const supabase = getSupabaseClient()
+      const finalDishOrder = mealType === "comida" ? dishOrder || 1 : 1
+
+      // Buscar y eliminar el plato existente
+      const { error } = await supabase
+        .from("menu_items")
+        .delete()
+        .eq("weekly_menu_id", weeklyMenu.id)
+        .eq("day_of_week", dayOfWeek)
+        .eq("meal_type", mealType)
+        .eq("dish_order", finalDishOrder)
+
+      if (error) throw error
+
+      // Actualizar el estado local eliminando el item
+      const updatedMenuItems = menuItems.filter(
+        (item) =>
+          !(
+            item.weekly_menu_id === weeklyMenu.id &&
+            item.day_of_week === dayOfWeek &&
+            item.meal_type === mealType &&
+            item.dish_order === finalDishOrder
+          ),
+      )
+      setMenuItems(updatedMenuItems)
+
+      toast({
+        title: "Receta eliminada",
+        description: "La receta se ha eliminado del menú.",
+      })
+    } catch (error) {
+      console.error("Error removing recipe:", error)
+      toast({
+        title: "Error",
+        description: "Ha ocurrido un error al eliminar la receta.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
 
   return (
     <div className="space-y-6">
@@ -393,6 +470,18 @@ export function WeeklyMenuView({
                           </Link>
                         </Button>
                       )}
+
+                      {dayMenu.meals.comida[0] && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRemoveRecipe(dayMenu.day, "comida", 1)}
+                          disabled={isUpdating}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+
                       <AiRecipeSuggestion
                         onRecipeCreated={(newRecipe) => handleRecipeCreated(newRecipe, dayMenu.day, "comida", 1)}
                         mealType="comida"
@@ -439,6 +528,18 @@ export function WeeklyMenuView({
                           </Link>
                         </Button>
                       )}
+
+                      {dayMenu.meals.comida[1] && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRemoveRecipe(dayMenu.day, "comida", 2)}
+                          disabled={isUpdating}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+
                       <AiRecipeSuggestion
                         onRecipeCreated={(newRecipe) => handleRecipeCreated(newRecipe, dayMenu.day, "comida", 2)}
                         mealType="comida"
@@ -480,9 +581,22 @@ export function WeeklyMenuView({
                       <Button asChild variant="outline" size="sm" className="flex-1">
                         <Link href={`/recipes/${dayMenu.meals.cena.id}`}>
                           <Eye className="h-4 w-4 mr-2" />
+
+                          Ver receta
                         </Link>
                       </Button>
                     )}
+                    {dayMenu.meals.cena && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRemoveRecipe(dayMenu.day, "cena")}
+                        disabled={isUpdating}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+
                     <AiRecipeSuggestion
                       onRecipeCreated={(newRecipe) => handleRecipeCreated(newRecipe, dayMenu.day, "cena")}
                       mealType="cena"
@@ -504,7 +618,7 @@ export function WeeklyMenuView({
             No hay recetas disponibles. Añade algunas recetas antes de crear un menú semanal.
           </p>
           <Button asChild className="mt-4">
-            <a href="/recipes/add">Añadir Receta</a>
+            <Link href="/recipes/add">Añadir Receta</Link>
           </Button>
         </div>
       )}

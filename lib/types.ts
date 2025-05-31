@@ -22,8 +22,12 @@ export interface Category {
 export interface WeeklyMenu {
   id: number
   name: string
+
+  start_date: string
+  end_date: string
   created_at: string
-  user_id?: string // Añadido para la relación con el usuario
+  user_id: string
+
 }
 
 export interface MenuItem {
