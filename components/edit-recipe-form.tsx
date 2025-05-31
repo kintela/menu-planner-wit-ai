@@ -295,7 +295,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       // Actualizar la receta
       const { data: updateResult, error: updateError } = await supabase
         .from("recipes")
-
         .update({
           name,
           ingredients: ingredients || "",
@@ -304,9 +303,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
           video_url: video_url,
           source_url: source_url,
           calories: finalCalories,
-          updated_at: new Date().toISOString(),
         })
-
         .eq("id", recipe.id)
         .select()
 
