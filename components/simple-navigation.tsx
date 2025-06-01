@@ -64,7 +64,29 @@ export function SimpleNavigation() {
       setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    // Listener para actualizaciones de perfil
+    const handleProfileUpdate = () => {
+      // Recargar el perfil del usuario cuando se actualice
+      if (user) {
+        supabase
+          .from("user_profiles")
+          .select("role, full_name, avatar_url")
+          .eq("id", user.id)
+          .single()
+          .then(({ data: profile }) => {
+            if (profile) {
+              setUserProfile(profile)
+            }
+          })
+      }
+    }
+
+    window.addEventListener("profileUpdated", handleProfileUpdate)
+
+    return () => {
+      subscription.unsubscribe()
+      window.removeEventListener("profileUpdated", handleProfileUpdate)
+    }
   }, [supabase])
 
   const handleSignOut = async () => {

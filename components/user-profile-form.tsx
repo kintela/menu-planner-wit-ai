@@ -173,14 +173,17 @@ export function UserProfileForm() {
       setUploading(true)
       setMessage("Subiendo imagen...")
 
-      // Extraer la ruta de la imagen anterior si existe
+      // Obtener la ruta de la imagen anterior si existe
       let oldImagePath = null
       if (profile?.avatar_url) {
         try {
-          // La URL pública tiene formato: https://xxx.supabase.co/storage/v1/object/public/avatars/path
-          const urlParts = profile.avatar_url.split("/avatars/")
-          if (urlParts.length > 1) {
-            oldImagePath = urlParts[1]
+          // Extraer el nombre del archivo de la URL
+          // La URL tiene formato: https://xxx.supabase.co/storage/v1/object/public/avatars/user_id/filename
+          const url = new URL(profile.avatar_url)
+          const pathParts = url.pathname.split("/avatars/")
+          if (pathParts.length > 1) {
+            oldImagePath = pathParts[1]
+            console.log("Old image path to delete:", oldImagePath)
           }
         } catch (error) {
           console.error("Error parsing old avatar URL:", error)
@@ -190,6 +193,8 @@ export function UserProfileForm() {
       // Subir la nueva imagen
       const fileExt = file.name.split(".").pop()
       const fileName = `${profile?.id}/avatar-${Date.now()}.${fileExt}`
+
+      console.log("Uploading new image:", fileName)
 
       const { error: uploadError } = await supabase.storage.from("avatars").upload(fileName, file, { upsert: true })
 
@@ -201,17 +206,18 @@ export function UserProfileForm() {
 
       // Obtener la URL pública de la nueva imagen
       const { data } = supabase.storage.from("avatars").getPublicUrl(fileName)
+      console.log("New avatar URL:", data.publicUrl)
 
       // Si la subida fue exitosa y existe una imagen anterior, eliminarla
       if (oldImagePath) {
-        console.log("Deleting old avatar:", oldImagePath)
+        console.log("Attempting to delete old avatar:", oldImagePath)
         const { error: deleteError } = await supabase.storage.from("avatars").remove([oldImagePath])
 
         if (deleteError) {
           console.error("Error deleting old avatar:", deleteError)
           // No interrumpimos el flujo si falla la eliminación
         } else {
-          console.log("Old avatar deleted successfully")
+          console.log("✅ Old avatar deleted successfully")
         }
       }
 
@@ -312,6 +318,19 @@ export function UserProfileForm() {
 
       // Recargar el perfil
       await loadProfile()
+
+      // Forzar actualización del estado de autenticación para que la navegación se actualice
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (user) {
+        // Disparar evento personalizado para notificar a la navegación
+        window.dispatchEvent(
+          new CustomEvent("profileUpdated", {
+            detail: { avatarUrl: avatarUrl },
+          }),
+        )
+      }
 
       // Limpiar estado del formulario
       setAvatarFile(null)
