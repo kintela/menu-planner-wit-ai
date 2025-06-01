@@ -35,6 +35,7 @@ export function UserProfileForm() {
     last_name: "",
     alias: "",
     phone: "",
+    email: "",
   })
 
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
@@ -76,8 +77,6 @@ export function UserProfileForm() {
       }
 
       console.log("Profile loaded:", profileData)
-      console.log("Email from profile:", profileData.email)
-      console.log("Email from user:", user.email)
 
       setProfile(profileData)
       setFormData({
@@ -85,6 +84,7 @@ export function UserProfileForm() {
         last_name: profileData.last_name || "",
         alias: profileData.alias || "",
         phone: profileData.phone || "",
+        email: profileData.email || "",
       })
 
       setMessage("")
@@ -156,6 +156,12 @@ export function UserProfileForm() {
       return
     }
 
+    // Validar email
+    if (!formData.email || !formData.email.includes("@")) {
+      setMessage("Por favor, introduce un email válido")
+      return
+    }
+
     try {
       setSaving(true)
       setMessage("Guardando cambios...")
@@ -175,6 +181,19 @@ export function UserProfileForm() {
       // Construir el nombre completo
       const fullName = [formData.first_name, formData.last_name].filter(Boolean).join(" ") || null
 
+      // Si el email ha cambiado, actualizar también en auth
+      if (formData.email !== profile.email) {
+        const { error: authError } = await supabase.auth.updateUser({
+          email: formData.email,
+        })
+
+        if (authError) {
+          console.error("Error updating auth email:", authError)
+          setMessage("Error al actualizar el email de autenticación")
+          return
+        }
+      }
+
       const { error } = await supabase
         .from("user_profiles")
         .update({
@@ -182,6 +201,7 @@ export function UserProfileForm() {
           last_name: formData.last_name || null,
           alias: formData.alias || null,
           phone: formData.phone || null,
+          email: formData.email,
           full_name: fullName,
           avatar_url: avatarUrl,
           updated_at: new Date().toISOString(),
@@ -201,10 +221,14 @@ export function UserProfileForm() {
       setAvatarFile(null)
       setAvatarPreview(null)
 
-      setMessage("✅ Perfil actualizado correctamente")
+      if (formData.email !== profile.email) {
+        setMessage("✅ Perfil actualizado. Se ha enviado un email de confirmación para verificar el nuevo email.")
+      } else {
+        setMessage("✅ Perfil actualizado correctamente")
+      }
 
-      // Limpiar mensaje después de 3 segundos
-      setTimeout(() => setMessage(""), 3000)
+      // Limpiar mensaje después de 5 segundos
+      setTimeout(() => setMessage(""), 5000)
     } catch (error) {
       console.error("Error:", error)
       setMessage("Error inesperado al actualizar el perfil")
@@ -332,10 +356,16 @@ export function UserProfileForm() {
             />
           </div>
 
-          {/* Información de Solo Lectura */}
           <div className="space-y-2">
-            <Label>Email</Label>
-            <Input value={profile?.email || ""} disabled className="bg-gray-100 text-gray-800" />
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              value={formData.email}
+              onChange={(e) => handleInputChange("email", e.target.value)}
+              placeholder="Tu email"
+              type="email"
+              required
+            />
           </div>
 
           {/* Botón de Envío */}
