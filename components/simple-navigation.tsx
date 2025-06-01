@@ -258,18 +258,35 @@ export function SimpleNavigation() {
             {/* Mobile user info or login */}
             <div className="md:hidden flex items-center space-x-2">
               {user ? (
-                <div className="relative group">
+                <div className="relative">
                   <div
-                    className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium"
+                    className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium cursor-pointer"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      const tooltip = e.currentTarget.nextElementSibling
+                      if (tooltip) {
+                        tooltip.classList.toggle("hidden")
+                        // Ocultar después de 3 segundos
+                        setTimeout(() => {
+                          tooltip.classList.add("hidden")
+                        }, 3000)
+                      }
+                    }}
                     title={userProfile?.full_name || user.email || ""}
                   >
                     {(userProfile?.full_name?.charAt(0) || user.email?.charAt(0) || "").toUpperCase()}
                   </div>
-                  <div className="absolute hidden group-hover:block top-full right-0 mt-1 bg-white shadow-lg rounded-md p-2 text-xs z-10 whitespace-nowrap">
-                    {userProfile?.full_name || user.email}
-                    {userProfile?.role === "admin" && (
-                      <span className="ml-1 px-1 py-0.5 bg-red-100 text-red-800 text-xs rounded-full">Admin</span>
-                    )}
+                  <div className="absolute hidden top-full right-0 mt-1 bg-gray-800 text-white shadow-lg rounded-md p-2 text-xs z-50 whitespace-nowrap max-w-48">
+                    <div className="text-center">
+                      {userProfile?.full_name || user.email}
+                      {userProfile?.role === "admin" && (
+                        <div className="mt-1">
+                          <span className="px-1 py-0.5 bg-red-500 text-white text-xs rounded-full">Admin</span>
+                        </div>
+                      )}
+                    </div>
+                    {/* Flecha del tooltip */}
+                    <div className="absolute -top-1 right-3 w-2 h-2 bg-gray-800 transform rotate-45"></div>
                   </div>
                 </div>
               ) : (
