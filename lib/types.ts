@@ -45,6 +45,7 @@ export interface UserProfile {
   last_name?: string
   alias?: string
   avatar_url?: string
+  phone?: string
   role: "admin" | "user" | "user_restricted"
   created_at: string
   updated_at: string

@@ -20,6 +20,7 @@ interface UserProfile {
   alias: string | null
   avatar_url: string | null
   role: string
+  phone: string | null
 }
 
 export function UserProfileForm() {
@@ -33,6 +34,7 @@ export function UserProfileForm() {
     first_name: "",
     last_name: "",
     alias: "",
+    phone: "",
   })
 
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
@@ -80,6 +82,7 @@ export function UserProfileForm() {
         first_name: profileData.first_name || "",
         last_name: profileData.last_name || "",
         alias: profileData.alias || "",
+        phone: profileData.phone || "",
       })
 
       setMessage("")
@@ -176,6 +179,7 @@ export function UserProfileForm() {
           first_name: formData.first_name || null,
           last_name: formData.last_name || null,
           alias: formData.alias || null,
+          phone: formData.phone || null,
           full_name: fullName,
           avatar_url: avatarUrl,
           updated_at: new Date().toISOString(),
@@ -312,6 +316,17 @@ export function UserProfileForm() {
               value={formData.alias}
               onChange={(e) => handleInputChange("alias", e.target.value)}
               placeholder="Tu nombre de usuario"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="phone">Teléfono móvil</Label>
+            <Input
+              id="phone"
+              value={formData.phone}
+              onChange={(e) => handleInputChange("phone", e.target.value)}
+              placeholder="Tu número de teléfono"
+              type="tel"
             />
           </div>
 
