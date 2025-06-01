@@ -2,6 +2,7 @@ import { createServerClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
+import { RecipeImage } from "@/components/recipe-image"
 
 interface Recipe {
   id: number
@@ -114,21 +115,10 @@ export default async function RecipePage({ params }: { params: { id: string } })
             {recipe.calories && <p className="text-sm text-gray-600 mt-2">🔥 {recipe.calories} calorías</p>}
           </div>
 
-          {/* Imagen */}
-          {recipe.image_url && (
-            <div className="w-full h-48 bg-gray-100 rounded-lg overflow-hidden">
-              <img
-                src={recipe.image_url || "/placeholder.svg"}
-                alt={recipe.name}
-                className="w-full h-full object-cover"
-                loading="lazy"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement
-                  target.style.display = "none"
-                }}
-              />
-            </div>
-          )}
+          {/* Imagen - Ahora usando el componente cliente */}
+          <div className="w-full h-48 bg-gray-100 rounded-lg overflow-hidden">
+            <RecipeImage src={recipe.image_url} alt={recipe.name} className="w-full h-full object-cover" />
+          </div>
 
           {/* Ingredientes */}
           <div className="bg-gray-50 p-4 rounded-lg">
