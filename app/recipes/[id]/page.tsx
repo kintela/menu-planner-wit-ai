@@ -34,13 +34,7 @@ async function getRecipe(id: string): Promise<Recipe | null> {
     console.log("✅ Cliente Supabase creado")
 
     // Consulta con los nombres correctos de columnas
-    const { data: recipe, error } = await supabase
-      .from("recipes")
-      .select(
-        "id, name, ingredients, preparation, image_url, is_ai_generated, created_at, video_url, source_url, calories",
-      )
-      .eq("id", id)
-      .single()
+    const { data: recipe, error } = await supabase.from("recipes").select("*").eq("id", id).single()
 
     console.log("🔍 Resultado consulta:", {
       hasData: !!recipe,
