@@ -173,6 +173,21 @@ export function UserProfileForm() {
       setUploading(true)
       setMessage("Subiendo imagen...")
 
+      // Extraer la ruta de la imagen anterior si existe
+      let oldImagePath = null
+      if (profile?.avatar_url) {
+        try {
+          // La URL pública tiene formato: https://xxx.supabase.co/storage/v1/object/public/avatars/path
+          const urlParts = profile.avatar_url.split("/avatars/")
+          if (urlParts.length > 1) {
+            oldImagePath = urlParts[1]
+          }
+        } catch (error) {
+          console.error("Error parsing old avatar URL:", error)
+        }
+      }
+
+      // Subir la nueva imagen
       const fileExt = file.name.split(".").pop()
       const fileName = `${profile?.id}/avatar-${Date.now()}.${fileExt}`
 
@@ -184,7 +199,22 @@ export function UserProfileForm() {
         return null
       }
 
+      // Obtener la URL pública de la nueva imagen
       const { data } = supabase.storage.from("avatars").getPublicUrl(fileName)
+
+      // Si la subida fue exitosa y existe una imagen anterior, eliminarla
+      if (oldImagePath) {
+        console.log("Deleting old avatar:", oldImagePath)
+        const { error: deleteError } = await supabase.storage.from("avatars").remove([oldImagePath])
+
+        if (deleteError) {
+          console.error("Error deleting old avatar:", deleteError)
+          // No interrumpimos el flujo si falla la eliminación
+        } else {
+          console.log("Old avatar deleted successfully")
+        }
+      }
+
       return data.publicUrl
     } catch (error) {
       console.error("Error uploading avatar:", error)
