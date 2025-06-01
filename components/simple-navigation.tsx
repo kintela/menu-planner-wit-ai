@@ -258,35 +258,37 @@ export function SimpleNavigation() {
             {/* Mobile user info or login */}
             <div className="md:hidden flex items-center space-x-2">
               {user ? (
-                <div className="relative">
+                <div className="relative group">
                   <div
-                    className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium cursor-pointer"
+                    className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium cursor-pointer hover:bg-blue-700 transition-colors"
                     onClick={(e) => {
                       e.preventDefault()
                       const tooltip = e.currentTarget.nextElementSibling
                       if (tooltip) {
-                        tooltip.classList.toggle("hidden")
+                        tooltip.classList.toggle("opacity-0")
+                        tooltip.classList.toggle("invisible")
                         // Ocultar después de 3 segundos
                         setTimeout(() => {
-                          tooltip.classList.add("hidden")
+                          tooltip.classList.add("opacity-0")
+                          tooltip.classList.add("invisible")
                         }, 3000)
                       }
                     }}
-                    title={userProfile?.full_name || user.email || ""}
                   >
                     {(userProfile?.full_name?.charAt(0) || user.email?.charAt(0) || "").toUpperCase()}
                   </div>
-                  <div className="absolute hidden top-full right-0 mt-1 bg-gray-800 text-white shadow-lg rounded-md p-2 text-xs z-50 whitespace-nowrap max-w-48">
+                  <div className="absolute opacity-0 invisible group-hover:opacity-100 group-hover:visible top-full right-0 mt-2 bg-gray-900 text-white shadow-lg rounded-lg p-3 text-xs z-50 whitespace-nowrap max-w-48 transition-all duration-200">
                     <div className="text-center">
-                      {userProfile?.full_name || user.email}
+                      <div className="font-medium">{userProfile?.full_name || "Usuario"}</div>
+                      <div className="text-gray-300 mt-1">{user.email}</div>
                       {userProfile?.role === "admin" && (
-                        <div className="mt-1">
-                          <span className="px-1 py-0.5 bg-red-500 text-white text-xs rounded-full">Admin</span>
+                        <div className="mt-2">
+                          <span className="px-2 py-1 bg-red-500 text-white text-xs rounded-full">Admin</span>
                         </div>
                       )}
                     </div>
                     {/* Flecha del tooltip */}
-                    <div className="absolute -top-1 right-3 w-2 h-2 bg-gray-800 transform rotate-45"></div>
+                    <div className="absolute -top-1 right-4 w-2 h-2 bg-gray-900 transform rotate-45"></div>
                   </div>
                 </div>
               ) : (
