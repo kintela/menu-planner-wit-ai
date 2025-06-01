@@ -86,12 +86,12 @@ export function UserProfileForm() {
 
       console.log("Profile loaded:", profileData)
 
-      // Usar el email del usuario de autenticación como fuente de verdad
-      const emailToUse = user.email || profileData.email || ""
+      // Usar el email que está guardado en la tabla user_profiles
+      const emailToUse = profileData.email || user.email || ""
 
       setProfile({
         ...profileData,
-        email: emailToUse, // Asegurarnos de que el email del perfil sea el del usuario auth
+        email: emailToUse, // Usar el email que está en la base de datos
       })
 
       setFormData({
