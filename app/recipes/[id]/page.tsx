@@ -1,5 +1,5 @@
 import { createServerClient } from "@/lib/supabase/server"
-import { notFound, redirect } from "next/navigation"
+import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
@@ -17,38 +17,45 @@ interface Recipe {
 }
 
 async function getRecipe(id: string): Promise<Recipe | null> {
+  console.log("🔍 DEBUG - getRecipe iniciado para ID:", id)
+
   try {
     // Validar que el ID sea un número válido
     const numericId = Number.parseInt(id, 10)
     if (isNaN(numericId) || numericId <= 0) {
-      console.error("ID de receta inválido:", id)
+      console.error("❌ ID de receta inválido:", id)
       return null
     }
+    console.log("✅ ID validado correctamente:", numericId)
 
+    console.log("🔍 Intentando crear cliente Supabase...")
     const supabase = createServerClient()
+    console.log("✅ Cliente Supabase creado exitosamente")
 
-    // Usar timeout para evitar cuelgues en móvil
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("Timeout")), 10000)
+    console.log("🔍 Ejecutando consulta a la base de datos...")
+    const { data: recipe, error } = await supabase.from("recipes").select("*").eq("id", id).single()
+
+    console.log("🔍 Resultado de la consulta:", {
+      hasData: !!recipe,
+      hasError: !!error,
+      errorMessage: error?.message,
+      recipeTitle: recipe?.title,
     })
 
-    const queryPromise = supabase.from("recipes").select("*").eq("id", id).single()
-
-    const { data: recipe, error } = await Promise.race([queryPromise, timeoutPromise])
-
     if (error) {
-      console.error("Error al obtener receta:", error.message)
+      console.error("❌ Error en consulta Supabase:", error)
       return null
     }
 
     if (!recipe) {
-      console.error("Receta no encontrada para ID:", id)
+      console.error("❌ Receta no encontrada para ID:", id)
       return null
     }
 
+    console.log("✅ Receta obtenida exitosamente:", recipe.title)
     return recipe
   } catch (error) {
-    console.error("Error inesperado al obtener receta:", error)
+    console.error("❌ Error inesperado en getRecipe:", error)
     return null
   }
 }
@@ -68,23 +75,29 @@ function ensureArray(value: string[] | string | null | undefined): string[] {
 }
 
 export default async function RecipePage({ params }: { params: { id: string } }) {
+  console.log("🔍 DEBUG - RecipePage iniciado con params:", params)
+
   try {
     const { id } = params
+    console.log("🔍 ID extraído de params:", id)
 
     // Validación más estricta del parámetro ID
     if (!id || typeof id !== "string" || id.trim() === "") {
-      console.error("Parámetro ID inválido:", id)
+      console.error("❌ Parámetro ID inválido:", id)
       notFound()
     }
 
+    console.log("🔍 Llamando a getRecipe...")
     const recipe = await getRecipe(id)
+    console.log("🔍 Resultado de getRecipe:", recipe ? "Receta encontrada" : "Receta no encontrada")
 
     // Si no se encuentra la receta, mostrar 404
     if (!recipe) {
-      console.error("Receta no encontrada, mostrando 404 para ID:", id)
+      console.error("❌ Receta no encontrada, mostrando 404 para ID:", id)
       notFound()
     }
 
+    console.log("🔍 Procesando datos de la receta...")
     // Procesar datos de la receta de forma segura
     const ingredientsArray = ensureArray(recipe.ingredients)
     const instructionsArray = recipe.instructions ? ensureArray(recipe.instructions) : ensureArray(recipe.preparation)
@@ -92,8 +105,17 @@ export default async function RecipePage({ params }: { params: { id: string } })
     // Manejar URL de imagen de forma segura
     const imageUrl = recipe.image_url || recipe.image || null
 
+    console.log("✅ Renderizando página de receta:", recipe.title)
+
     return (
       <div className="container mx-auto py-4 sm:py-8 px-4">
+        {/* Debug info - solo visible en desarrollo */}
+        {process.env.NODE_ENV === "development" && (
+          <div className="mb-4 p-2 bg-yellow-100 text-yellow-800 text-xs rounded">
+            Debug: Receta ID {id} cargada correctamente
+          </div>
+        )}
+
         <div className="mb-6 flex flex-col gap-4">
           {/* Navegación superior */}
           <div className="flex justify-between items-center">
@@ -177,21 +199,36 @@ export default async function RecipePage({ params }: { params: { id: string } })
       </div>
     )
   } catch (error) {
-    console.error("Error crítico en RecipePage:", error)
-    // En caso de error crítico, redirigir a la lista de recetas
-    redirect("/recipes")
+    console.error("❌ Error crítico en RecipePage:", error)
+    console.error("❌ Stack trace:", error instanceof Error ? error.stack : "No stack available")
+
+    // En producción, mostrar una página de error amigable
+    return (
+      <div className="container mx-auto py-8 px-4 text-center">
+        <h1 className="text-2xl font-bold mb-4">Error al cargar la receta</h1>
+        <p className="text-muted-foreground mb-4">Lo sentimos, ha ocurrido un error al cargar esta receta.</p>
+        <Button asChild>
+          <Link href="/recipes">Volver a recetas</Link>
+        </Button>
+      </div>
+    )
   }
 }
 
 // Generar metadata de forma segura
 export async function generateMetadata({ params }: { params: { id: string } }) {
+  console.log("🔍 DEBUG - generateMetadata para ID:", params.id)
+
   try {
     const recipe = await getRecipe(params.id)
+    console.log("🔍 Metadata generada para:", recipe?.title || "Receta no encontrada")
+
     return {
       title: recipe?.title || "Receta",
       description: `Receta: ${recipe?.title || "Ver detalles de la receta"}`,
     }
   } catch (error) {
+    console.error("❌ Error generando metadata:", error)
     return {
       title: "Receta",
       description: "Ver detalles de la receta",
