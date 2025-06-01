@@ -258,46 +258,19 @@ export function SimpleNavigation() {
             {/* Mobile user info or login */}
             <div className="md:hidden flex items-center space-x-2">
               {user ? (
-                <div
-                  className="relative cursor-pointer"
-                  onMouseEnter={(e) => {
-                    const tooltip = e.currentTarget.querySelector(".tooltip")
-                    if (tooltip) {
-                      tooltip.classList.remove("hidden")
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    const tooltip = e.currentTarget.querySelector(".tooltip")
-                    if (tooltip) {
-                      tooltip.classList.add("hidden")
-                    }
-                  }}
-                  onClick={(e) => {
-                    const tooltip = e.currentTarget.querySelector(".tooltip")
-                    if (tooltip) {
-                      tooltip.classList.toggle("hidden")
-                      // Auto-ocultar en móvil después de 3 segundos
-                      setTimeout(() => {
-                        tooltip.classList.add("hidden")
-                      }, 3000)
-                    }
-                  }}
-                >
-                  <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium hover:bg-blue-700 transition-colors">
+                <div className="relative">
+                  <div
+                    className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium cursor-pointer hover:bg-blue-700 transition-colors"
+                    style={{ cursor: "pointer" }}
+                    title={`${userProfile?.full_name || "Usuario"} - ${user.email}`}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      alert(
+                        `Usuario: ${userProfile?.full_name || "Usuario"}\nEmail: ${user.email}${userProfile?.role === "admin" ? "\nRol: Administrador" : ""}`,
+                      )
+                    }}
+                  >
                     {(userProfile?.full_name?.charAt(0) || user.email?.charAt(0) || "").toUpperCase()}
-                  </div>
-                  <div className="tooltip hidden absolute top-full right-0 mt-2 bg-gray-900 text-white shadow-lg rounded-lg p-3 text-xs z-50 whitespace-nowrap min-w-max">
-                    <div className="text-center">
-                      <div className="font-medium">{userProfile?.full_name || "Usuario"}</div>
-                      <div className="text-gray-300 mt-1">{user.email}</div>
-                      {userProfile?.role === "admin" && (
-                        <div className="mt-2">
-                          <span className="px-2 py-1 bg-red-500 text-white text-xs rounded-full">Admin</span>
-                        </div>
-                      )}
-                    </div>
-                    {/* Flecha del tooltip */}
-                    <div className="absolute -top-1 right-4 w-2 h-2 bg-gray-900 transform rotate-45"></div>
                   </div>
                 </div>
               ) : (
