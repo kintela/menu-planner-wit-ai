@@ -4,262 +4,209 @@ import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 
 interface Recipe {
-  id: string
-  created_at: string
+  id: number
   name: string
-  ingredients: string[] | string
+  ingredients: string
   preparation: string
-  image_url: string
-  is_ai_generated: boolean
+  image_url: string | null
+  is_ai_generated: boolean | null
   video_url: string | null
   source_url: string | null
   calories: number | null
-  user_id?: string
+  created_at: string
 }
 
 async function getRecipe(id: string): Promise<Recipe | null> {
   try {
     console.log("🔍 DEBUG - getRecipe iniciado para ID:", id)
 
-    // Validar que el ID sea un número válido
-    const numericId = Number.parseInt(id, 10)
-    if (isNaN(numericId) || numericId <= 0) {
-      console.error("❌ ID de receta inválido:", id)
-      return null
-    }
-
-    console.log("✅ ID validado correctamente:", numericId)
-
     const supabase = createServerClient()
-    console.log("✅ Cliente Supabase creado")
 
-    // Consulta con los nombres correctos de columnas
+    // Consulta muy simple sin transformaciones complejas
     const { data: recipe, error } = await supabase.from("recipes").select("*").eq("id", id).single()
 
-    console.log("🔍 Resultado consulta:", {
-      hasData: !!recipe,
-      hasError: !!error,
-      errorMessage: error?.message,
-      errorCode: error?.code,
-      recipeName: recipe?.name,
-    })
-
-    if (error) {
-      // Si el error es "PGRST116", significa que no se encontró la receta
-      if (error.code === "PGRST116") {
-        console.log("ℹ️ Receta no encontrada (ID no existe):", id)
-        return null
-      }
-      console.error("❌ Error Supabase:", error)
-      return null
-    }
-
-    if (!recipe) {
-      console.log("ℹ️ Receta no encontrada (sin datos):", id)
+    if (error || !recipe) {
+      console.error("❌ Error o receta no encontrada:", error?.message || "Sin datos")
       return null
     }
 
     console.log("✅ Receta encontrada:", recipe.name)
     return recipe
   } catch (error) {
-    console.error("❌ Error crítico en getRecipe:", error)
+    console.error("❌ Error crítico:", error)
     return null
   }
 }
 
-function ensureArray(value: string[] | string | null | undefined): string[] {
-  if (!value) return []
-  if (Array.isArray(value)) return value
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value)
-      return Array.isArray(parsed) ? parsed : [value]
-    } catch (e) {
-      return value.includes("\n") ? value.split("\n").filter(Boolean) : [value]
-    }
+// Función simplificada para procesar texto
+function processText(text: string | null | undefined): string[] {
+  if (!text) return []
+
+  // Si es un string simple, dividir por saltos de línea
+  if (typeof text === "string") {
+    return text.split("\n").filter((line) => line.trim() !== "")
   }
-  return [String(value)]
+
+  return []
 }
 
 export default async function RecipePage({ params }: { params: { id: string } }) {
   console.log("🔍 DEBUG - RecipePage iniciado con ID:", params.id)
 
-  try {
-    const { id } = params
-
-    if (!id || typeof id !== "string" || id.trim() === "") {
-      console.error("❌ ID inválido:", id)
-      return (
-        <div className="container mx-auto py-8 px-4 text-center">
-          <h1 className="text-2xl font-bold mb-4">ID de receta inválido</h1>
-          <p className="text-muted-foreground mb-6">El ID de la receta no es válido.</p>
+  // Validación básica del ID
+  const numericId = Number.parseInt(params.id, 10)
+  if (isNaN(numericId) || numericId <= 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center">
+          <h1 className="text-xl font-bold mb-4">ID inválido</h1>
           <Button asChild>
-            <Link href="/recipes">Ver todas las recetas</Link>
+            <Link href="/recipes">Volver a recetas</Link>
           </Button>
         </div>
-      )
-    }
+      </div>
+    )
+  }
 
-    console.log("🔍 Llamando a getRecipe para ID:", id)
-    const recipe = await getRecipe(id)
+  try {
+    const recipe = await getRecipe(params.id)
 
     if (!recipe) {
-      console.log("❌ Receta no encontrada para ID:", id)
-
-      // Mostrar página de error amigable en lugar de notFound()
       return (
-        <div className="container mx-auto py-8 px-4 text-center">
-          <h1 className="text-2xl font-bold mb-4">Receta no encontrada</h1>
-          <p className="text-muted-foreground mb-6">
-            Lo sentimos, la receta con ID {id} no existe o ha sido eliminada.
-          </p>
-          <div className="space-x-4">
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <div className="text-center">
+            <h1 className="text-xl font-bold mb-4">Receta no encontrada</h1>
+            <p className="text-gray-600 mb-4">La receta con ID {params.id} no existe.</p>
             <Button asChild>
               <Link href="/recipes">Ver todas las recetas</Link>
             </Button>
-            <Button asChild variant="outline">
-              <Link href="/">Ir al inicio</Link>
-            </Button>
           </div>
         </div>
       )
     }
 
-    console.log("✅ Receta encontrada, renderizando:", recipe.name)
-
-    // Procesar datos de forma segura
-    const ingredientsArray = ensureArray(recipe.ingredients)
-    const preparationArray = ensureArray(recipe.preparation)
-
-    const imageUrl = recipe.image_url || null
+    // Procesar ingredientes y preparación de forma simple
+    const ingredients = processText(recipe.ingredients)
+    const preparation = processText(recipe.preparation)
 
     return (
-      <div className="container mx-auto py-4 sm:py-8 px-4">
-        <div className="mb-6 flex flex-col gap-4">
-          {/* Navegación superior */}
-          <div className="flex justify-between items-center">
+      <div className="min-h-screen bg-white">
+        {/* Header fijo para móvil */}
+        <div className="sticky top-0 bg-white border-b p-4 z-10">
+          <div className="flex items-center justify-between">
             <Button asChild variant="outline" size="sm">
-              <Link href="/recipes" className="flex items-center gap-1">
+              <Link href="/recipes" className="flex items-center gap-2">
                 <ArrowLeft className="h-4 w-4" />
-                <span className="hidden sm:inline">Volver a recetas</span>
-                <span className="sm:hidden">Volver</span>
+                Volver
               </Link>
             </Button>
-
             <Button asChild variant="outline" size="sm">
-              <Link href={`/recipes/${id}/edit`}>
-                <span className="hidden sm:inline">Editar receta</span>
-                <span className="sm:hidden">Editar</span>
-              </Link>
+              <Link href={`/recipes/${params.id}/edit`}>Editar</Link>
             </Button>
-          </div>
-
-          {/* Título */}
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-center">
-            {recipe.name || "Receta sin nombre"}
-          </h1>
-
-          {/* Información adicional */}
-          <div className="flex justify-center gap-4 text-sm text-muted-foreground">
-            {recipe.calories && <span>🔥 {recipe.calories} cal</span>}
-            {recipe.is_ai_generated && <span>🤖 Generada por IA</span>}
           </div>
         </div>
 
-        {/* Sección de imagen */}
-        <div className="relative w-full h-48 sm:h-64 md:h-96 mb-6">
-          {imageUrl ? (
-            <img
-              src={imageUrl || "/placeholder.svg"}
-              alt={recipe.name || "Imagen de receta"}
-              className="w-full h-full object-cover rounded-lg"
-              loading="lazy"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                target.onerror = null
-                target.src = "/placeholder.svg?height=400&width=600&text=Sin+imagen"
-              }}
-            />
-          ) : (
-            <div className="w-full h-full bg-muted flex items-center justify-center rounded-lg">
-              <span className="text-muted-foreground">Sin imagen disponible</span>
+        {/* Contenido principal */}
+        <div className="p-4 space-y-6">
+          {/* Título */}
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-900">{recipe.name}</h1>
+            {recipe.calories && <p className="text-sm text-gray-600 mt-2">🔥 {recipe.calories} calorías</p>}
+          </div>
+
+          {/* Imagen */}
+          {recipe.image_url && (
+            <div className="w-full h-48 bg-gray-100 rounded-lg overflow-hidden">
+              <img
+                src={recipe.image_url || "/placeholder.svg"}
+                alt={recipe.name}
+                className="w-full h-full object-cover"
+                loading="lazy"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement
+                  target.style.display = "none"
+                }}
+              />
             </div>
           )}
-        </div>
 
-        {/* Grid de contenido */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
           {/* Ingredientes */}
-          <div className="space-y-4">
-            <h2 className="text-lg sm:text-xl font-semibold">Ingredientes:</h2>
-            {ingredientsArray.length > 0 ? (
-              <ul className="list-disc pl-5 space-y-2">
-                {ingredientsArray.map((ingredient, index) => (
-                  <li key={index} className="text-foreground text-sm sm:text-base">
-                    {ingredient}
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">Ingredientes</h2>
+            {ingredients.length > 0 ? (
+              <ul className="space-y-2">
+                {ingredients.map((ingredient, index) => (
+                  <li key={index} className="flex items-start">
+                    <span className="text-green-600 mr-2">•</span>
+                    <span className="text-gray-800 text-sm">{ingredient}</span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-muted-foreground italic text-sm sm:text-base">No hay ingredientes disponibles</p>
+              <p className="text-gray-500 italic">No hay ingredientes disponibles</p>
             )}
           </div>
 
           {/* Preparación */}
-          <div className="space-y-4">
-            <h2 className="text-lg sm:text-xl font-semibold">Preparación:</h2>
-            {preparationArray.length > 0 ? (
-              <ol className="list-decimal pl-5 space-y-3 sm:space-y-4">
-                {preparationArray.map((step, index) => (
-                  <li key={index} className="text-foreground text-sm sm:text-base">
-                    {step}
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">Preparación</h2>
+            {preparation.length > 0 ? (
+              <ol className="space-y-3">
+                {preparation.map((step, index) => (
+                  <li key={index} className="flex items-start">
+                    <span className="bg-blue-600 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center mr-3 mt-0.5 flex-shrink-0">
+                      {index + 1}
+                    </span>
+                    <span className="text-gray-800 text-sm">{step}</span>
                   </li>
                 ))}
               </ol>
             ) : (
-              <p className="text-muted-foreground italic text-sm sm:text-base">
-                No hay pasos de preparación disponibles
-              </p>
+              <p className="text-gray-500 italic">No hay pasos de preparación disponibles</p>
             )}
           </div>
-        </div>
 
-        {/* Enlaces adicionales */}
-        {(recipe.video_url || recipe.source_url) && (
-          <div className="mt-8 flex flex-wrap gap-4 justify-center">
-            {recipe.video_url && (
-              <Button asChild variant="outline">
-                <Link href={recipe.video_url} target="_blank" rel="noopener noreferrer">
-                  📹 Ver video
-                </Link>
-              </Button>
-            )}
-            {recipe.source_url && (
-              <Button asChild variant="outline">
-                <Link href={recipe.source_url} target="_blank" rel="noopener noreferrer">
-                  🔗 Fuente original
-                </Link>
-              </Button>
-            )}
-          </div>
-        )}
+          {/* Enlaces adicionales */}
+          {(recipe.video_url || recipe.source_url) && (
+            <div className="space-y-3">
+              {recipe.video_url && (
+                <Button asChild className="w-full" variant="outline">
+                  <Link href={recipe.video_url} target="_blank" rel="noopener noreferrer">
+                    📹 Ver video de la receta
+                  </Link>
+                </Button>
+              )}
+              {recipe.source_url && (
+                <Button asChild className="w-full" variant="outline">
+                  <Link href={recipe.source_url} target="_blank" rel="noopener noreferrer">
+                    🔗 Ver fuente original
+                  </Link>
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Espaciado inferior para móvil */}
+          <div className="h-8"></div>
+        </div>
       </div>
     )
   } catch (error) {
     console.error("❌ Error crítico en RecipePage:", error)
 
-    // Página de error amigable en lugar de crash
     return (
-      <div className="container mx-auto py-8 px-4 text-center">
-        <h1 className="text-2xl font-bold mb-4">Error al cargar la receta</h1>
-        <p className="text-muted-foreground mb-6">Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo.</p>
-        <div className="space-x-4">
-          <Button asChild>
-            <Link href="/recipes">Ver todas las recetas</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/">Ir al inicio</Link>
-          </Button>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center">
+          <h1 className="text-xl font-bold mb-4 text-red-600">Error al cargar la receta</h1>
+          <p className="text-gray-600 mb-4">Ha ocurrido un error inesperado.</p>
+          <div className="space-y-2">
+            <Button asChild className="w-full">
+              <Link href="/recipes">Ver todas las recetas</Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/">Ir al inicio</Link>
+            </Button>
+          </div>
         </div>
       </div>
     )
