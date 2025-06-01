@@ -220,93 +220,61 @@ export function WeeklyMenuView({
         // Para comida, necesitamos manejar ambos platos juntos debido a la restricción única
         const finalDishOrder = dishOrder || 1
 
-        // Obtener todos los platos de comida para este día
-        const { data: existingItems } = await supabase
-          .from("menu_items")
-          .select("*")
-          .eq("weekly_menu_id", currentWeeklyMenu.id)
-          .eq("day_of_week", dayOfWeek)
-          .eq("meal_type", "comida")
-
-        // Crear un array con los platos actualizados
-        const updatedDishes = [
-          { order: 1, recipeId: null as number | null },
-          { order: 2, recipeId: null as number | null },
-        ]
-
-        // Llenar con los platos existentes
-        if (existingItems) {
-          existingItems.forEach((item) => {
-            if (item.dish_order === 1 || item.dish_order === 2) {
-              updatedDishes[item.dish_order - 1].recipeId = item.recipe_id
-            }
-          })
-        }
-
-        // Actualizar el plato que estamos cambiando
-        updatedDishes[finalDishOrder - 1].recipeId = Number.parseInt(recipeId)
-
-        // Eliminar todos los platos de comida para este día
-        await supabase
-          .from("menu_items")
-          .delete()
-          .eq("weekly_menu_id", currentWeeklyMenu.id)
-          .eq("day_of_week", dayOfWeek)
-          .eq("meal_type", "comida")
-
-        // Insertar los nuevos platos (solo los que no son null)
-        const itemsToInsert = []
-        for (const dish of updatedDishes) {
-          if (dish.recipeId) {
-            itemsToInsert.push({
-              weekly_menu_id: currentWeeklyMenu.id,
-              recipe_id: dish.recipeId,
-              day_of_week: dayOfWeek,
-              meal_type: "comida",
-              dish_order: dish.order,
-            })
-          }
-        }
-
-        if (itemsToInsert.length > 0) {
-          const { data: newItems, error: insertError } = await supabase
+        try {
+          // Buscar si ya existe un plato para este día y tipo específico
+          const { data: existingItem } = await supabase
             .from("menu_items")
-            .insert(itemsToInsert)
-            .select()
+            .select("*")
+            .eq("weekly_menu_id", currentWeeklyMenu.id)
+            .eq("day_of_week", dayOfWeek)
+            .eq("meal_type", "comida")
+            .eq("dish_order", finalDishOrder)
+            .maybeSingle()
 
-          if (insertError) {
-            throw insertError
+          if (existingItem) {
+            // Actualizar el plato existente
+            await supabase
+              .from("menu_items")
+              .update({ recipe_id: Number.parseInt(recipeId) })
+              .eq("id", existingItem.id)
+
+            // Actualizar el estado local inmediatamente
+            const updatedMenuItems = menuItems.map((item) =>
+              item.id === existingItem.id
+                ? { ...item, recipe_id: Number.parseInt(recipeId), recipe: selectedRecipe }
+                : item,
+            )
+            setMenuItems(updatedMenuItems)
+          } else {
+            // Crear un nuevo plato
+            const { data: newItem, error: insertError } = await supabase
+              .from("menu_items")
+              .insert({
+                weekly_menu_id: currentWeeklyMenu.id,
+                recipe_id: Number.parseInt(recipeId),
+                day_of_week: dayOfWeek,
+                meal_type: "comida",
+                dish_order: finalDishOrder,
+              })
+              .select()
+              .single()
+
+            if (insertError) {
+              throw insertError
+            }
+
+            if (newItem) {
+              // Añadir al estado local inmediatamente con la receta completa
+              const newMenuItemWithRecipe = {
+                ...newItem,
+                recipe: selectedRecipe,
+              } as MenuItem
+              setMenuItems((prevItems) => [...prevItems, newMenuItemWithRecipe])
+            }
           }
-
-          // Actualizar el estado local
-          // Primero eliminar los items de comida existentes para este día
-          const filteredMenuItems = menuItems.filter(
-            (item) =>
-              !(
-                item.weekly_menu_id === currentWeeklyMenu.id &&
-                item.day_of_week === dayOfWeek &&
-                item.meal_type === "comida"
-              ),
-          )
-
-          // Luego añadir los nuevos items con las recetas completas
-          const newItemsWithRecipes = newItems.map((item) => ({
-            ...item,
-            recipe: recipes.find((r) => r.id === item.recipe_id),
-          })) as MenuItem[]
-
-          setMenuItems([...filteredMenuItems, ...newItemsWithRecipes])
-        } else {
-          // Si no hay platos, solo actualizar el estado local eliminando los existentes
-          const filteredMenuItems = menuItems.filter(
-            (item) =>
-              !(
-                item.weekly_menu_id === currentWeeklyMenu.id &&
-                item.day_of_week === dayOfWeek &&
-                item.meal_type === "comida"
-              ),
-          )
-          setMenuItems(filteredMenuItems)
+        } catch (error) {
+          console.error("Error updating menu item:", error)
+          throw error
         }
       } else {
         // Para cena, usar la lógica original ya que solo hay un plato
@@ -527,108 +495,30 @@ export function WeeklyMenuView({
 
     try {
       const supabase = getSupabaseClient()
-      const finalDishOrder = mealType === "comida" ? dishOrder || 1 : 1
+      const finalDishOrder = dishOrder || 1
 
-      if (mealType === "comida") {
-        // Para comida, necesitamos manejar ambos platos juntos debido a la restricción única
-        // Obtener todos los platos de comida para este día
-        const { data: existingItems } = await supabase
-          .from("menu_items")
-          .select("*")
-          .eq("weekly_menu_id", weeklyMenu.id)
-          .eq("day_of_week", dayOfWeek)
-          .eq("meal_type", "comida")
+      // Eliminar el plato específico
+      const { error } = await supabase
+        .from("menu_items")
+        .delete()
+        .eq("weekly_menu_id", weeklyMenu.id)
+        .eq("day_of_week", dayOfWeek)
+        .eq("meal_type", mealType)
+        .eq("dish_order", finalDishOrder)
 
-        // Crear un array con los platos actualizados
-        const updatedDishes = [
-          { order: 1, recipeId: null as number | null },
-          { order: 2, recipeId: null as number | null },
-        ]
+      if (error) throw error
 
-        // Llenar con los platos existentes
-        if (existingItems) {
-          existingItems.forEach((item) => {
-            if (item.dish_order === 1 || item.dish_order === 2) {
-              updatedDishes[item.dish_order - 1].recipeId = item.recipe_id
-            }
-          })
-        }
-
-        // Eliminar el plato que estamos quitando
-        updatedDishes[finalDishOrder - 1].recipeId = null
-
-        // Eliminar todos los platos de comida para este día
-        await supabase
-          .from("menu_items")
-          .delete()
-          .eq("weekly_menu_id", weeklyMenu.id)
-          .eq("day_of_week", dayOfWeek)
-          .eq("meal_type", "comida")
-
-        // Insertar los platos restantes (solo los que no son null)
-        const itemsToInsert = []
-        for (const dish of updatedDishes) {
-          if (dish.recipeId) {
-            itemsToInsert.push({
-              weekly_menu_id: weeklyMenu.id,
-              recipe_id: dish.recipeId,
-              day_of_week: dayOfWeek,
-              meal_type: "comida",
-              dish_order: dish.order,
-            })
-          }
-        }
-
-        if (itemsToInsert.length > 0) {
-          const { data: newItems, error: insertError } = await supabase
-            .from("menu_items")
-            .insert(itemsToInsert)
-            .select()
-
-          if (insertError) {
-            throw insertError
-          }
-
-          // Actualizar el estado local
-          // Primero eliminar los items de comida existentes para este día
-          const filteredMenuItems = menuItems.filter(
-            (item) =>
-              !(item.weekly_menu_id === weeklyMenu.id && item.day_of_week === dayOfWeek && item.meal_type === "comida"),
-          )
-
-          // Luego añadir los nuevos items con las recetas completas
-          const newItemsWithRecipes = newItems.map((item) => ({
-            ...item,
-            recipe: recipes.find((r) => r.id === item.recipe_id),
-          })) as MenuItem[]
-
-          setMenuItems([...filteredMenuItems, ...newItemsWithRecipes])
-        } else {
-          // Si no hay platos, solo actualizar el estado local eliminando los existentes
-          const filteredMenuItems = menuItems.filter(
-            (item) =>
-              !(item.weekly_menu_id === weeklyMenu.id && item.day_of_week === dayOfWeek && item.meal_type === "comida"),
-          )
-          setMenuItems(filteredMenuItems)
-        }
-      } else {
-        // Para cena, usar la lógica original ya que solo hay un plato
-        const { error } = await supabase
-          .from("menu_items")
-          .delete()
-          .eq("weekly_menu_id", weeklyMenu.id)
-          .eq("day_of_week", dayOfWeek)
-          .eq("meal_type", "cena")
-
-        if (error) throw error
-
-        // Actualizar el estado local eliminando el item
-        const updatedMenuItems = menuItems.filter(
-          (item) =>
-            !(item.weekly_menu_id === weeklyMenu.id && item.day_of_week === dayOfWeek && item.meal_type === "cena"),
-        )
-        setMenuItems(updatedMenuItems)
-      }
+      // Actualizar el estado local eliminando el item
+      const updatedMenuItems = menuItems.filter(
+        (item) =>
+          !(
+            item.weekly_menu_id === weeklyMenu.id &&
+            item.day_of_week === dayOfWeek &&
+            item.meal_type === mealType &&
+            item.dish_order === finalDishOrder
+          ),
+      )
+      setMenuItems(updatedMenuItems)
 
       toast({
         title: "Receta eliminada",
