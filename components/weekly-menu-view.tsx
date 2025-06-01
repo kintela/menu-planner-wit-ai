@@ -4,10 +4,8 @@ import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
 import Link from "next/link"
 
-
 import { Loader2, RefreshCw, Eye, Trash2, ChevronDown, ChevronRight } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-
 
 import { getSupabaseClient } from "@/lib/supabase/client"
 import type { WeeklyMenu, MenuItem, Recipe, DayMenu } from "@/lib/types"
@@ -19,7 +17,6 @@ import { Badge } from "@/components/ui/badge"
 import { AiRecipeSuggestion } from "@/components/ai-recipe-suggestion"
 
 import { useAuth } from "@/components/auth/auth-provider"
-
 
 interface WeeklyMenuViewProps {
   weeklyMenu: WeeklyMenu | null
@@ -198,13 +195,11 @@ export function WeeklyMenuView({
           const { data: newMenu, error: createError } = await supabase
             .from("weekly_menus")
             .insert({
-
               name: `Menú del ${formatDateToDDMMYYYY(currentStartDate)} al ${formatDateToDDMMYYYY(endDateStr)}`,
               start_date: currentStartDate,
               end_date: endDateStr,
               user_id: user?.id,
               is_saved: false,
-
             })
             .select()
             .single()
@@ -271,7 +266,6 @@ export function WeeklyMenuView({
         }
       }
 
-
       // Marcar el menú como guardado cuando se añade la primera receta (solo si no estaba guardado)
 
       if (currentWeeklyMenu && !currentWeeklyMenu.is_saved) {
@@ -286,7 +280,6 @@ export function WeeklyMenuView({
         // Actualizar el estado local
         setWeeklyMenu({ ...currentWeeklyMenu, is_saved: true, saved_at: new Date().toISOString() })
 
-
         toast({
           title: "Menú guardado",
           description: "El menú se ha guardado automáticamente al añadir la primera receta.",
@@ -297,7 +290,6 @@ export function WeeklyMenuView({
           description: "El menú se ha actualizado correctamente.",
         })
       }
-
 
       console.log("✅ Receta actualizada correctamente")
     } catch (error) {
@@ -335,7 +327,6 @@ export function WeeklyMenuView({
           .eq("end_date", endDateStr)
           .eq("user_id", user?.id)
           .maybeSingle()
-
 
         if (existingMenu) {
           currentWeeklyMenu = existingMenu
@@ -435,7 +426,6 @@ export function WeeklyMenuView({
     }, 100)
   }
 
-
   const handleRemoveRecipe = async (dayOfWeek: number, mealType: "comida" | "cena", dishOrder?: number) => {
     if (!weeklyMenu) return
 
@@ -484,12 +474,10 @@ export function WeeklyMenuView({
     }
   }
 
-
   // Calcular la fecha de fin para mostrar en el título
   const endDateStr = new Date(new Date(currentStartDate).getTime() + 6 * 24 * 60 * 60 * 1000)
     .toISOString()
     .split("T")[0]
-
 
   return (
     <div className="space-y-6">
@@ -598,7 +586,7 @@ export function WeeklyMenuView({
                     >
                       <SelectTrigger
                         className={
-                          dayMenu.meals.comida[0] ? "font-semibold text-green-700 border-green-300 bg-green-50" : ""
+                          dayMenu.meals.comida[0] ? "font-semibold text-blue-700 border-blue-300 bg-blue-50" : ""
                         }
                       >
                         <SelectValue placeholder="Seleccionar receta" />
@@ -656,7 +644,7 @@ export function WeeklyMenuView({
                     >
                       <SelectTrigger
                         className={
-                          dayMenu.meals.comida[1] ? "font-semibold text-green-700 border-green-300 bg-green-50" : ""
+                          dayMenu.meals.comida[1] ? "font-semibold text-orange-700 border-orange-300 bg-orange-50" : ""
                         }
                       >
                         <SelectValue placeholder="Seleccionar receta" />
@@ -714,7 +702,9 @@ export function WeeklyMenuView({
                     disabled={isUpdating || recipes.length === 0}
                   >
                     <SelectTrigger
-                      className={dayMenu.meals.cena ? "font-semibold text-green-700 border-green-300 bg-green-50" : ""}
+                      className={
+                        dayMenu.meals.cena ? "font-semibold text-purple-700 border-purple-300 bg-purple-50" : ""
+                      }
                     >
                       <SelectValue placeholder="Seleccionar receta" />
                     </SelectTrigger>
@@ -733,7 +723,6 @@ export function WeeklyMenuView({
                       <Button asChild variant="outline" size="sm" className="flex-1">
                         <Link href={`/recipes/${dayMenu.meals.cena.id}`}>
                           <Eye className="h-4 w-4 mr-2" />
-
                           Ver receta
                         </Link>
                       </Button>
