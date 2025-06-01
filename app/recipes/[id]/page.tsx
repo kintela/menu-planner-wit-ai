@@ -7,13 +7,15 @@ import { ArrowLeft } from "lucide-react"
 interface Recipe {
   id: string
   created_at: string
-  title: string
+  name: string // Cambiado de title a name
   ingredients: string[] | string
-  instructions: string[] | string
-  preparation: string
-  image: string
+  preparation: string // Cambiado de instructions a preparation
   image_url: string
-  user_id: string
+  is_ai_generated: boolean
+  video_url: string | null
+  source_url: string | null
+  calories: number | null
+  user_id?: string
 }
 
 async function getRecipe(id: string): Promise<Recipe | null> {
@@ -32,14 +34,20 @@ async function getRecipe(id: string): Promise<Recipe | null> {
     const supabase = createServerClient()
     console.log("✅ Cliente Supabase creado")
 
-    // Consulta más simple y robusta
-    const { data: recipe, error } = await supabase.from("recipes").select("*").eq("id", id).single()
+    // Consulta con los nombres correctos de columnas
+    const { data: recipe, error } = await supabase
+      .from("recipes")
+      .select(
+        "id, name, ingredients, preparation, image_url, is_ai_generated, created_at, video_url, source_url, calories",
+      )
+      .eq("id", id)
+      .single()
 
     console.log("🔍 Resultado consulta:", {
       hasData: !!recipe,
       hasError: !!error,
       errorMessage: error?.message,
-      recipeTitle: recipe?.title,
+      recipeName: recipe?.name,
     })
 
     if (error) {
@@ -101,13 +109,13 @@ export default async function RecipePage({ params }: { params: { id: string } })
       )
     }
 
-    console.log("✅ Receta encontrada:", recipe.title)
+    console.log("✅ Receta encontrada:", recipe.name)
 
     // Procesar datos de forma segura
     const ingredientsArray = ensureArray(recipe.ingredients)
-    const instructionsArray = recipe.instructions ? ensureArray(recipe.instructions) : ensureArray(recipe.preparation)
+    const preparationArray = ensureArray(recipe.preparation)
 
-    const imageUrl = recipe.image_url || recipe.image || null
+    const imageUrl = recipe.image_url || null
 
     return (
       <div className="container mx-auto py-4 sm:py-8 px-4">
@@ -132,8 +140,14 @@ export default async function RecipePage({ params }: { params: { id: string } })
 
           {/* Título */}
           <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-center">
-            {recipe.title || "Receta sin título"}
+            {recipe.name || "Receta sin nombre"}
           </h1>
+
+          {/* Información adicional */}
+          <div className="flex justify-center gap-4 text-sm text-muted-foreground">
+            {recipe.calories && <span>🔥 {recipe.calories} cal</span>}
+            {recipe.is_ai_generated && <span>🤖 Generada por IA</span>}
+          </div>
         </div>
 
         {/* Sección de imagen */}
@@ -141,7 +155,7 @@ export default async function RecipePage({ params }: { params: { id: string } })
           {imageUrl ? (
             <img
               src={imageUrl || "/placeholder.svg"}
-              alt={recipe.title || "Imagen de receta"}
+              alt={recipe.name || "Imagen de receta"}
               className="w-full h-full object-cover rounded-lg"
               loading="lazy"
               onError={(e) => {
@@ -175,22 +189,44 @@ export default async function RecipePage({ params }: { params: { id: string } })
             )}
           </div>
 
-          {/* Instrucciones */}
+          {/* Preparación */}
           <div className="space-y-4">
-            <h2 className="text-lg sm:text-xl font-semibold">Instrucciones:</h2>
-            {instructionsArray.length > 0 ? (
+            <h2 className="text-lg sm:text-xl font-semibold">Preparación:</h2>
+            {preparationArray.length > 0 ? (
               <ol className="list-decimal pl-5 space-y-3 sm:space-y-4">
-                {instructionsArray.map((instruction, index) => (
+                {preparationArray.map((step, index) => (
                   <li key={index} className="text-foreground text-sm sm:text-base">
-                    {instruction}
+                    {step}
                   </li>
                 ))}
               </ol>
             ) : (
-              <p className="text-muted-foreground italic text-sm sm:text-base">No hay instrucciones disponibles</p>
+              <p className="text-muted-foreground italic text-sm sm:text-base">
+                No hay pasos de preparación disponibles
+              </p>
             )}
           </div>
         </div>
+
+        {/* Enlaces adicionales */}
+        {(recipe.video_url || recipe.source_url) && (
+          <div className="mt-8 flex flex-wrap gap-4 justify-center">
+            {recipe.video_url && (
+              <Button asChild variant="outline">
+                <Link href={recipe.video_url} target="_blank" rel="noopener noreferrer">
+                  📹 Ver video
+                </Link>
+              </Button>
+            )}
+            {recipe.source_url && (
+              <Button asChild variant="outline">
+                <Link href={recipe.source_url} target="_blank" rel="noopener noreferrer">
+                  🔗 Fuente original
+                </Link>
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     )
   } catch (error) {
@@ -218,8 +254,8 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
   try {
     const recipe = await getRecipe(params.id)
     return {
-      title: recipe?.title || "Receta",
-      description: `Receta: ${recipe?.title || "Ver detalles de la receta"}`,
+      title: recipe?.name || "Receta",
+      description: `Receta: ${recipe?.name || "Ver detalles de la receta"}`,
     }
   } catch (error) {
     return {
