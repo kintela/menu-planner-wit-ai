@@ -164,8 +164,8 @@ export function UserProfileForm() {
   }
 
   const validateEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(email)
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    return emailRegex.test(email.trim())
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -176,9 +176,11 @@ export function UserProfileForm() {
       return
     }
 
-    // Validar email
+    // Validar formato de email
     if (!formData.email || !validateEmail(formData.email)) {
-      setMessage("Por favor, introduce un email válido")
+      setMessage(
+        "Error: El formato del email no es válido. Por favor, introduce un email con formato correcto (ejemplo@dominio.com)",
+      )
       return
     }
 
@@ -234,12 +236,8 @@ export function UserProfileForm() {
             // Revertir el email al valor original
             setFormData((prev) => ({ ...prev, email: originalEmail }))
 
-            // Mostrar mensaje de error específico
-            if (authError.message.includes("email")) {
-              setMessage("Error: El email no es válido o ya está en uso por otra cuenta.")
-            } else {
-              setMessage("Error: No se pudo actualizar el email. " + authError.message)
-            }
+            // Mensaje más simple
+            setMessage("Error: No se pudo actualizar el email. Inténtalo con otro email.")
 
             clearTimeout(saveTimeoutRef.current)
             setSaving(false)
