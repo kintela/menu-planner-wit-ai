@@ -258,67 +258,12 @@ export function SimpleNavigation() {
             {/* Mobile user info or login */}
             <div className="md:hidden flex items-center space-x-2">
               {user ? (
-                <div className="relative group">
+                <div className="relative">
                   <div
-                    className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium cursor-pointer hover:bg-blue-700 transition-colors select-none"
-                    onMouseEnter={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement
-                      if (tooltip) {
-                        tooltip.style.display = "block"
-                        tooltip.style.opacity = "1"
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement
-                      if (tooltip) {
-                        tooltip.style.opacity = "0"
-                        setTimeout(() => {
-                          if (tooltip.style.opacity === "0") {
-                            tooltip.style.display = "none"
-                          }
-                        }, 200)
-                      }
-                    }}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      const tooltip = e.currentTarget.nextElementSibling as HTMLElement
-                      if (tooltip) {
-                        if (tooltip.style.display === "none" || !tooltip.style.display) {
-                          tooltip.style.display = "block"
-                          tooltip.style.opacity = "1"
-                          // Auto-ocultar después de 3 segundos en móvil
-                          setTimeout(() => {
-                            tooltip.style.opacity = "0"
-                            setTimeout(() => {
-                              tooltip.style.display = "none"
-                            }, 200)
-                          }, 3000)
-                        } else {
-                          tooltip.style.opacity = "0"
-                          setTimeout(() => {
-                            tooltip.style.display = "none"
-                          }, 200)
-                        }
-                      }
-                    }}
+                    className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium cursor-pointer hover:bg-blue-700 transition-colors"
+                    title={`${userProfile?.full_name || "Usuario"}: ${user.email}`}
                   >
                     {(userProfile?.full_name?.charAt(0) || user.email?.charAt(0) || "").toUpperCase()}
-                  </div>
-                  <div
-                    className="absolute top-full right-0 mt-2 bg-gray-900 text-white shadow-lg rounded-lg p-3 text-xs z-50 whitespace-nowrap transition-opacity duration-200"
-                    style={{ display: "none", opacity: "0" }}
-                  >
-                    <div className="text-center">
-                      <div className="font-medium">{userProfile?.full_name || "Usuario"}</div>
-                      <div className="text-gray-300 mt-1">{user.email}</div>
-                      {userProfile?.role === "admin" && (
-                        <div className="mt-2">
-                          <span className="px-2 py-1 bg-red-500 text-white text-xs rounded-full">Admin</span>
-                        </div>
-                      )}
-                    </div>
-                    {/* Flecha del tooltip */}
-                    <div className="absolute -top-1 right-4 w-2 h-2 bg-gray-900 transform rotate-45"></div>
                   </div>
                 </div>
               ) : (
