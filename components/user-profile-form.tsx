@@ -2,14 +2,14 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Upload, Save, Loader2 } from "lucide-react"
+import { Upload, Save, Loader2, AlertCircle } from "lucide-react"
 
 interface UserProfile {
   id: string
@@ -29,6 +29,7 @@ export function UserProfileForm() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState("")
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const [formData, setFormData] = useState({
     first_name: "",
@@ -45,6 +46,13 @@ export function UserProfileForm() {
 
   useEffect(() => {
     loadProfile()
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
   }, [])
 
   const loadProfile = async () => {
@@ -84,7 +92,7 @@ export function UserProfileForm() {
         last_name: profileData.last_name || "",
         alias: profileData.alias || "",
         phone: profileData.phone || "",
-        email: profileData.email || "",
+        email: profileData.email || user.email || "",
       })
 
       setMessage("")
@@ -166,6 +174,12 @@ export function UserProfileForm() {
       setSaving(true)
       setMessage("Guardando cambios...")
 
+      // Establecer un timeout de seguridad para evitar que se quede bloqueado
+      saveTimeoutRef.current = setTimeout(() => {
+        setSaving(false)
+        setMessage("Error: La operación ha tardado demasiado tiempo. Por favor, inténtalo de nuevo.")
+      }, 15000) // 15 segundos de timeout
+
       let avatarUrl = profile.avatar_url
 
       // Subir avatar si se seleccionó uno nuevo
@@ -174,6 +188,8 @@ export function UserProfileForm() {
         if (uploadedUrl) {
           avatarUrl = uploadedUrl
         } else {
+          clearTimeout(saveTimeoutRef.current)
+          setSaving(false)
           return // Error en la subida
         }
       }
@@ -181,20 +197,8 @@ export function UserProfileForm() {
       // Construir el nombre completo
       const fullName = [formData.first_name, formData.last_name].filter(Boolean).join(" ") || null
 
-      // Si el email ha cambiado, actualizar también en auth
-      if (formData.email !== profile.email) {
-        const { error: authError } = await supabase.auth.updateUser({
-          email: formData.email,
-        })
-
-        if (authError) {
-          console.error("Error updating auth email:", authError)
-          setMessage("Error al actualizar el email de autenticación")
-          return
-        }
-      }
-
-      const { error } = await supabase
+      // Primero actualizar el perfil en la base de datos
+      const { error: profileError } = await supabase
         .from("user_profiles")
         .update({
           first_name: formData.first_name || null,
@@ -208,10 +212,41 @@ export function UserProfileForm() {
         })
         .eq("id", profile.id)
 
-      if (error) {
-        console.error("Error updating profile:", error)
+      if (profileError) {
+        console.error("Error updating profile:", profileError)
         setMessage("Error al actualizar el perfil")
+        clearTimeout(saveTimeoutRef.current)
+        setSaving(false)
         return
+      }
+
+      // Si el email ha cambiado, actualizar también en auth
+      // Nota: Esto lo hacemos después de actualizar el perfil para evitar inconsistencias
+      if (formData.email !== profile.email) {
+        try {
+          const { error: authError } = await supabase.auth.updateUser({
+            email: formData.email,
+          })
+
+          if (authError) {
+            console.error("Error updating auth email:", authError)
+            setMessage("Se actualizó el perfil, pero hubo un error al actualizar el email de autenticación")
+            clearTimeout(saveTimeoutRef.current)
+            setSaving(false)
+            return
+          }
+        } catch (authError) {
+          console.error("Exception updating auth email:", authError)
+          setMessage("Se actualizó el perfil, pero hubo un error al actualizar el email de autenticación")
+          clearTimeout(saveTimeoutRef.current)
+          setSaving(false)
+          return
+        }
+      }
+
+      // Limpiar el timeout ya que todo salió bien
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
       }
 
       // Recargar el perfil
@@ -269,7 +304,7 @@ export function UserProfileForm() {
         <CardTitle>Información Personal</CardTitle>
         {message && (
           <div
-            className={`text-sm p-2 rounded ${
+            className={`text-sm p-2 rounded flex items-center ${
               message.includes("✅")
                 ? "bg-green-100 text-green-700"
                 : message.includes("Error")
@@ -277,6 +312,7 @@ export function UserProfileForm() {
                   : "bg-blue-100 text-blue-700"
             }`}
           >
+            {message.includes("Error") && <AlertCircle className="h-4 w-4 mr-2" />}
             {message}
           </div>
         )}
@@ -290,7 +326,7 @@ export function UserProfileForm() {
               <AvatarFallback className="text-lg">
                 {formData.first_name?.charAt(0) ||
                   profile.full_name?.charAt(0) ||
-                  profile.email.charAt(0).toUpperCase()}
+                  formData.email.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
 
@@ -307,7 +343,7 @@ export function UserProfileForm() {
                 accept="image/*"
                 onChange={handleAvatarChange}
                 className="hidden"
-                disabled={uploading}
+                disabled={uploading || saving}
               />
             </div>
           </div>
@@ -321,6 +357,7 @@ export function UserProfileForm() {
                 value={formData.first_name}
                 onChange={(e) => handleInputChange("first_name", e.target.value)}
                 placeholder="Tu nombre"
+                disabled={saving}
               />
             </div>
 
@@ -331,6 +368,7 @@ export function UserProfileForm() {
                 value={formData.last_name}
                 onChange={(e) => handleInputChange("last_name", e.target.value)}
                 placeholder="Tus apellidos"
+                disabled={saving}
               />
             </div>
           </div>
@@ -342,6 +380,7 @@ export function UserProfileForm() {
               value={formData.alias}
               onChange={(e) => handleInputChange("alias", e.target.value)}
               placeholder="Tu nombre de usuario"
+              disabled={saving}
             />
           </div>
 
@@ -353,6 +392,7 @@ export function UserProfileForm() {
               onChange={(e) => handleInputChange("phone", e.target.value)}
               placeholder="Tu número de teléfono"
               type="tel"
+              disabled={saving}
             />
           </div>
 
@@ -365,6 +405,7 @@ export function UserProfileForm() {
               placeholder="Tu email"
               type="email"
               required
+              disabled={saving}
             />
           </div>
 
