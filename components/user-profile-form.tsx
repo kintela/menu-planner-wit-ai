@@ -168,56 +168,19 @@ export function UserProfileForm() {
     }
   }
 
-  // Función para listar y eliminar avatares antiguos
-  const deleteOldAvatars = async (userId: string, currentAvatarUrl: string | null) => {
+  // Función simplificada para extraer el path del archivo de la URL
+  const extractFilePathFromUrl = (url: string): string | null => {
     try {
-      console.log("Listing files in user folder:", userId)
-
-      // Listar todos los archivos en la carpeta del usuario
-      const { data: files, error: listError } = await supabase.storage.from("avatars").list(userId)
-
-      if (listError) {
-        console.error("Error listing files:", listError)
-        return
+      // Buscar el patrón después de '/avatars/'
+      const match = url.match(/\/avatars\/(.+)$/)
+      if (match && match[1]) {
+        console.log("Extracted file path:", match[1])
+        return match[1]
       }
-
-      if (!files || files.length === 0) {
-        console.log("No files found in user folder")
-        return
-      }
-
-      console.log("Files found:", files.length)
-
-      // Extraer el nombre del archivo actual (si existe)
-      let currentFileName = null
-      if (currentAvatarUrl) {
-        const urlParts = currentAvatarUrl.split("/")
-        currentFileName = urlParts[urlParts.length - 1]
-        console.log("Current avatar filename:", currentFileName)
-      }
-
-      // Filtrar archivos para eliminar (todos excepto el actual)
-      const filesToDelete = files
-        .filter((file) => !currentFileName || file.name !== currentFileName)
-        .map((file) => `${userId}/${file.name}`)
-
-      if (filesToDelete.length === 0) {
-        console.log("No files to delete")
-        return
-      }
-
-      console.log("Files to delete:", filesToDelete)
-
-      // Eliminar archivos antiguos
-      const { error: deleteError } = await supabase.storage.from("avatars").remove(filesToDelete)
-
-      if (deleteError) {
-        console.error("Error deleting files:", deleteError)
-      } else {
-        console.log("✅ Successfully deleted", filesToDelete.length, "old avatar(s)")
-      }
+      return null
     } catch (error) {
-      console.error("Error in deleteOldAvatars:", error)
+      console.error("Error extracting file path:", error)
+      return null
     }
   }
 
@@ -232,43 +195,51 @@ export function UserProfileForm() {
         return null
       }
 
+      // Guardar la URL del avatar anterior para eliminarlo después
+      const oldAvatarUrl = profile.avatar_url
+
       // Subir la nueva imagen
       const fileExt = file.name.split(".").pop()
       const fileName = `avatar-${Date.now()}.${fileExt}`
       const filePath = `${profile.id}/${fileName}`
 
-      console.log("Uploading new image:", filePath)
+      console.log("🔄 Uploading new avatar:", filePath)
 
       const { error: uploadError } = await supabase.storage.from("avatars").upload(filePath, file, { upsert: true })
 
       if (uploadError) {
-        console.error("Error uploading avatar:", uploadError)
+        console.error("❌ Error uploading avatar:", uploadError)
         setMessage("Error al subir la imagen")
         return null
       }
 
       // Obtener la URL pública de la nueva imagen
       const { data } = supabase.storage.from("avatars").getPublicUrl(filePath)
-      console.log("New avatar URL:", data.publicUrl)
+      console.log("✅ New avatar uploaded successfully:", data.publicUrl)
 
-      // Eliminar avatares antiguos después de subir el nuevo
-      await deleteOldAvatars(profile.id, data.publicUrl)
+      // Intentar eliminar el avatar anterior si existe
+      if (oldAvatarUrl) {
+        console.log("🗑️ Attempting to delete old avatar:", oldAvatarUrl)
+        const oldFilePath = extractFilePathFromUrl(oldAvatarUrl)
 
-      // Forzar actualización de la navegación
-      window.localStorage.setItem("avatar_updated", Date.now().toString())
+        if (oldFilePath) {
+          console.log("🗑️ Deleting file path:", oldFilePath)
+          const { error: deleteError } = await supabase.storage.from("avatars").remove([oldFilePath])
 
-      // Disparar evento personalizado para actualizar la navegación
-      const event = new CustomEvent("avatar_updated", {
-        detail: {
-          avatarUrl: data.publicUrl,
-          timestamp: Date.now(),
-        },
-      })
-      window.dispatchEvent(event)
+          if (deleteError) {
+            console.error("❌ Error deleting old avatar:", deleteError)
+            console.error("Delete error details:", JSON.stringify(deleteError, null, 2))
+          } else {
+            console.log("✅ Old avatar deleted successfully")
+          }
+        } else {
+          console.warn("⚠️ Could not extract file path from old avatar URL")
+        }
+      }
 
       return data.publicUrl
     } catch (error) {
-      console.error("Error uploading avatar:", error)
+      console.error("❌ Error in uploadAvatar:", error)
       setMessage("Error al subir la imagen")
       return null
     } finally {
@@ -361,38 +332,36 @@ export function UserProfileForm() {
         clearTimeout(saveTimeoutRef.current)
       }
 
-      // Recargar el perfil
-      await loadProfile()
+      // Actualizar el estado local del perfil sin recargar
+      setProfile((prev) => ({
+        ...prev!,
+        first_name: formData.first_name || null,
+        last_name: formData.last_name || null,
+        alias: formData.alias || null,
+        phone: formData.phone || null,
+        email: formData.email,
+        full_name: fullName,
+        avatar_url: avatarUrl,
+      }))
 
-      // Forzar actualización del estado de autenticación para que la navegación se actualice
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (user) {
-        // Forzar actualización de la navegación
-        window.localStorage.setItem("avatar_updated", Date.now().toString())
+      // Disparar evento personalizado para actualizar la navegación
+      const event = new CustomEvent("avatar_updated", {
+        detail: {
+          avatarUrl: avatarUrl,
+          fullName: fullName,
+          timestamp: Date.now(),
+        },
+      })
+      window.dispatchEvent(event)
 
-        // Disparar evento personalizado para actualizar la navegación
-        const event = new CustomEvent("avatar_updated", {
-          detail: {
-            avatarUrl: avatarUrl,
-            timestamp: Date.now(),
-          },
-        })
-        window.dispatchEvent(event)
-
-        // Forzar recarga de la página para actualizar la navegación
-        window.location.reload()
-      }
-
-      // Limpiar estado del formulario
+      // Limpiar estado del formulario de avatar
       setAvatarFile(null)
       setAvatarPreview(null)
 
       setMessage("✅ Perfil actualizado correctamente")
 
-      // Limpiar mensaje después de 5 segundos
-      setTimeout(() => setMessage(""), 5000)
+      // Limpiar mensaje después de 3 segundos
+      setTimeout(() => setMessage(""), 3000)
     } catch (error) {
       console.error("Error:", error)
       setMessage("Error inesperado al actualizar el perfil")
