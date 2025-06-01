@@ -1,5 +1,4 @@
 import { createServerClient } from "@/lib/supabase/server"
-import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
@@ -7,9 +6,9 @@ import { ArrowLeft } from "lucide-react"
 interface Recipe {
   id: string
   created_at: string
-  name: string // Cambiado de title a name
+  name: string
   ingredients: string[] | string
-  preparation: string // Cambiado de instructions a preparation
+  preparation: string
   image_url: string
   is_ai_generated: boolean
   video_url: string | null
@@ -47,14 +46,26 @@ async function getRecipe(id: string): Promise<Recipe | null> {
       hasData: !!recipe,
       hasError: !!error,
       errorMessage: error?.message,
+      errorCode: error?.code,
       recipeName: recipe?.name,
     })
 
     if (error) {
+      // Si el error es "PGRST116", significa que no se encontró la receta
+      if (error.code === "PGRST116") {
+        console.log("ℹ️ Receta no encontrada (ID no existe):", id)
+        return null
+      }
       console.error("❌ Error Supabase:", error)
       return null
     }
 
+    if (!recipe) {
+      console.log("ℹ️ Receta no encontrada (sin datos):", id)
+      return null
+    }
+
+    console.log("✅ Receta encontrada:", recipe.name)
     return recipe
   } catch (error) {
     console.error("❌ Error crítico en getRecipe:", error)
@@ -84,19 +95,30 @@ export default async function RecipePage({ params }: { params: { id: string } })
 
     if (!id || typeof id !== "string" || id.trim() === "") {
       console.error("❌ ID inválido:", id)
-      notFound()
+      return (
+        <div className="container mx-auto py-8 px-4 text-center">
+          <h1 className="text-2xl font-bold mb-4">ID de receta inválido</h1>
+          <p className="text-muted-foreground mb-6">El ID de la receta no es válido.</p>
+          <Button asChild>
+            <Link href="/recipes">Ver todas las recetas</Link>
+          </Button>
+        </div>
+      )
     }
 
+    console.log("🔍 Llamando a getRecipe para ID:", id)
     const recipe = await getRecipe(id)
 
     if (!recipe) {
-      console.error("❌ Receta no encontrada para ID:", id)
+      console.log("❌ Receta no encontrada para ID:", id)
 
-      // En lugar de notFound(), mostrar una página de error amigable
+      // Mostrar página de error amigable en lugar de notFound()
       return (
         <div className="container mx-auto py-8 px-4 text-center">
           <h1 className="text-2xl font-bold mb-4">Receta no encontrada</h1>
-          <p className="text-muted-foreground mb-6">Lo sentimos, no pudimos encontrar la receta que buscas.</p>
+          <p className="text-muted-foreground mb-6">
+            Lo sentimos, la receta con ID {id} no existe o ha sido eliminada.
+          </p>
           <div className="space-x-4">
             <Button asChild>
               <Link href="/recipes">Ver todas las recetas</Link>
@@ -109,7 +131,7 @@ export default async function RecipePage({ params }: { params: { id: string } })
       )
     }
 
-    console.log("✅ Receta encontrada:", recipe.name)
+    console.log("✅ Receta encontrada, renderizando:", recipe.name)
 
     // Procesar datos de forma segura
     const ingredientsArray = ensureArray(recipe.ingredients)
