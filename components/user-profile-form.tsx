@@ -168,6 +168,14 @@ export function UserProfileForm() {
     return emailRegex.test(email.trim())
   }
 
+  const validatePhone = (phone: string): boolean => {
+    // Si el campo está vacío, lo consideramos válido (no es obligatorio)
+    if (!phone) return true
+
+    const phoneRegex = /^[67]\d{8}$/
+    return phoneRegex.test(phone.trim())
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -176,10 +184,18 @@ export function UserProfileForm() {
       return
     }
 
-    // Validar formato de email solo con expresión regular
+    // Validar formato de email
     if (!formData.email || !validateEmail(formData.email)) {
       setMessage(
         "Error: El formato del email no es válido. Por favor, introduce un email con formato correcto (ejemplo@dominio.com)",
+      )
+      return
+    }
+
+    // Validar formato de teléfono móvil
+    if (formData.phone && !validatePhone(formData.phone)) {
+      setMessage(
+        "Error: El formato del teléfono móvil no es válido. Debe comenzar por 6 o 7 y tener 9 dígitos en total.",
       )
       return
     }
@@ -383,10 +399,11 @@ export function UserProfileForm() {
               id="phone"
               value={formData.phone}
               onChange={(e) => handleInputChange("phone", e.target.value)}
-              placeholder="Tu número de teléfono"
+              placeholder="Debe comenzar por 6 o 7 y tener 9 dígitos"
               type="tel"
               disabled={saving}
             />
+            <p className="text-xs text-gray-500">Formato: 6XXXXXXXX o 7XXXXXXXX</p>
           </div>
 
           <div className="space-y-2">
