@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Upload, Save, Loader2 } from "lucide-react"
-import { useRouter } from "next/navigation"
 
 interface UserProfile {
   id: string
@@ -28,16 +27,18 @@ export function UserProfileForm() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [message, setMessage] = useState("")
+
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
     alias: "",
   })
+
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
 
   const supabase = createClient()
-  const router = useRouter()
 
   useEffect(() => {
     loadProfile()
@@ -45,21 +46,34 @@ export function UserProfileForm() {
 
   const loadProfile = async () => {
     try {
+      console.log("Loading profile...")
+
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser()
 
-      if (!user) {
-        router.push("/login")
+      if (userError || !user) {
+        console.error("Error getting user:", userError)
+        setMessage("Error: No se pudo obtener el usuario")
         return
       }
 
-      const { data: profileData, error } = await supabase.from("user_profiles").select("*").eq("id", user.id).single()
+      console.log("User found:", user.email)
 
-      if (error) {
-        console.error("Error loading profile:", error)
+      const { data: profileData, error: profileError } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single()
+
+      if (profileError) {
+        console.error("Error loading profile:", profileError)
+        setMessage("Error al cargar el perfil")
         return
       }
+
+      console.log("Profile loaded:", profileData)
 
       setProfile(profileData)
       setFormData({
@@ -67,8 +81,11 @@ export function UserProfileForm() {
         last_name: profileData.last_name || "",
         alias: profileData.alias || "",
       })
+
+      setMessage("")
     } catch (error) {
       console.error("Error:", error)
+      setMessage("Error inesperado al cargar el perfil")
     } finally {
       setLoading(false)
     }
@@ -84,6 +101,12 @@ export function UserProfileForm() {
   const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
+      // Verificar tamaño del archivo (máximo 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setMessage("La imagen es demasiado grande. Máximo 5MB.")
+        return
+      }
+
       setAvatarFile(file)
       const reader = new FileReader()
       reader.onload = (e) => {
@@ -96,22 +119,24 @@ export function UserProfileForm() {
   const uploadAvatar = async (file: File): Promise<string | null> => {
     try {
       setUploading(true)
+      setMessage("Subiendo imagen...")
 
       const fileExt = file.name.split(".").pop()
-      const fileName = `${profile?.id}/avatar.${fileExt}`
+      const fileName = `${profile?.id}/avatar-${Date.now()}.${fileExt}`
 
       const { error: uploadError } = await supabase.storage.from("avatars").upload(fileName, file, { upsert: true })
 
       if (uploadError) {
         console.error("Error uploading avatar:", uploadError)
+        setMessage("Error al subir la imagen")
         return null
       }
 
       const { data } = supabase.storage.from("avatars").getPublicUrl(fileName)
-
       return data.publicUrl
     } catch (error) {
       console.error("Error uploading avatar:", error)
+      setMessage("Error al subir la imagen")
       return null
     } finally {
       setUploading(false)
@@ -121,22 +146,28 @@ export function UserProfileForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!profile) return
+    if (!profile) {
+      setMessage("No se pudo cargar el perfil")
+      return
+    }
 
     try {
       setSaving(true)
+      setMessage("Guardando cambios...")
 
       let avatarUrl = profile.avatar_url
 
-      // Upload avatar if a new file was selected
+      // Subir avatar si se seleccionó uno nuevo
       if (avatarFile) {
         const uploadedUrl = await uploadAvatar(avatarFile)
         if (uploadedUrl) {
           avatarUrl = uploadedUrl
+        } else {
+          return // Error en la subida
         }
       }
 
-      // Update the full_name field based on first_name and last_name
+      // Construir el nombre completo
       const fullName = [formData.first_name, formData.last_name].filter(Boolean).join(" ") || null
 
       const { error } = await supabase
@@ -153,21 +184,24 @@ export function UserProfileForm() {
 
       if (error) {
         console.error("Error updating profile:", error)
-        alert("Error al actualizar el perfil")
+        setMessage("Error al actualizar el perfil")
         return
       }
 
-      // Reload profile data
+      // Recargar el perfil
       await loadProfile()
 
-      // Clear form state
+      // Limpiar estado del formulario
       setAvatarFile(null)
       setAvatarPreview(null)
 
-      alert("Perfil actualizado correctamente")
+      setMessage("✅ Perfil actualizado correctamente")
+
+      // Limpiar mensaje después de 3 segundos
+      setTimeout(() => setMessage(""), 3000)
     } catch (error) {
       console.error("Error:", error)
-      alert("Error al actualizar el perfil")
+      setMessage("Error inesperado al actualizar el perfil")
     } finally {
       setSaving(false)
     }
@@ -175,17 +209,27 @@ export function UserProfileForm() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
+      <Card>
+        <CardContent className="p-8">
+          <div className="flex items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin mr-2" />
+            <span>Cargando perfil...</span>
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
   if (!profile) {
     return (
-      <div className="text-center p-8">
-        <p>No se pudo cargar el perfil del usuario</p>
-      </div>
+      <Card>
+        <CardContent className="p-8">
+          <div className="text-center">
+            <p className="text-red-600 mb-4">{message || "No se pudo cargar el perfil"}</p>
+            <Button onClick={loadProfile}>Reintentar</Button>
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
@@ -193,6 +237,19 @@ export function UserProfileForm() {
     <Card>
       <CardHeader>
         <CardTitle>Información Personal</CardTitle>
+        {message && (
+          <div
+            className={`text-sm p-2 rounded ${
+              message.includes("✅")
+                ? "bg-green-100 text-green-700"
+                : message.includes("Error")
+                  ? "bg-red-100 text-red-700"
+                  : "bg-blue-100 text-blue-700"
+            }`}
+          >
+            {message}
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -201,7 +258,9 @@ export function UserProfileForm() {
             <Avatar className="w-24 h-24">
               <AvatarImage src={avatarPreview || profile.avatar_url || undefined} alt="Avatar" />
               <AvatarFallback className="text-lg">
-                {profile.first_name?.charAt(0) || profile.full_name?.charAt(0) || profile.email.charAt(0)}
+                {formData.first_name?.charAt(0) ||
+                  profile.full_name?.charAt(0) ||
+                  profile.email.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
 
@@ -223,7 +282,7 @@ export function UserProfileForm() {
             </div>
           </div>
 
-          {/* Personal Information */}
+          {/* Información Personal */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="first_name">Nombre</Label>
@@ -256,7 +315,7 @@ export function UserProfileForm() {
             />
           </div>
 
-          {/* Read-only Information */}
+          {/* Información de Solo Lectura */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Email</Label>
@@ -269,7 +328,7 @@ export function UserProfileForm() {
             </div>
           </div>
 
-          {/* Submit Button */}
+          {/* Botón de Envío */}
           <div className="flex justify-end">
             <Button type="submit" disabled={saving || uploading} className="flex items-center space-x-2">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
