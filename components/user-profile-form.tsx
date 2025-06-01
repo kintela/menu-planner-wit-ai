@@ -310,7 +310,7 @@ export function UserProfileForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="alias">Alias (opcional)</Label>
+            <Label htmlFor="alias">Alias</Label>
             <Input
               id="alias"
               value={formData.alias}
