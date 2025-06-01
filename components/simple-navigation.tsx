@@ -258,17 +258,18 @@ export function SimpleNavigation() {
             {/* Mobile user info or login */}
             <div className="md:hidden flex items-center space-x-2">
               {user ? (
-                <div className="relative group">
-                  <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium cursor-pointer hover:bg-blue-700 transition-colors">
-                    {(userProfile?.full_name?.charAt(0) || user.email?.charAt(0) || "").toUpperCase()}
-                  </div>
-                  <div className="absolute bottom-full right-0 mb-2 px-3 py-2 bg-black text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50">
-                    <div className="font-medium">{userProfile?.full_name || "Usuario"}</div>
-                    <div className="text-gray-300">{user.email}</div>
-                    {userProfile?.role === "admin" && <div className="text-red-300">Administrador</div>}
-                    <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-black"></div>
-                  </div>
-                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-8 h-8 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-colors p-0 min-w-0"
+                  onClick={() => {
+                    alert(
+                      `Usuario: ${userProfile?.full_name || "Usuario"}\nEmail: ${user.email}${userProfile?.role === "admin" ? "\nRol: Administrador" : ""}`,
+                    )
+                  }}
+                >
+                  {(userProfile?.full_name?.charAt(0) || user.email?.charAt(0) || "").toUpperCase()}
+                </Button>
               ) : (
                 <Link href="/login">
                   <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1">
