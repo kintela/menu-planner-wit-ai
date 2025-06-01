@@ -17,25 +17,25 @@ interface Recipe {
 }
 
 async function getRecipe(id: string): Promise<Recipe | null> {
-  console.log("🔍 DEBUG - getRecipe iniciado para ID:", id)
-
   try {
+    console.log("🔍 DEBUG - getRecipe iniciado para ID:", id)
+
     // Validar que el ID sea un número válido
     const numericId = Number.parseInt(id, 10)
     if (isNaN(numericId) || numericId <= 0) {
       console.error("❌ ID de receta inválido:", id)
       return null
     }
+
     console.log("✅ ID validado correctamente:", numericId)
 
-    console.log("🔍 Intentando crear cliente Supabase...")
     const supabase = createServerClient()
-    console.log("✅ Cliente Supabase creado exitosamente")
+    console.log("✅ Cliente Supabase creado")
 
-    console.log("🔍 Ejecutando consulta a la base de datos...")
+    // Consulta más simple y robusta
     const { data: recipe, error } = await supabase.from("recipes").select("*").eq("id", id).single()
 
-    console.log("🔍 Resultado de la consulta:", {
+    console.log("🔍 Resultado consulta:", {
       hasData: !!recipe,
       hasError: !!error,
       errorMessage: error?.message,
@@ -43,19 +43,13 @@ async function getRecipe(id: string): Promise<Recipe | null> {
     })
 
     if (error) {
-      console.error("❌ Error en consulta Supabase:", error)
+      console.error("❌ Error Supabase:", error)
       return null
     }
 
-    if (!recipe) {
-      console.error("❌ Receta no encontrada para ID:", id)
-      return null
-    }
-
-    console.log("✅ Receta obtenida exitosamente:", recipe.title)
     return recipe
   } catch (error) {
-    console.error("❌ Error inesperado en getRecipe:", error)
+    console.error("❌ Error crítico en getRecipe:", error)
     return null
   }
 }
@@ -75,47 +69,48 @@ function ensureArray(value: string[] | string | null | undefined): string[] {
 }
 
 export default async function RecipePage({ params }: { params: { id: string } }) {
-  console.log("🔍 DEBUG - RecipePage iniciado con params:", params)
+  console.log("🔍 DEBUG - RecipePage iniciado con ID:", params.id)
 
   try {
     const { id } = params
-    console.log("🔍 ID extraído de params:", id)
 
-    // Validación más estricta del parámetro ID
     if (!id || typeof id !== "string" || id.trim() === "") {
-      console.error("❌ Parámetro ID inválido:", id)
+      console.error("❌ ID inválido:", id)
       notFound()
     }
 
-    console.log("🔍 Llamando a getRecipe...")
     const recipe = await getRecipe(id)
-    console.log("🔍 Resultado de getRecipe:", recipe ? "Receta encontrada" : "Receta no encontrada")
 
-    // Si no se encuentra la receta, mostrar 404
     if (!recipe) {
-      console.error("❌ Receta no encontrada, mostrando 404 para ID:", id)
-      notFound()
+      console.error("❌ Receta no encontrada para ID:", id)
+
+      // En lugar de notFound(), mostrar una página de error amigable
+      return (
+        <div className="container mx-auto py-8 px-4 text-center">
+          <h1 className="text-2xl font-bold mb-4">Receta no encontrada</h1>
+          <p className="text-muted-foreground mb-6">Lo sentimos, no pudimos encontrar la receta que buscas.</p>
+          <div className="space-x-4">
+            <Button asChild>
+              <Link href="/recipes">Ver todas las recetas</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/">Ir al inicio</Link>
+            </Button>
+          </div>
+        </div>
+      )
     }
 
-    console.log("🔍 Procesando datos de la receta...")
-    // Procesar datos de la receta de forma segura
+    console.log("✅ Receta encontrada:", recipe.title)
+
+    // Procesar datos de forma segura
     const ingredientsArray = ensureArray(recipe.ingredients)
     const instructionsArray = recipe.instructions ? ensureArray(recipe.instructions) : ensureArray(recipe.preparation)
 
-    // Manejar URL de imagen de forma segura
     const imageUrl = recipe.image_url || recipe.image || null
-
-    console.log("✅ Renderizando página de receta:", recipe.title)
 
     return (
       <div className="container mx-auto py-4 sm:py-8 px-4">
-        {/* Debug info - solo visible en desarrollo */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="mb-4 p-2 bg-yellow-100 text-yellow-800 text-xs rounded">
-            Debug: Receta ID {id} cargada correctamente
-          </div>
-        )}
-
         <div className="mb-6 flex flex-col gap-4">
           {/* Navegación superior */}
           <div className="flex justify-between items-center">
@@ -200,35 +195,33 @@ export default async function RecipePage({ params }: { params: { id: string } })
     )
   } catch (error) {
     console.error("❌ Error crítico en RecipePage:", error)
-    console.error("❌ Stack trace:", error instanceof Error ? error.stack : "No stack available")
 
-    // En producción, mostrar una página de error amigable
+    // Página de error amigable en lugar de crash
     return (
       <div className="container mx-auto py-8 px-4 text-center">
         <h1 className="text-2xl font-bold mb-4">Error al cargar la receta</h1>
-        <p className="text-muted-foreground mb-4">Lo sentimos, ha ocurrido un error al cargar esta receta.</p>
-        <Button asChild>
-          <Link href="/recipes">Volver a recetas</Link>
-        </Button>
+        <p className="text-muted-foreground mb-6">Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo.</p>
+        <div className="space-x-4">
+          <Button asChild>
+            <Link href="/recipes">Ver todas las recetas</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/">Ir al inicio</Link>
+          </Button>
+        </div>
       </div>
     )
   }
 }
 
-// Generar metadata de forma segura
 export async function generateMetadata({ params }: { params: { id: string } }) {
-  console.log("🔍 DEBUG - generateMetadata para ID:", params.id)
-
   try {
     const recipe = await getRecipe(params.id)
-    console.log("🔍 Metadata generada para:", recipe?.title || "Receta no encontrada")
-
     return {
       title: recipe?.title || "Receta",
       description: `Receta: ${recipe?.title || "Ver detalles de la receta"}`,
     }
   } catch (error) {
-    console.error("❌ Error generando metadata:", error)
     return {
       title: "Receta",
       description: "Ver detalles de la receta",
