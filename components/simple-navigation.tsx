@@ -90,45 +90,31 @@ export function SimpleNavigation() {
     // Listener para actualizaciones de perfil
     const handleProfileUpdate = async (event: Event) => {
       const customEvent = event as CustomEvent
-      console.log("Profile update event received:", customEvent.detail)
+      console.log("🔄 Navigation received profile update event:", customEvent.detail)
 
       // Forzar recarga del avatar
       setAvatarKey(Date.now())
 
-      // Recargar el perfil del usuario
+      // Recargar el perfil del usuario inmediatamente
       if (user) {
+        console.log("🔄 Reloading user profile in navigation...")
         const profile = await loadUserProfile(user.id)
         if (profile) {
+          console.log("✅ Navigation profile updated:", profile)
           setUserProfile(profile)
         }
       }
     }
 
     // Escuchar el evento personalizado
+    console.log("🎧 Navigation listening for avatar_updated events")
     window.addEventListener("avatar_updated", handleProfileUpdate)
-
-    // Verificar cambios en localStorage
-    const checkLocalStorage = () => {
-      const lastUpdate = window.localStorage.getItem("avatar_updated")
-      if (lastUpdate && user) {
-        loadUserProfile(user.id).then((profile) => {
-          if (profile) {
-            setUserProfile(profile)
-            setAvatarKey(Date.now())
-          }
-        })
-      }
-    }
-
-    // Verificar cambios cada segundo
-    const interval = setInterval(checkLocalStorage, 1000)
 
     return () => {
       subscription.unsubscribe()
       window.removeEventListener("avatar_updated", handleProfileUpdate)
-      clearInterval(interval)
     }
-  }, [supabase])
+  }, [supabase, user]) // Añadir 'user' como dependencia
 
   const handleSignOut = async () => {
     try {
@@ -287,7 +273,7 @@ export function SimpleNavigation() {
                       <AvatarImage
                         src={userProfile?.avatar_url || undefined}
                         alt="Avatar"
-                        key={`avatar-${avatarKey}`}
+                        key={`desktop-avatar-${avatarKey}-${userProfile?.avatar_url}`}
                       />
                       <AvatarFallback className="text-xs">
                         {userProfile?.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
@@ -341,7 +327,7 @@ export function SimpleNavigation() {
                     <AvatarImage
                       src={userProfile?.avatar_url || undefined}
                       alt="Avatar"
-                      key={`avatar-mobile-${avatarKey}`}
+                      key={`mobile-avatar-${avatarKey}-${userProfile?.avatar_url}`}
                     />
                     <AvatarFallback className="text-xs">
                       {userProfile?.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}

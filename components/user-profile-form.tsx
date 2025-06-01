@@ -345,6 +345,12 @@ export function UserProfileForm() {
       }))
 
       // Disparar evento personalizado para actualizar la navegación
+      console.log("🚀 Dispatching avatar_updated event with:", {
+        avatarUrl: avatarUrl,
+        fullName: fullName,
+        timestamp: Date.now(),
+      })
+
       const event = new CustomEvent("avatar_updated", {
         detail: {
           avatarUrl: avatarUrl,
@@ -353,6 +359,20 @@ export function UserProfileForm() {
         },
       })
       window.dispatchEvent(event)
+
+      // Pequeña pausa para asegurar que el evento se procese
+      setTimeout(() => {
+        console.log("🔄 Forcing navigation update...")
+        window.dispatchEvent(
+          new CustomEvent("avatar_updated", {
+            detail: {
+              avatarUrl: avatarUrl,
+              fullName: fullName,
+              timestamp: Date.now() + 1,
+            },
+          }),
+        )
+      }, 100)
 
       // Limpiar estado del formulario de avatar
       setAvatarFile(null)
