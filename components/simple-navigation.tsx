@@ -13,6 +13,9 @@ import { ChefHat, Calendar, LogOut, Menu, X, History, Settings, Home } from "luc
 interface UserProfile {
   role: string
   full_name: string
+  first_name?: string
+  last_name?: string
+  alias?: string
   avatar_url?: string
 }
 
@@ -26,12 +29,40 @@ export function SimpleNavigation() {
   const [avatarKey, setAvatarKey] = useState(Date.now()) // Para forzar la recarga del avatar
   const supabase = createClient()
 
+  // Función para determinar el nombre a mostrar según la prioridad
+  const getDisplayName = (profile: UserProfile | null, email: string): string => {
+    if (!profile) return email
+
+    // Prioridad 1: Alias
+    if (profile.alias && profile.alias.trim() !== "") {
+      return profile.alias
+    }
+
+    // Prioridad 2: Nombre y apellidos
+    if (
+      profile.first_name &&
+      profile.last_name &&
+      profile.first_name.trim() !== "" &&
+      profile.last_name.trim() !== ""
+    ) {
+      return `${profile.first_name} ${profile.last_name}`
+    }
+
+    // Prioridad 3: Nombre completo
+    if (profile.full_name && profile.full_name.trim() !== "") {
+      return profile.full_name
+    }
+
+    // Si no hay nada, usar el email
+    return email
+  }
+
   const loadUserProfile = async (userId: string) => {
     try {
       console.log("Loading user profile for navigation:", userId)
       const { data: profile, error } = await supabase
         .from("user_profiles")
-        .select("role, full_name, avatar_url")
+        .select("role, full_name, first_name, last_name, alias, avatar_url")
         .eq("id", userId)
         .single()
 
@@ -201,6 +232,9 @@ export function SimpleNavigation() {
     )
   }
 
+  // Obtener el nombre a mostrar según la prioridad
+  const displayName = user ? getDisplayName(userProfile, user.email) : ""
+
   return (
     <nav className="bg-white shadow-sm border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -275,12 +309,10 @@ export function SimpleNavigation() {
                         alt="Avatar"
                         key={`desktop-avatar-${avatarKey}-${userProfile?.avatar_url}`}
                       />
-                      <AvatarFallback className="text-xs">
-                        {userProfile?.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
-                      </AvatarFallback>
+                      <AvatarFallback className="text-xs">{displayName.charAt(0).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <span>
-                      {userProfile?.full_name || user.email}
+                      {displayName}
                       {userProfile?.role === "admin" && (
                         <span className="ml-1 px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Admin</span>
                       )}
@@ -329,11 +361,9 @@ export function SimpleNavigation() {
                       alt="Avatar"
                       key={`mobile-avatar-${avatarKey}-${userProfile?.avatar_url}`}
                     />
-                    <AvatarFallback className="text-xs">
-                      {userProfile?.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
-                    </AvatarFallback>
+                    <AvatarFallback className="text-xs">{displayName.charAt(0).toUpperCase()}</AvatarFallback>
                   </Avatar>
-                  <span className="max-w-24 truncate">{userProfile?.full_name || user.email}</span>
+                  <span className="max-w-24 truncate">{displayName}</span>
                 </Link>
               ) : (
                 <Link href="/login">
