@@ -114,13 +114,13 @@ export default async function RecipePage({ params }: { params: { id: string } })
           {ingredientsArray.length > 0 ? (
             <ul className="list-disc pl-5 space-y-2">
               {ingredientsArray.map((ingredient, index) => (
-                <li key={index} className="text-gray-700">
+                <li key={index} className="text-foreground">
                   {ingredient}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-gray-500 italic">No hay ingredientes disponibles</p>
+            <p className="text-muted-foreground italic">No hay ingredientes disponibles</p>
           )}
         </div>
 
@@ -129,13 +129,13 @@ export default async function RecipePage({ params }: { params: { id: string } })
           {instructionsArray.length > 0 ? (
             <ol className="list-decimal pl-5 space-y-4">
               {instructionsArray.map((instruction, index) => (
-                <li key={index} className="text-gray-700">
+                <li key={index} className="text-foreground">
                   {instruction}
                 </li>
               ))}
             </ol>
           ) : (
-            <p className="text-gray-500 italic">No hay instrucciones disponibles</p>
+            <p className="text-muted-foreground italic">No hay instrucciones disponibles</p>
           )}
         </div>
       </div>
