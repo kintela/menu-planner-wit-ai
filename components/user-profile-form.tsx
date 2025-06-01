@@ -316,16 +316,9 @@ export function UserProfileForm() {
           </div>
 
           {/* Información de Solo Lectura */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input value={profile.email} disabled className="bg-gray-50" />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Rol</Label>
-              <Input value={profile.role === "admin" ? "Administrador" : "Usuario"} disabled className="bg-gray-50" />
-            </div>
+          <div className="space-y-2">
+            <Label>Email</Label>
+            <Input value={profile.email} disabled className="bg-gray-50" />
           </div>
 
           {/* Botón de Envío */}

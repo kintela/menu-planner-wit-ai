@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 import type { User } from "@supabase/supabase-js"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 import { ChefHat, Calendar, LogOut, Menu, X, History, Settings, Home } from "lucide-react"
 
 interface UserProfile {
   role: string
   full_name: string
+  avatar_url?: string
 }
 
 export function SimpleNavigation() {
@@ -33,7 +35,7 @@ export function SimpleNavigation() {
       if (user) {
         const { data: profile } = await supabase
           .from("user_profiles")
-          .select("role, full_name")
+          .select("role, full_name, avatar_url")
           .eq("id", user.id)
           .single()
 
@@ -51,7 +53,7 @@ export function SimpleNavigation() {
       if (session?.user) {
         const { data: profile } = await supabase
           .from("user_profiles")
-          .select("role, full_name")
+          .select("role, full_name, avatar_url")
           .eq("id", session.user.id)
           .single()
 
@@ -216,12 +218,20 @@ export function SimpleNavigation() {
                 <>
                   <Link
                     href="/profile"
-                    className="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                    className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors"
                   >
-                    {userProfile?.full_name || user.email}
-                    {userProfile?.role === "admin" && (
-                      <span className="ml-1 px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Admin</span>
-                    )}
+                    <Avatar className="w-6 h-6">
+                      <AvatarImage src={userProfile?.avatar_url || undefined} alt="Avatar" />
+                      <AvatarFallback className="text-xs">
+                        {userProfile?.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span>
+                      {userProfile?.full_name || user.email}
+                      {userProfile?.role === "admin" && (
+                        <span className="ml-1 px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Admin</span>
+                      )}
+                    </span>
                   </Link>
                   <Button
                     variant="outline"
@@ -258,9 +268,15 @@ export function SimpleNavigation() {
               {user ? (
                 <Link
                   href="/profile"
-                  className="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors max-w-32 truncate"
+                  className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors"
                 >
-                  {userProfile?.full_name || user.email}
+                  <Avatar className="w-5 h-5">
+                    <AvatarImage src={userProfile?.avatar_url || undefined} alt="Avatar" />
+                    <AvatarFallback className="text-xs">
+                      {userProfile?.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="max-w-24 truncate">{userProfile?.full_name || user.email}</span>
                 </Link>
               ) : (
                 <Link href="/login">
