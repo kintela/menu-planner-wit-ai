@@ -120,13 +120,13 @@ export function WeeklyMenuView({
     }
   })
 
-  // Rellenar con los platos existentes
+  // Rellenar con los platos existentes - compatible con formato antiguo y nuevo
   menuItems.forEach((item) => {
     if (item.recipe && daysMenu[item.day_of_week]) {
-      if (item.meal_type === "comida_primero") {
+      if (item.meal_type === "comida_primero" || (item.meal_type === "comida" && item.dish_order === 1)) {
         // Primer plato de comida
         daysMenu[item.day_of_week].meals.comida[0] = item.recipe as Recipe
-      } else if (item.meal_type === "comida_segundo") {
+      } else if (item.meal_type === "comida_segundo" || (item.meal_type === "comida" && item.dish_order === 2)) {
         // Segundo plato de comida
         daysMenu[item.day_of_week].meals.comida[1] = item.recipe as Recipe
       } else if (item.meal_type === "cena") {
@@ -224,14 +224,33 @@ export function WeeklyMenuView({
         actualMealType = "cena"
       }
 
-      // Buscar si ya existe un plato para este día y tipo específico
-      const { data: existingItem } = await supabase
+      // Buscar si ya existe un plato para este día y tipo específico (formato nuevo o antiguo)
+      let existingItem = null
+      const { data: newFormatItem } = await supabase
         .from("menu_items")
         .select("*")
         .eq("weekly_menu_id", currentWeeklyMenu.id)
         .eq("day_of_week", dayOfWeek)
         .eq("meal_type", actualMealType)
         .maybeSingle()
+
+      if (newFormatItem) {
+        existingItem = newFormatItem
+      } else {
+        // Buscar en formato antiguo
+        const { data: oldFormatItem } = await supabase
+          .from("menu_items")
+          .select("*")
+          .eq("weekly_menu_id", currentWeeklyMenu.id)
+          .eq("day_of_week", dayOfWeek)
+          .eq("meal_type", "comida")
+          .eq("dish_order", dishOrder || 1)
+          .maybeSingle()
+
+        if (oldFormatItem) {
+          existingItem = oldFormatItem
+        }
+      }
 
       if (existingItem) {
         // Actualizar el plato existente
@@ -458,23 +477,41 @@ export function WeeklyMenuView({
         actualMealType = "cena"
       }
 
-      // Buscar y eliminar el plato existente
-      const { error } = await supabase
+      // Buscar y eliminar el plato existente (formato nuevo o antiguo)
+      let deleteError = null
+
+      // Intentar eliminar formato nuevo
+      const { error: newFormatError } = await supabase
         .from("menu_items")
         .delete()
         .eq("weekly_menu_id", weeklyMenu.id)
         .eq("day_of_week", dayOfWeek)
         .eq("meal_type", actualMealType)
 
-      if (error) throw error
+      if (newFormatError) {
+        // Si no se encontró en formato nuevo, intentar formato antiguo
+        const { error: oldFormatError } = await supabase
+          .from("menu_items")
+          .delete()
+          .eq("weekly_menu_id", weeklyMenu.id)
+          .eq("day_of_week", dayOfWeek)
+          .eq("meal_type", "comida")
+          .eq("dish_order", dishOrder || 1)
 
-      // Actualizar el estado local eliminando el item
+        deleteError = oldFormatError
+      } else {
+        deleteError = newFormatError
+      }
+
+      if (deleteError) throw deleteError
+
+      // Actualizar el estado local eliminando el item (ambos formatos)
       const updatedMenuItems = menuItems.filter(
         (item) =>
           !(
             item.weekly_menu_id === weeklyMenu.id &&
             item.day_of_week === dayOfWeek &&
-            item.meal_type === actualMealType
+            (item.meal_type === actualMealType || (item.meal_type === "comida" && item.dish_order === (dishOrder || 1)))
           ),
       )
       setMenuItems(updatedMenuItems)
