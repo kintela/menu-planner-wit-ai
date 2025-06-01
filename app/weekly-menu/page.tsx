@@ -6,7 +6,7 @@ import { getSupabaseClient } from "@/lib/supabase/client"
 import { WeeklyMenuView } from "@/components/weekly-menu-view"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle, Loader2 } from "lucide-react"
 import Link from "next/link"
 import type { MenuItem, Recipe, WeeklyMenu } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
@@ -25,6 +25,7 @@ export default function WeeklyMenuPage() {
   const loadDataForWeek = async (weekStartDate: string) => {
     try {
       console.log("🔄 Cargando datos del menú semanal para fecha:", weekStartDate)
+      console.log("🔍 Usuario para búsqueda:", user?.id)
       const supabase = getSupabaseClient()
 
       const endOfWeek = new Date(weekStartDate)
@@ -155,6 +156,8 @@ export default function WeeklyMenuPage() {
       const endDate = endOfWeek.toISOString().split("T")[0]
 
       console.log("🔍 Buscando menú existente para:", newStartDate, "al", endDate)
+      console.log("🔍 Usuario actual:", user?.id)
+      console.log("🔍 Fechas calculadas:", { newStartDate, endDate })
 
       // Buscar si ya existe un menú para esta semana
       const { data: existingMenu, error: searchError } = await supabase
