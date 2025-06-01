@@ -168,26 +168,31 @@ export function UserProfileForm() {
     }
   }
 
+  // Función para extraer el nombre del archivo de una URL de Supabase Storage
+  const getFilePathFromUrl = (url: string): string | null => {
+    try {
+      // Buscar el patrón /avatars/ seguido por cualquier cosa hasta el final de la URL
+      const match = url.match(/\/avatars\/([^?#]+)/)
+      if (match && match[1]) {
+        return match[1]
+      }
+      return null
+    } catch (error) {
+      console.error("Error extracting file path from URL:", error)
+      return null
+    }
+  }
+
   const uploadAvatar = async (file: File): Promise<string | null> => {
     try {
       setUploading(true)
       setMessage("Subiendo imagen...")
 
-      // Obtener la ruta de la imagen anterior si existe
+      // Extraer la ruta de la imagen anterior si existe
       let oldImagePath = null
       if (profile?.avatar_url) {
-        try {
-          // Extraer el nombre del archivo de la URL
-          // La URL tiene formato: https://xxx.supabase.co/storage/v1/object/public/avatars/user_id/filename
-          const url = new URL(profile.avatar_url)
-          const pathParts = url.pathname.split("/avatars/")
-          if (pathParts.length > 1) {
-            oldImagePath = pathParts[1]
-            console.log("Old image path to delete:", oldImagePath)
-          }
-        } catch (error) {
-          console.error("Error parsing old avatar URL:", error)
-        }
+        oldImagePath = getFilePathFromUrl(profile.avatar_url)
+        console.log("Old image path detected:", oldImagePath)
       }
 
       // Subir la nueva imagen
@@ -211,6 +216,8 @@ export function UserProfileForm() {
       // Si la subida fue exitosa y existe una imagen anterior, eliminarla
       if (oldImagePath) {
         console.log("Attempting to delete old avatar:", oldImagePath)
+
+        // Esperar a que se complete la eliminación
         const { error: deleteError } = await supabase.storage.from("avatars").remove([oldImagePath])
 
         if (deleteError) {
@@ -220,6 +227,18 @@ export function UserProfileForm() {
           console.log("✅ Old avatar deleted successfully")
         }
       }
+
+      // Forzar actualización de la navegación
+      window.localStorage.setItem("avatar_updated", Date.now().toString())
+
+      // Disparar evento personalizado para actualizar la navegación
+      const event = new CustomEvent("avatar_updated", {
+        detail: {
+          avatarUrl: data.publicUrl,
+          timestamp: Date.now(),
+        },
+      })
+      window.dispatchEvent(event)
 
       return data.publicUrl
     } catch (error) {
@@ -324,12 +343,20 @@ export function UserProfileForm() {
         data: { user },
       } = await supabase.auth.getUser()
       if (user) {
-        // Disparar evento personalizado para notificar a la navegación
-        window.dispatchEvent(
-          new CustomEvent("profileUpdated", {
-            detail: { avatarUrl: avatarUrl },
-          }),
-        )
+        // Forzar actualización de la navegación
+        window.localStorage.setItem("avatar_updated", Date.now().toString())
+
+        // Disparar evento personalizado para actualizar la navegación
+        const event = new CustomEvent("avatar_updated", {
+          detail: {
+            avatarUrl: avatarUrl,
+            timestamp: Date.now(),
+          },
+        })
+        window.dispatchEvent(event)
+
+        // Forzar recarga de la página para actualizar la navegación
+        window.location.reload()
       }
 
       // Limpiar estado del formulario

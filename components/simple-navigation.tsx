@@ -23,25 +23,51 @@ export function SimpleNavigation() {
   const [loading, setLoading] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [avatarKey, setAvatarKey] = useState(Date.now()) // Para forzar la recarga del avatar
   const supabase = createClient()
+
+  const loadUserProfile = async (userId: string) => {
+    try {
+      console.log("Loading user profile for navigation:", userId)
+      const { data: profile, error } = await supabase
+        .from("user_profiles")
+        .select("role, full_name, avatar_url")
+        .eq("id", userId)
+        .single()
+
+      if (error) {
+        console.error("Error loading profile for navigation:", error)
+        return null
+      }
+
+      console.log("Profile loaded for navigation:", profile)
+      return profile
+    } catch (error) {
+      console.error("Unexpected error loading profile for navigation:", error)
+      return null
+    }
+  }
 
   useEffect(() => {
     async function getUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      setUser(user)
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
 
-      if (user) {
-        const { data: profile } = await supabase
-          .from("user_profiles")
-          .select("role, full_name, avatar_url")
-          .eq("id", user.id)
-          .single()
+        setUser(user)
 
-        setUserProfile(profile)
+        if (user) {
+          const profile = await loadUserProfile(user.id)
+          if (profile) {
+            setUserProfile(profile)
+          }
+        }
+      } catch (error) {
+        console.error("Error getting user for navigation:", error)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
 
     getUser()
@@ -51,13 +77,10 @@ export function SimpleNavigation() {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null)
       if (session?.user) {
-        const { data: profile } = await supabase
-          .from("user_profiles")
-          .select("role, full_name, avatar_url")
-          .eq("id", session.user.id)
-          .single()
-
-        setUserProfile(profile)
+        const profile = await loadUserProfile(session.user.id)
+        if (profile) {
+          setUserProfile(profile)
+        }
       } else {
         setUserProfile(null)
       }
@@ -65,27 +88,45 @@ export function SimpleNavigation() {
     })
 
     // Listener para actualizaciones de perfil
-    const handleProfileUpdate = () => {
-      // Recargar el perfil del usuario cuando se actualice
+    const handleProfileUpdate = async (event: Event) => {
+      const customEvent = event as CustomEvent
+      console.log("Profile update event received:", customEvent.detail)
+
+      // Forzar recarga del avatar
+      setAvatarKey(Date.now())
+
+      // Recargar el perfil del usuario
       if (user) {
-        supabase
-          .from("user_profiles")
-          .select("role, full_name, avatar_url")
-          .eq("id", user.id)
-          .single()
-          .then(({ data: profile }) => {
-            if (profile) {
-              setUserProfile(profile)
-            }
-          })
+        const profile = await loadUserProfile(user.id)
+        if (profile) {
+          setUserProfile(profile)
+        }
       }
     }
 
-    window.addEventListener("profileUpdated", handleProfileUpdate)
+    // Escuchar el evento personalizado
+    window.addEventListener("avatar_updated", handleProfileUpdate)
+
+    // Verificar cambios en localStorage
+    const checkLocalStorage = () => {
+      const lastUpdate = window.localStorage.getItem("avatar_updated")
+      if (lastUpdate && user) {
+        loadUserProfile(user.id).then((profile) => {
+          if (profile) {
+            setUserProfile(profile)
+            setAvatarKey(Date.now())
+          }
+        })
+      }
+    }
+
+    // Verificar cambios cada segundo
+    const interval = setInterval(checkLocalStorage, 1000)
 
     return () => {
       subscription.unsubscribe()
-      window.removeEventListener("profileUpdated", handleProfileUpdate)
+      window.removeEventListener("avatar_updated", handleProfileUpdate)
+      clearInterval(interval)
     }
   }, [supabase])
 
@@ -243,7 +284,11 @@ export function SimpleNavigation() {
                     className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors"
                   >
                     <Avatar className="w-6 h-6">
-                      <AvatarImage src={userProfile?.avatar_url || undefined} alt="Avatar" />
+                      <AvatarImage
+                        src={userProfile?.avatar_url || undefined}
+                        alt="Avatar"
+                        key={`avatar-${avatarKey}`}
+                      />
                       <AvatarFallback className="text-xs">
                         {userProfile?.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
                       </AvatarFallback>
@@ -293,7 +338,11 @@ export function SimpleNavigation() {
                   className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors"
                 >
                   <Avatar className="w-5 h-5">
-                    <AvatarImage src={userProfile?.avatar_url || undefined} alt="Avatar" />
+                    <AvatarImage
+                      src={userProfile?.avatar_url || undefined}
+                      alt="Avatar"
+                      key={`avatar-mobile-${avatarKey}`}
+                    />
                     <AvatarFallback className="text-xs">
                       {userProfile?.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
                     </AvatarFallback>
