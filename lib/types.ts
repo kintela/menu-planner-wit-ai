@@ -22,12 +22,10 @@ export interface Category {
 export interface WeeklyMenu {
   id: number
   name: string
-
   start_date: string
   end_date: string
   created_at: string
   user_id: string
-
 }
 
 export interface MenuItem {
@@ -43,7 +41,11 @@ export interface UserProfile {
   id: string
   email: string
   full_name?: string
-  role: "admin" | "user"
+  first_name?: string
+  last_name?: string
+  alias?: string
+  avatar_url?: string
+  role: "admin" | "user" | "user_restricted"
   created_at: string
   updated_at: string
 }

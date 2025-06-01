@@ -1,6 +1,5 @@
 import { getCurrentUserProfile } from "@/lib/auth"
-import { UserProfileInfo } from "@/components/user-profile-info"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { UserProfileForm } from "@/components/user-profile-form"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
@@ -26,16 +25,7 @@ export default async function ProfilePage() {
       </div>
 
       <div className="space-y-6">
-        <UserProfileInfo />
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Estadísticas de uso</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">Las estadísticas de uso estarán disponibles próximamente.</p>
-          </CardContent>
-        </Card>
+        <UserProfileForm />
       </div>
     </div>
   )

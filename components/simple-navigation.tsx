@@ -214,17 +214,15 @@ export function SimpleNavigation() {
             <div className="hidden md:flex items-center space-x-2">
               {user ? (
                 <>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium">
-                      {(userProfile?.full_name?.charAt(0) || user.email?.charAt(0) || "").toUpperCase()}
-                    </div>
-                    <span className="text-sm text-gray-700">
-                      {userProfile?.full_name || user.email}
-                      {userProfile?.role === "admin" && (
-                        <span className="ml-1 px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Admin</span>
-                      )}
-                    </span>
-                  </div>
+                  <Link
+                    href="/profile"
+                    className="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                  >
+                    {userProfile?.full_name || user.email}
+                    {userProfile?.role === "admin" && (
+                      <span className="ml-1 px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Admin</span>
+                    )}
+                  </Link>
                   <Button
                     variant="outline"
                     size="sm"
@@ -258,36 +256,12 @@ export function SimpleNavigation() {
             {/* Mobile user info or login */}
             <div className="md:hidden flex items-center space-x-2">
               {user ? (
-                <button
-                  type="button"
-                  style={{
-                    width: "32px",
-                    height: "32px",
-                    borderRadius: "50%",
-                    backgroundColor: "#2563eb",
-                    color: "white",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "500",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = "#1d4ed8"
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = "#2563eb"
-                  }}
-                  onClick={() => {
-                    alert(
-                      `Usuario: ${userProfile?.full_name || "Usuario"}\nEmail: ${user.email}${userProfile?.role === "admin" ? "\nRol: Administrador" : ""}`,
-                    )
-                  }}
+                <Link
+                  href="/profile"
+                  className="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors max-w-32 truncate"
                 >
-                  {(userProfile?.full_name?.charAt(0) || user.email?.charAt(0) || "").toUpperCase()}
-                </button>
+                  {userProfile?.full_name || user.email}
+                </Link>
               ) : (
                 <Link href="/login">
                   <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1">
@@ -362,6 +336,17 @@ export function SimpleNavigation() {
                   <span>Historial</span>
                 </Link>
               )}
+
+              <Link
+                href="/profile"
+                className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium ${
+                  pathname === "/profile" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                }`}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Settings className="h-5 w-5" />
+                <span>Mi Perfil</span>
+              </Link>
 
               {user && (
                 <button
