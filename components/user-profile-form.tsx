@@ -39,7 +39,6 @@ export function UserProfileForm() {
     email: "",
   })
 
-  const [originalEmail, setOriginalEmail] = useState("")
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
 
@@ -87,9 +86,14 @@ export function UserProfileForm() {
 
       console.log("Profile loaded:", profileData)
 
-      const emailToUse = profileData.email || user.email || ""
-      setProfile(profileData)
-      setOriginalEmail(emailToUse)
+      // Usar el email del usuario de autenticación como fuente de verdad
+      const emailToUse = user.email || profileData.email || ""
+
+      setProfile({
+        ...profileData,
+        email: emailToUse, // Asegurarnos de que el email del perfil sea el del usuario auth
+      })
+
       setFormData({
         first_name: profileData.first_name || "",
         last_name: profileData.last_name || "",
@@ -182,18 +186,20 @@ export function UserProfileForm() {
       setSaving(true)
       setMessage("Guardando cambios...")
 
-      // Establecer un timeout de seguridad más corto para emails
-      const timeoutDuration = formData.email !== originalEmail ? 10000 : 15000
+      // Guardar el email original antes de cualquier cambio
+      const originalEmail = profile.email
+
+      // Establecer un timeout de seguridad
       saveTimeoutRef.current = setTimeout(() => {
         setSaving(false)
         // Revertir el email al valor original si hubo un timeout
         if (formData.email !== originalEmail) {
           setFormData((prev) => ({ ...prev, email: originalEmail }))
-          setMessage("Error: El email no pudo ser validado. Se ha revertido al valor anterior.")
+          setMessage("Error: La operación ha tardado demasiado tiempo. Se ha revertido al email original.")
         } else {
           setMessage("Error: La operación ha tardado demasiado tiempo. Por favor, inténtalo de nuevo.")
         }
-      }, timeoutDuration)
+      }, 10000)
 
       let avatarUrl = profile.avatar_url
 
@@ -244,7 +250,7 @@ export function UserProfileForm() {
 
           // Revertir el email al valor original
           setFormData((prev) => ({ ...prev, email: originalEmail }))
-          setMessage("Error: No se pudo validar el nuevo email. Se ha revertido al valor anterior.")
+          setMessage("Error: No se pudo validar el nuevo email. Se ha revertido al email original.")
 
           clearTimeout(saveTimeoutRef.current)
           setSaving(false)
@@ -287,11 +293,6 @@ export function UserProfileForm() {
         clearTimeout(saveTimeoutRef.current)
       }
 
-      // Actualizar el email original si cambió exitosamente
-      if (formData.email !== originalEmail) {
-        setOriginalEmail(formData.email)
-      }
-
       // Recargar el perfil
       await loadProfile()
 
@@ -312,9 +313,7 @@ export function UserProfileForm() {
       setMessage("Error inesperado al actualizar el perfil")
 
       // Revertir el email si hubo un error general
-      if (formData.email !== originalEmail) {
-        setFormData((prev) => ({ ...prev, email: originalEmail }))
-      }
+      setFormData((prev) => ({ ...prev, email: profile.email }))
     } finally {
       setSaving(false)
     }
