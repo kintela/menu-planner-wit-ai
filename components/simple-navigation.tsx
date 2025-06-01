@@ -214,12 +214,17 @@ export function SimpleNavigation() {
             <div className="hidden md:flex items-center space-x-2">
               {user ? (
                 <>
-                  <span className="text-sm text-gray-700">
-                    Hola, {userProfile?.full_name || user.email}
-                    {userProfile?.role === "admin" && (
-                      <span className="ml-1 px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Admin</span>
-                    )}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium">
+                      {(userProfile?.full_name?.charAt(0) || user.email?.charAt(0) || "").toUpperCase()}
+                    </div>
+                    <span className="text-sm text-gray-700">
+                      {userProfile?.full_name || user.email}
+                      {userProfile?.role === "admin" && (
+                        <span className="ml-1 px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Admin</span>
+                      )}
+                    </span>
+                  </div>
                   <Button
                     variant="outline"
                     size="sm"
@@ -253,9 +258,20 @@ export function SimpleNavigation() {
             {/* Mobile user info or login */}
             <div className="md:hidden flex items-center space-x-2">
               {user ? (
-                <span className="text-xs text-gray-700 max-w-20 truncate">
-                  {userProfile?.full_name || user.email?.split("@")[0]}
-                </span>
+                <div className="relative group">
+                  <div
+                    className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-medium"
+                    title={userProfile?.full_name || user.email || ""}
+                  >
+                    {(userProfile?.full_name?.charAt(0) || user.email?.charAt(0) || "").toUpperCase()}
+                  </div>
+                  <div className="absolute hidden group-hover:block top-full right-0 mt-1 bg-white shadow-lg rounded-md p-2 text-xs z-10 whitespace-nowrap">
+                    {userProfile?.full_name || user.email}
+                    {userProfile?.role === "admin" && (
+                      <span className="ml-1 px-1 py-0.5 bg-red-100 text-red-800 text-xs rounded-full">Admin</span>
+                    )}
+                  </div>
+                </div>
               ) : (
                 <Link href="/login">
                   <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1">
