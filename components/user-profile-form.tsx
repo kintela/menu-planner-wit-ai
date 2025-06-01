@@ -76,6 +76,8 @@ export function UserProfileForm() {
       }
 
       console.log("Profile loaded:", profileData)
+      console.log("Email from profile:", profileData.email)
+      console.log("Email from user:", user.email)
 
       setProfile(profileData)
       setFormData({
@@ -333,7 +335,7 @@ export function UserProfileForm() {
           {/* Información de Solo Lectura */}
           <div className="space-y-2">
             <Label>Email</Label>
-            <Input value={profile.email} disabled className="bg-gray-50" />
+            <Input value={profile?.email || ""} disabled className="bg-gray-50" />
           </div>
 
           {/* Botón de Envío */}
