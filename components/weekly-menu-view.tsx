@@ -124,8 +124,11 @@ export function WeeklyMenuView({
   menuItems.forEach((item) => {
     if (item.recipe && daysMenu[item.day_of_week]) {
       if (item.meal_type === "comida") {
-        // Para comida, añadir al array en el orden correcto
-        daysMenu[item.day_of_week].meals.comida[item.dish_order - 1] = item.recipe as Recipe
+        // Para comida, añadir al array en el orden correcto (dish_order es 1-based)
+        const index = item.dish_order - 1
+        if (index >= 0 && index < 2) {
+          daysMenu[item.day_of_week].meals.comida[index] = item.recipe as Recipe
+        }
       } else {
         // Para cena, solo un plato
         daysMenu[item.day_of_week].meals.cena = item.recipe as Recipe
@@ -244,7 +247,7 @@ export function WeeklyMenuView({
         setMenuItems(updatedMenuItems)
       } else {
         // Crear un nuevo plato
-        const { data: newItem } = await supabase
+        const { data: newItem, error: insertError } = await supabase
           .from("menu_items")
           .insert({
             weekly_menu_id: currentWeeklyMenu.id,
@@ -256,13 +259,17 @@ export function WeeklyMenuView({
           .select()
           .single()
 
+        if (insertError) {
+          throw insertError
+        }
+
         if (newItem) {
-          // Añadir al estado local inmediatamente
+          // Añadir al estado local inmediatamente con la receta completa
           const newMenuItemWithRecipe = {
             ...newItem,
             recipe: selectedRecipe,
           } as MenuItem
-          setMenuItems([...menuItems, newMenuItemWithRecipe])
+          setMenuItems((prevItems) => [...prevItems, newMenuItemWithRecipe])
         }
       }
 
