@@ -3,59 +3,35 @@ import { NextResponse } from "next/server"
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
-    const { id } = params
-    console.log("🔍 DEBUG API - Iniciando diagnóstico para receta ID:", id)
+    console.log("🔍 Debug Recipe API iniciado para ID:", params.id)
 
     const supabase = createServerClient()
-    console.log("✅ Cliente Supabase creado")
 
-    // Consulta directa sin transformaciones
-    const { data: recipe, error } = await supabase.from("recipes").select("*").eq("id", id).single()
+    // Test específico para la receta solicitada
+    const { data: recipe, error } = await supabase.from("recipes").select("*").eq("id", params.id).single()
 
-    if (error) {
-      console.error("❌ Error al obtener receta:", error)
-      return NextResponse.json({
-        success: false,
-        error: error.message,
-        code: error.code,
-        id: id,
-      })
-    }
-
-    if (!recipe) {
-      console.log("⚠️ No se encontró la receta con ID:", id)
-      return NextResponse.json({
-        success: false,
-        error: "Receta no encontrada",
-        id: id,
-      })
-    }
-
-    console.log("✅ Receta encontrada:", recipe.name)
-
-    // Analizar estructura de datos
-    const dataAnalysis = {
-      id: recipe.id,
-      name: recipe.name,
-      ingredientsType: typeof recipe.ingredients,
-      ingredientsIsArray: Array.isArray(recipe.ingredients),
-      ingredientsLength: typeof recipe.ingredients === "string" ? recipe.ingredients.length : "N/A",
-      preparationType: typeof recipe.preparation,
-      preparationIsArray: Array.isArray(recipe.preparation),
-      preparationLength: typeof recipe.preparation === "string" ? recipe.preparation.length : "N/A",
-      allKeys: Object.keys(recipe),
-    }
+    console.log("🔍 Resultado:", {
+      hasData: !!recipe,
+      hasError: !!error,
+      errorMessage: error?.message,
+      errorCode: error?.code,
+    })
 
     return NextResponse.json({
-      success: true,
-      recipe: recipe,
-      analysis: dataAnalysis,
+      success: !error,
+      recipeId: params.id,
+      found: !!recipe,
+      data: recipe,
+      error: error ? { message: error.message, code: error.code } : null,
+      timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    console.error("❌ Error crítico en debug-recipe:", error)
+    console.error("❌ Error crítico en debug recipe:", error)
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : "Error desconocido",
+      recipeId: params.id,
+      timestamp: new Date().toISOString(),
     })
   }
 }
