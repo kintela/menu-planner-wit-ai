@@ -176,7 +176,7 @@ export function UserProfileForm() {
       return
     }
 
-    // Validar formato de email
+    // Validar formato de email solo con expresión regular
     if (!formData.email || !validateEmail(formData.email)) {
       setMessage(
         "Error: El formato del email no es válido. Por favor, introduce un email con formato correcto (ejemplo@dominio.com)",
@@ -196,7 +196,7 @@ export function UserProfileForm() {
         setSaving(false)
         setFormData((prev) => ({ ...prev, email: originalEmail }))
         setMessage("Error: La operación ha tardado demasiado tiempo. Se ha revertido al email original.")
-      }, 8000) // 8 segundos de timeout
+      }, 5000) // 5 segundos de timeout
 
       let avatarUrl = profile.avatar_url
 
@@ -215,7 +215,7 @@ export function UserProfileForm() {
       // Construir el nombre completo
       const fullName = [formData.first_name, formData.last_name].filter(Boolean).join(" ") || null
 
-      // Actualizar solo el perfil en la base de datos (sin tocar Supabase Auth por ahora)
+      // Actualizar solo el perfil en la base de datos
       setMessage("Actualizando perfil...")
       const { error: profileError } = await supabase
         .from("user_profiles")
@@ -252,11 +252,7 @@ export function UserProfileForm() {
       setAvatarFile(null)
       setAvatarPreview(null)
 
-      if (formData.email !== originalEmail) {
-        setMessage("✅ Perfil actualizado. El email se ha actualizado en tu perfil.")
-      } else {
-        setMessage("✅ Perfil actualizado correctamente")
-      }
+      setMessage("✅ Perfil actualizado correctamente")
 
       // Limpiar mensaje después de 5 segundos
       setTimeout(() => setMessage(""), 5000)
