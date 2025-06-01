@@ -335,7 +335,7 @@ export function UserProfileForm() {
           {/* Información de Solo Lectura */}
           <div className="space-y-2">
             <Label>Email</Label>
-            <Input value={profile?.email || ""} disabled className="bg-gray-50" />
+            <Input value={profile?.email || ""} disabled className="bg-gray-100 text-gray-800" />
           </div>
 
           {/* Botón de Envío */}
