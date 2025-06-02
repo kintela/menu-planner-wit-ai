@@ -302,11 +302,96 @@ export function UserProfileForm() {
       // Construir el nombre completo
       const fullName = [formData.first_name, formData.last_name].filter(Boolean).join(" ") || null
 
-      // Actualizar solo el perfil en la base de datos
-      setMessage("Actualizando perfil...")
-      const { error: profileError } = await supabase
-        .from("user_profiles")
-        .update({
+      // Verificar si el email ha cambiado
+      const emailHasChanged = formData.email !== originalEmail
+
+      if (emailHasChanged) {
+        // Si el email ha cambiado, enviar email de confirmación a través de Supabase
+        setMessage("Enviando email de confirmación...")
+
+        const { error: updateError } = await supabase.auth.updateUser({
+          email: formData.email,
+        })
+
+        if (updateError) {
+          console.error("Error updating email:", updateError)
+          setMessage(`Error al actualizar el email: ${updateError.message}`)
+          setFormData((prev) => ({ ...prev, email: originalEmail }))
+          clearTimeout(saveTimeoutRef.current)
+          setSaving(false)
+          return
+        }
+
+        // Si llegamos aquí, el email de confirmación se ha enviado correctamente
+        setMessage(
+          "✅ Se ha enviado un email de confirmación a la nueva dirección. Por favor, verifica tu bandeja de entrada.",
+        )
+
+        // Actualizar solo el perfil en la base de datos (sin cambiar el email hasta que se confirme)
+        const { error: profileError } = await supabase
+          .from("user_profiles")
+          .update({
+            first_name: formData.first_name || null,
+            last_name: formData.last_name || null,
+            alias: formData.alias || null,
+            phone: formData.phone || null,
+            // No actualizamos el email aquí, se actualizará cuando el usuario confirme
+            full_name: fullName,
+            avatar_url: avatarUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", profile.id)
+
+        if (profileError) {
+          console.error("Error updating profile:", profileError)
+          setMessage("Error al actualizar el perfil en la base de datos")
+          clearTimeout(saveTimeoutRef.current)
+          setSaving(false)
+          return
+        }
+
+        // Revertir el email en el formulario hasta que se confirme
+        setFormData((prev) => ({ ...prev, email: originalEmail }))
+
+        // Actualizar el estado local del perfil sin recargar (manteniendo el email original)
+        setProfile((prev) => ({
+          ...prev!,
+          first_name: formData.first_name || null,
+          last_name: formData.last_name || null,
+          alias: formData.alias || null,
+          phone: formData.phone || null,
+          // Mantenemos el email original hasta que se confirme
+          full_name: fullName,
+          avatar_url: avatarUrl,
+        }))
+      } else {
+        // Si el email no ha cambiado, actualizar el perfil normalmente
+        const { error: profileError } = await supabase
+          .from("user_profiles")
+          .update({
+            first_name: formData.first_name || null,
+            last_name: formData.last_name || null,
+            alias: formData.alias || null,
+            phone: formData.phone || null,
+            email: formData.email,
+            full_name: fullName,
+            avatar_url: avatarUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", profile.id)
+
+        if (profileError) {
+          console.error("Error updating profile:", profileError)
+          setMessage("Error al actualizar el perfil en la base de datos")
+          setFormData((prev) => ({ ...prev, email: originalEmail }))
+          clearTimeout(saveTimeoutRef.current)
+          setSaving(false)
+          return
+        }
+
+        // Actualizar el estado local del perfil sin recargar
+        setProfile((prev) => ({
+          ...prev!,
           first_name: formData.first_name || null,
           last_name: formData.last_name || null,
           alias: formData.alias || null,
@@ -314,35 +399,15 @@ export function UserProfileForm() {
           email: formData.email,
           full_name: fullName,
           avatar_url: avatarUrl,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", profile.id)
+        }))
 
-      if (profileError) {
-        console.error("Error updating profile:", profileError)
-        setMessage("Error al actualizar el perfil en la base de datos")
-        setFormData((prev) => ({ ...prev, email: originalEmail }))
-        clearTimeout(saveTimeoutRef.current)
-        setSaving(false)
-        return
+        setMessage("✅ Perfil actualizado correctamente")
       }
 
       // Limpiar el timeout ya que todo salió bien
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current)
       }
-
-      // Actualizar el estado local del perfil sin recargar
-      setProfile((prev) => ({
-        ...prev!,
-        first_name: formData.first_name || null,
-        last_name: formData.last_name || null,
-        alias: formData.alias || null,
-        phone: formData.phone || null,
-        email: formData.email,
-        full_name: fullName,
-        avatar_url: avatarUrl,
-      }))
 
       // Disparar evento personalizado para actualizar la navegación
       console.log("🚀 Dispatching avatar_updated event with:", {
@@ -378,10 +443,10 @@ export function UserProfileForm() {
       setAvatarFile(null)
       setAvatarPreview(null)
 
-      setMessage("✅ Perfil actualizado correctamente")
-
-      // Limpiar mensaje después de 3 segundos
-      setTimeout(() => setMessage(""), 3000)
+      // Limpiar mensaje después de 5 segundos si no es un mensaje de confirmación de email
+      if (!emailHasChanged) {
+        setTimeout(() => setMessage(""), 3000)
+      }
     } catch (error) {
       console.error("Error:", error)
       setMessage("Error inesperado al actualizar el perfil")
