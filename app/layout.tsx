@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { SessionWrapper } from "@/components/providers/session-wrapper"
-import { Navigation } from "@/components/navigation"
+import { SimpleNavigation } from "@/components/simple-navigation"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   keywords: ["menú", "planificación", "recetas", "cocina", "IA", "inteligencia artificial"],
   authors: [{ name: "Menu Planner AI Team" }],
   viewport: "width=device-width, initial-scale=1",
-    generator: 'v0.dev'
+  generator: "v0.dev",
 }
 
 export default function RootLayout({
@@ -26,7 +26,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <SessionWrapper>
           <div className="min-h-screen bg-gray-50">
-            <Navigation />
+            <SimpleNavigation />
             <main className="pb-16 md:pb-0">{children}</main>
           </div>
         </SessionWrapper>
