@@ -44,6 +44,9 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
   // Obtener la información del creador (puede venir de creator o user_profiles)
   const creatorInfo = recipe.creator || recipe.user_profiles || null
 
+  // Debug temporal para ver los datos del creador
+  console.log("Creator info for recipe:", recipe.name, creatorInfo)
+
   // Función para manejar la eliminación de la receta
   const handleDelete = () => {
     // Refrescar la página para mostrar la lista actualizada

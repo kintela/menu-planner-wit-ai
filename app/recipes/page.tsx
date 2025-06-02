@@ -6,8 +6,8 @@ import type { Recipe } from "@/types"
 const getRecipes = async (): Promise<Recipe[]> => {
   const supabase = createServerComponentClient({ cookies })
 
-  // En lugar de solo obtener user_profiles básico, obtener todos los campos necesarios
-  const { data: recipes, error } = await supabase
+  // Cambiar la consulta actual por esta más específica
+  const { data: allRecipes, error: recipesError } = await supabase
     .from("recipes")
     .select(`
     *,
@@ -27,11 +27,11 @@ const getRecipes = async (): Promise<Recipe[]> => {
   `)
     .order("created_at", { ascending: false })
 
-  if (error) {
-    console.log(error)
+  if (recipesError) {
+    console.log(recipesError)
   }
 
-  return (recipes as any) || []
+  return (allRecipes as any) || []
 }
 
 const Recipes = async () => {
