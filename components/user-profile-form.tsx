@@ -278,13 +278,6 @@ export function UserProfileForm() {
       // Guardar el email original antes de cualquier cambio
       const originalEmail = profile.email
 
-      // Establecer un timeout de seguridad más corto
-      saveTimeoutRef.current = setTimeout(() => {
-        setSaving(false)
-        setFormData((prev) => ({ ...prev, email: originalEmail }))
-        setMessage("Error: La operación ha tardado demasiado tiempo. Se ha revertido al email original.")
-      }, 5000) // 5 segundos de timeout
-
       let avatarUrl = profile.avatar_url
 
       // Subir avatar si se seleccionó uno nuevo
@@ -293,7 +286,6 @@ export function UserProfileForm() {
         if (uploadedUrl) {
           avatarUrl = uploadedUrl
         } else {
-          clearTimeout(saveTimeoutRef.current)
           setSaving(false)
           return
         }
@@ -317,14 +309,13 @@ export function UserProfileForm() {
           console.error("Error updating email:", updateError)
           setMessage(`Error al actualizar el email: ${updateError.message}`)
           setFormData((prev) => ({ ...prev, email: originalEmail }))
-          clearTimeout(saveTimeoutRef.current)
           setSaving(false)
           return
         }
 
         // Si llegamos aquí, el email de confirmación se ha enviado correctamente
         setMessage(
-          "✅ Se ha enviado un email de confirmación a la nueva dirección. Por favor, verifica tu bandeja de entrada.",
+          "📧 Se ha enviado un email de confirmación a la nueva dirección. El cambio de email se aplicará una vez que confirmes desde tu bandeja de entrada. Los demás cambios se han guardado correctamente.",
         )
 
         // Actualizar solo el perfil en la base de datos (sin cambiar el email hasta que se confirme)
@@ -345,7 +336,6 @@ export function UserProfileForm() {
         if (profileError) {
           console.error("Error updating profile:", profileError)
           setMessage("Error al actualizar el perfil en la base de datos")
-          clearTimeout(saveTimeoutRef.current)
           setSaving(false)
           return
         }
@@ -365,7 +355,13 @@ export function UserProfileForm() {
           avatar_url: avatarUrl,
         }))
       } else {
-        // Si el email no ha cambiado, actualizar el perfil normalmente
+        // Si el email no ha cambiado, establecer timeout solo para operaciones normales
+        saveTimeoutRef.current = setTimeout(() => {
+          setSaving(false)
+          setMessage("Error: La operación ha tardado demasiado tiempo.")
+        }, 10000) // 10 segundos para operaciones normales
+
+        // Actualizar el perfil normalmente
         const { error: profileError } = await supabase
           .from("user_profiles")
           .update({
@@ -383,10 +379,16 @@ export function UserProfileForm() {
         if (profileError) {
           console.error("Error updating profile:", profileError)
           setMessage("Error al actualizar el perfil en la base de datos")
-          setFormData((prev) => ({ ...prev, email: originalEmail }))
-          clearTimeout(saveTimeoutRef.current)
+          if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current)
+          }
           setSaving(false)
           return
+        }
+
+        // Limpiar el timeout ya que todo salió bien
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current)
         }
 
         // Actualizar el estado local del perfil sin recargar
@@ -443,9 +445,12 @@ export function UserProfileForm() {
       setAvatarFile(null)
       setAvatarPreview(null)
 
-      // Limpiar mensaje después de 5 segundos si no es un mensaje de confirmación de email
+      // Limpiar mensaje después de un tiempo, pero no si es un mensaje de confirmación de email
       if (!emailHasChanged) {
         setTimeout(() => setMessage(""), 3000)
+      } else {
+        // Para cambios de email, mantener el mensaje visible más tiempo
+        setTimeout(() => setMessage(""), 10000)
       }
     } catch (error) {
       console.error("Error:", error)
