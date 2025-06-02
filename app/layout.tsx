@@ -5,10 +5,14 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { AuthProvider } from "@/components/auth/auth-provider"
-import { SimpleNavigation } from "@/components/simple-navigation"
+import SimpleNavigation from "@/components/simple-navigation"
 import { SessionWrapper } from "@/components/providers/session-wrapper"
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  preload: true,
+})
 
 export const metadata: Metadata = {
   title: "Planificador de Menús Semanales",
