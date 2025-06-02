@@ -322,7 +322,18 @@ export function UserProfileForm() {
 
         if (authError) {
           console.error("❌ Error updating auth.users:", authError)
-          setMessage(`Error al actualizar el email: ${authError.message}`)
+
+          // Manejar específicamente el error de límite de velocidad
+          if (authError.message.includes("email rate limit exceeded")) {
+            setMessage(
+              "⚠️ Has alcanzado el límite de cambios de email. Por favor, espera unos minutos antes de intentar cambiar tu email nuevamente.",
+            )
+          } else if (authError.message.includes("email address already in use")) {
+            setMessage("⚠️ Esta dirección de email ya está siendo utilizada por otra cuenta.")
+          } else {
+            setMessage(`Error al actualizar el email: ${authError.message}`)
+          }
+
           clearTimeout(timeoutId)
           setSaving(false)
           return
