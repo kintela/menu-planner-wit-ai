@@ -16,6 +16,7 @@ import { DeleteRecipeButton } from "@/components/delete-recipe-button"
 import { VideoModal } from "@/components/video-modal"
 import { SourceLinkButton } from "@/components/source-link-button"
 import { getCaloriesPerServing, getCalorieLevel } from "@/lib/calories-calculator"
+import { StarRating } from "@/components/star-rating"
 
 // Define the RecipeCardProps interface
 interface RecipeCardProps {
@@ -125,7 +126,7 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex-grow">
-        <p className="line-clamp-3 text-sm text-muted-foreground">{recipe.ingredients.split("\n")[0]}...</p>
+        <StarRating recipeId={recipe.id} />
       </CardContent>
       <CardFooter className="flex gap-2 mt-auto">
         <Button asChild className="flex-1">
