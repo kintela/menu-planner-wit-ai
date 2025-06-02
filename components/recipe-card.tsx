@@ -6,9 +6,7 @@ import { ChefHat, Flame, Users, User } from "lucide-react"
 
 import { useRouter } from "next/navigation"
 
-
 import { useAuth } from "@/components/auth/auth-provider"
-
 
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -21,7 +19,6 @@ import { getCaloriesPerServing, getCalorieLevel } from "@/lib/calories-calculato
 
 // Define the RecipeCardProps interface
 interface RecipeCardProps {
-
   recipe: any
 
   className?: string
@@ -30,14 +27,15 @@ interface RecipeCardProps {
 // Update the RecipeCard component to check if the user is the creator
 export function RecipeCard({ recipe, className }: RecipeCardProps) {
   const router = useRouter()
-
-
   const { user } = useAuth()
+
+  // Debug: Log the recipe object to see its structure
+  console.log("Recipe object:", recipe)
+  console.log("Recipe ID:", recipe.id)
 
   // Verificar si el usuario actual es el propietario de la receta
   const isOwner = user && recipe.user_id === user.id
   const canEdit = user && isOwner
-
 
   // Ahora solo usamos el campo calories
   const caloriesPerServing = recipe.calories ? getCaloriesPerServing(recipe.calories) : null
@@ -46,13 +44,11 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
   // Obtener la información del creador (puede venir de creator o user_profiles)
   const creatorInfo = recipe.creator || recipe.user_profiles || null
 
-
   // Función para manejar la eliminación de la receta
   const handleDelete = () => {
     // Refrescar la página para mostrar la lista actualizada
     router.refresh()
   }
-
 
   return (
     <Card className={cn("overflow-hidden flex flex-col h-full", className)}>
@@ -115,7 +111,7 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
       </CardContent>
       <CardFooter className="flex gap-2 mt-auto">
         <Button asChild className="flex-1">
-          <Link href={`/recipes/${recipe.id}`}>Ver</Link>
+          <Link href={`/recipes/${recipe.id}`}>Ver Receta</Link>
         </Button>
 
         {canEdit ? (

@@ -1,217 +1,473 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { useRouter } from "next/navigation"
-import { v4 as uuidv4 } from "uuid"
-import { useSession } from "next-auth/react"
-import type { User } from "@supabase/supabase-js"
+import type React from "react"
 
-const supabase = createClientComponentClient()
+import { useState, useRef } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { X, Plus, Upload, Loader2 } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
+
+interface Recipe {
+  title: string
+  description: string
+  ingredients: string[]
+  instructions: string[]
+  prep_time: number
+  cook_time: number
+  servings: number
+  difficulty: "easy" | "medium" | "hard"
+  category: string
+  tags: string[]
+  image_url?: string
+  video_url?: string
+  source_url?: string
+  calories_per_serving?: number
+}
 
 export default function AddRecipeForm() {
-  const [formData, setFormData] = useState({
-    name: "",
-    ingredients: "",
-    preparation: "",
-  })
-  const [imageUrl, setImageUrl] = useState("")
-  const [videoUrl, setVideoUrl] = useState("")
-  const [sourceUrl, setSourceUrl] = useState("")
-  const [calories, setCalories] = useState("")
-  const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
   const router = useRouter()
-  const { data: session } = useSession()
-  const [user, setUser] = useState<User | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
-  useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      setUser(user)
-    }
-    getUser()
-  }, [])
+  const [recipe, setRecipe] = useState<Recipe>({
+    title: "",
+    description: "",
+    ingredients: [""],
+    instructions: [""],
+    prep_time: 0,
+    cook_time: 0,
+    servings: 1,
+    difficulty: "easy",
+    category: "",
+    tags: [],
+    calories_per_serving: undefined,
+  })
 
-  const handleInputChange = (e: any) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    })
+  const [newTag, setNewTag] = useState("")
+
+  const handleInputChange = (field: keyof Recipe, value: any) => {
+    setRecipe((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleImageUpload = async (e: any) => {
-    const file = e.target.files[0]
-    if (!file) return
+  const handleArrayChange = (field: "ingredients" | "instructions", index: number, value: string) => {
+    setRecipe((prev) => ({
+      ...prev,
+      [field]: prev[field].map((item, i) => (i === index ? value : item)),
+    }))
+  }
 
-    const fileExt = file.name.split(".").pop()
-    const fileName = `${uuidv4()}.${fileExt}`
-    const filePath = `${fileName}`
+  const addArrayItem = (field: "ingredients" | "instructions") => {
+    setRecipe((prev) => ({
+      ...prev,
+      [field]: [...prev[field], ""],
+    }))
+  }
 
-    setUploading(true)
-    setUploadProgress(0)
+  const removeArrayItem = (field: "ingredients" | "instructions", index: number) => {
+    setRecipe((prev) => ({
+      ...prev,
+      [field]: prev[field].filter((_, i) => i !== index),
+    }))
+  }
+
+  const addTag = () => {
+    if (newTag.trim() && !recipe.tags.includes(newTag.trim())) {
+      setRecipe((prev) => ({
+        ...prev,
+        tags: [...prev.tags, newTag.trim()],
+      }))
+      setNewTag("")
+    }
+  }
+
+  const removeTag = (tagToRemove: string) => {
+    setRecipe((prev) => ({
+      ...prev,
+      tags: prev.tags.filter((tag) => tag !== tagToRemove),
+    }))
+  }
+
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      setSelectedFile(file)
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const uploadImage = async (): Promise<string | null> => {
+    if (!selectedFile) return null
 
     try {
-      const { data, error } = await supabase.storage.from("recipe-images").upload(filePath, file, {
-        cacheControl: "3600",
-        upsert: false,
+      setUploading(true)
+      const formData = new FormData()
+      formData.append("file", selectedFile)
+
+      const response = await fetch("/api/upload-image?recipeId=new", {
+        method: "POST",
+        body: formData,
       })
 
-      if (error) {
-        throw error
+      if (!response.ok) {
+        throw new Error("Error al subir la imagen")
       }
 
-      const imageUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/recipe-images/${filePath}`
-      setImageUrl(imageUrl)
-    } catch (error: any) {
-      console.error("Error uploading image: ", error.message)
+      const data = await response.json()
+      return data.url
+    } catch (error) {
+      console.error("Error uploading image:", error)
+      return null
     } finally {
       setUploading(false)
-      setUploadProgress(0)
     }
   }
 
-  const handleSubmit = async (e: any) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    const recipeData = {
-      name: formData.name,
-      ingredients: formData.ingredients,
-      preparation: formData.preparation,
-      image_url: imageUrl,
-      is_ai_generated: false,
-      user_id: user?.id, // Añadir esta línea
-      calories: calories ? Number.parseInt(calories) : null,
-      video_url: videoUrl || null,
-      source_url: sourceUrl || null,
-    }
+    setLoading(true)
 
     try {
-      const { data, error } = await supabase.from("recipes").insert([recipeData]).select()
+      const supabase = createClient()
 
-      if (error) {
-        throw error
+      // Verificar autenticación
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser()
+
+      if (authError || !user) {
+        alert("Debes estar autenticado para crear una receta")
+        return
       }
 
-      router.push("/")
-      router.refresh()
-    } catch (error: any) {
-      console.error("Error adding recipe: ", error.message)
+      // Subir imagen si hay una seleccionada
+      let imageUrl = null
+      if (selectedFile) {
+        imageUrl = await uploadImage()
+        if (!imageUrl) {
+          alert("Error al subir la imagen")
+          return
+        }
+      }
+
+      // Filtrar ingredientes e instrucciones vacías
+      const filteredIngredients = recipe.ingredients.filter((ing) => ing.trim() !== "")
+      const filteredInstructions = recipe.instructions.filter((inst) => inst.trim() !== "")
+
+      // Preparar datos para insertar
+      const recipeData = {
+        title: recipe.title,
+        description: recipe.description,
+        ingredients: filteredIngredients,
+        instructions: filteredInstructions,
+        prep_time: recipe.prep_time,
+        cook_time: recipe.cook_time,
+        servings: recipe.servings,
+        difficulty: recipe.difficulty,
+        category: recipe.category || null,
+        tags: recipe.tags,
+        image_url: imageUrl,
+        video_url: recipe.video_url || null,
+        source_url: recipe.source_url || null,
+        calories_per_serving: recipe.calories_per_serving || null,
+        created_by: user.id,
+      }
+
+      const { data, error } = await supabase.from("recipes").insert([recipeData]).select().single()
+
+      if (error) {
+        console.error("Error creating recipe:", error)
+        alert("Error al crear la receta")
+        return
+      }
+
+      alert("¡Receta creada exitosamente!")
+      router.push(`/recipes/${data.id}`)
+    } catch (error) {
+      console.error("Error:", error)
+      alert("Error inesperado al crear la receta")
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <div className="max-w-md mx-auto mt-10">
-      <form onSubmit={handleSubmit} className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="name">
-            Recipe Name
-          </label>
-          <input
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            id="name"
-            name="name"
-            type="text"
-            placeholder="Enter recipe name"
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="ingredients">
-            Ingredients
-          </label>
-          <textarea
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            id="ingredients"
-            name="ingredients"
-            placeholder="Enter ingredients"
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="preparation">
-            Preparation
-          </label>
-          <textarea
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            id="preparation"
-            name="preparation"
-            placeholder="Enter preparation steps"
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="image">
-            Image URL
-          </label>
-          <input
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            id="image"
-            name="image"
-            type="file"
-            onChange={handleImageUpload}
-          />
-          {uploading && (
-            <div className="mt-2">
-              <progress value={uploadProgress} max="100" />
-              <p className="text-sm text-gray-600">Uploading... {uploadProgress}%</p>
+    <Card className="max-w-4xl mx-auto">
+      <CardHeader>
+        <CardTitle>Añadir Nueva Receta</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Información básica */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Título *</Label>
+              <Input
+                id="title"
+                value={recipe.title}
+                onChange={(e) => handleInputChange("title", e.target.value)}
+                required
+              />
             </div>
-          )}
-          {imageUrl && <img src={imageUrl || "/placeholder.svg"} alt="Uploaded" className="mt-4 max-h-32" />}
-        </div>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="videoUrl">
-            Video URL (Optional)
-          </label>
-          <input
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            id="videoUrl"
-            name="videoUrl"
-            type="url"
-            placeholder="Enter video URL"
-            onChange={(e) => setVideoUrl(e.target.value)}
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="sourceUrl">
-            Source URL (Optional)
-          </label>
-          <input
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            id="sourceUrl"
-            name="sourceUrl"
-            type="url"
-            placeholder="Enter source URL"
-            onChange={(e) => setSourceUrl(e.target.value)}
-          />
-        </div>
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="calories">
-            Calories (Optional)
-          </label>
-          <input
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            id="calories"
-            name="calories"
-            type="number"
-            placeholder="Enter calories"
-            onChange={(e) => setCalories(e.target.value)}
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <button
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-            type="submit"
-          >
-            Add Recipe
-          </button>
-        </div>
-      </form>
-    </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="category">Categoría</Label>
+              <Input
+                id="category"
+                value={recipe.category}
+                onChange={(e) => handleInputChange("category", e.target.value)}
+                placeholder="Ej: Desayuno, Almuerzo, Cena"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Descripción</Label>
+            <Textarea
+              id="description"
+              value={recipe.description}
+              onChange={(e) => handleInputChange("description", e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          {/* Imagen */}
+          <div className="space-y-2">
+            <Label>Imagen de la receta</Label>
+            <div className="flex items-center space-x-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {uploading ? "Subiendo..." : "Seleccionar imagen"}
+              </Button>
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+            </div>
+            {imagePreview && (
+              <div className="mt-2">
+                <img
+                  src={imagePreview || "/placeholder.svg"}
+                  alt="Preview"
+                  className="w-32 h-32 object-cover rounded-md"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Tiempos y porciones */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="prep_time">Tiempo de preparación (min)</Label>
+              <Input
+                id="prep_time"
+                type="number"
+                value={recipe.prep_time}
+                onChange={(e) => handleInputChange("prep_time", Number.parseInt(e.target.value) || 0)}
+                min="0"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cook_time">Tiempo de cocción (min)</Label>
+              <Input
+                id="cook_time"
+                type="number"
+                value={recipe.cook_time}
+                onChange={(e) => handleInputChange("cook_time", Number.parseInt(e.target.value) || 0)}
+                min="0"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="servings">Porciones</Label>
+              <Input
+                id="servings"
+                type="number"
+                value={recipe.servings}
+                onChange={(e) => handleInputChange("servings", Number.parseInt(e.target.value) || 1)}
+                min="1"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="difficulty">Dificultad</Label>
+              <select
+                id="difficulty"
+                value={recipe.difficulty}
+                onChange={(e) => handleInputChange("difficulty", e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md"
+              >
+                <option value="easy">Fácil</option>
+                <option value="medium">Medio</option>
+                <option value="hard">Difícil</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Calorías */}
+          <div className="space-y-2">
+            <Label htmlFor="calories">Calorías por porción (opcional)</Label>
+            <Input
+              id="calories"
+              type="number"
+              value={recipe.calories_per_serving || ""}
+              onChange={(e) =>
+                handleInputChange("calories_per_serving", e.target.value ? Number.parseInt(e.target.value) : undefined)
+              }
+              min="0"
+              placeholder="Ej: 350"
+            />
+          </div>
+
+          {/* Ingredientes */}
+          <div className="space-y-2">
+            <Label>Ingredientes *</Label>
+            {recipe.ingredients.map((ingredient, index) => (
+              <div key={index} className="flex items-center space-x-2">
+                <Input
+                  value={ingredient}
+                  onChange={(e) => handleArrayChange("ingredients", index, e.target.value)}
+                  placeholder={`Ingrediente ${index + 1}`}
+                  required={index === 0}
+                />
+                {recipe.ingredients.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => removeArrayItem("ingredients", index)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+            <Button type="button" variant="outline" onClick={() => addArrayItem("ingredients")}>
+              <Plus className="w-4 h-4 mr-2" />
+              Añadir ingrediente
+            </Button>
+          </div>
+
+          {/* Instrucciones */}
+          <div className="space-y-2">
+            <Label>Instrucciones *</Label>
+            {recipe.instructions.map((instruction, index) => (
+              <div key={index} className="flex items-start space-x-2">
+                <div className="flex-1">
+                  <Textarea
+                    value={instruction}
+                    onChange={(e) => handleArrayChange("instructions", index, e.target.value)}
+                    placeholder={`Paso ${index + 1}`}
+                    rows={2}
+                    required={index === 0}
+                  />
+                </div>
+                {recipe.instructions.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => removeArrayItem("instructions", index)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+            <Button type="button" variant="outline" onClick={() => addArrayItem("instructions")}>
+              <Plus className="w-4 h-4 mr-2" />
+              Añadir paso
+            </Button>
+          </div>
+
+          {/* Tags */}
+          <div className="space-y-2">
+            <Label>Etiquetas</Label>
+            <div className="flex items-center space-x-2">
+              <Input
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                placeholder="Añadir etiqueta"
+                onKeyPress={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    addTag()
+                  }
+                }}
+              />
+              <Button type="button" onClick={addTag}>
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {recipe.tags.map((tag) => (
+                <Badge key={tag} variant="secondary" className="flex items-center space-x-1">
+                  <span>{tag}</span>
+                  <button type="button" onClick={() => removeTag(tag)} className="ml-1">
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          {/* URLs opcionales */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="video_url">URL del vídeo (opcional)</Label>
+              <Input
+                id="video_url"
+                value={recipe.video_url || ""}
+                onChange={(e) => handleInputChange("video_url", e.target.value)}
+                placeholder="https://youtube.com/..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="source_url">URL de la fuente (opcional)</Label>
+              <Input
+                id="source_url"
+                value={recipe.source_url || ""}
+                onChange={(e) => handleInputChange("source_url", e.target.value)}
+                placeholder="https://..."
+              />
+            </div>
+          </div>
+
+          {/* Botón de envío */}
+          <div className="flex justify-end space-x-2">
+            <Button type="button" variant="outline" onClick={() => router.back()}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={loading || uploading}>
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creando...
+                </>
+              ) : (
+                "Crear Receta"
+              )}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

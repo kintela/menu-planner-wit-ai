@@ -6,40 +6,95 @@ import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 import type { User } from "@supabase/supabase-js"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 import { ChefHat, Calendar, LogOut, Menu, X, History, Settings, Home } from "lucide-react"
 
 interface UserProfile {
   role: string
   full_name: string
+  first_name?: string
+  last_name?: string
+  alias?: string
+  avatar_url?: string
 }
 
-export function SimpleNavigation() {
+export default function SimpleNavigation() {
   const pathname = usePathname()
   const [user, setUser] = useState<User | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [avatarKey, setAvatarKey] = useState(Date.now()) // Para forzar la recarga del avatar
   const supabase = createClient()
+
+  // Función para determinar el nombre a mostrar según la prioridad
+  const getDisplayName = (profile: UserProfile | null, email: string): string => {
+    if (!profile) return email
+
+    // Prioridad 1: Alias
+    if (profile.alias && profile.alias.trim() !== "") {
+      return profile.alias
+    }
+
+    // Prioridad 2: Nombre y apellidos
+    if (
+      profile.first_name &&
+      profile.last_name &&
+      profile.first_name.trim() !== "" &&
+      profile.last_name.trim() !== ""
+    ) {
+      return `${profile.first_name} ${profile.last_name}`
+    }
+
+    // Prioridad 3: Nombre completo
+    if (profile.full_name && profile.full_name.trim() !== "") {
+      return profile.full_name
+    }
+
+    // Si no hay nada, usar el email
+    return email
+  }
+
+  const loadUserProfile = async (userId: string) => {
+    try {
+      const { data: profile, error } = await supabase
+        .from("user_profiles")
+        .select("role, full_name, first_name, last_name, alias, avatar_url")
+        .eq("id", userId)
+        .single()
+
+      if (error) {
+        return null
+      }
+
+      return profile
+    } catch (error) {
+      return null
+    }
+  }
 
   useEffect(() => {
     async function getUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      setUser(user)
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
 
-      if (user) {
-        const { data: profile } = await supabase
-          .from("user_profiles")
-          .select("role, full_name")
-          .eq("id", user.id)
-          .single()
+        setUser(user)
 
-        setUserProfile(profile)
+        if (user) {
+          const profile = await loadUserProfile(user.id)
+          if (profile) {
+            setUserProfile(profile)
+          }
+        }
+      } catch (error) {
+        console.error("Error getting user for navigation:", error)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
 
     getUser()
@@ -49,36 +104,51 @@ export function SimpleNavigation() {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null)
       if (session?.user) {
-        const { data: profile } = await supabase
-          .from("user_profiles")
-          .select("role, full_name")
-          .eq("id", session.user.id)
-          .single()
-
-        setUserProfile(profile)
+        const profile = await loadUserProfile(session.user.id)
+        if (profile) {
+          setUserProfile(profile)
+        }
       } else {
         setUserProfile(null)
       }
       setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
-  }, [supabase])
+    // Listener para actualizaciones de perfil
+    const handleProfileUpdate = async (event: Event) => {
+      const customEvent = event as CustomEvent
+
+      // Forzar recarga del avatar
+      setAvatarKey(Date.now())
+
+      // Recargar el perfil del usuario inmediatamente
+      if (user) {
+        const profile = await loadUserProfile(user.id)
+        if (profile) {
+          setUserProfile(profile)
+        }
+      }
+    }
+
+    // Escuchar el evento personalizado
+    window.addEventListener("avatar_updated", handleProfileUpdate)
+
+    return () => {
+      subscription.unsubscribe()
+      window.removeEventListener("avatar_updated", handleProfileUpdate)
+    }
+  }, [supabase]) // Solo supabase como dependencia, NO user
 
   const handleSignOut = async () => {
     try {
       setIsSigningOut(true)
-      console.log("🔄 Iniciando cierre de sesión...")
 
       // Cerrar sesión en Supabase
       const { error } = await supabase.auth.signOut()
 
       if (error) {
-        console.error("❌ Error al cerrar sesión:", error)
         throw error
       }
-
-      console.log("✅ Sesión cerrada exitosamente")
 
       // Limpiar estado local
       setUser(null)
@@ -150,6 +220,9 @@ export function SimpleNavigation() {
     )
   }
 
+  // Obtener el nombre a mostrar según la prioridad
+  const displayName = user ? getDisplayName(userProfile, user.email) : ""
+
   return (
     <nav className="bg-white shadow-sm border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -214,12 +287,25 @@ export function SimpleNavigation() {
             <div className="hidden md:flex items-center space-x-2">
               {user ? (
                 <>
-                  <span className="text-sm text-gray-700">
-                    Hola, {userProfile?.full_name || user.email}
-                    {userProfile?.role === "admin" && (
-                      <span className="ml-1 px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Admin</span>
-                    )}
-                  </span>
+                  <Link
+                    href="/profile"
+                    className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                  >
+                    <Avatar className="w-6 h-6">
+                      <AvatarImage
+                        src={userProfile?.avatar_url || undefined}
+                        alt="Avatar"
+                        key={`desktop-avatar-${avatarKey}-${userProfile?.avatar_url}`}
+                      />
+                      <AvatarFallback className="text-xs">{displayName.charAt(0).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <span>
+                      {displayName}
+                      {userProfile?.role === "admin" && (
+                        <span className="ml-1 px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Admin</span>
+                      )}
+                    </span>
+                  </Link>
                   <Button
                     variant="outline"
                     size="sm"
@@ -253,9 +339,20 @@ export function SimpleNavigation() {
             {/* Mobile user info or login */}
             <div className="md:hidden flex items-center space-x-2">
               {user ? (
-                <span className="text-xs text-gray-700 max-w-20 truncate">
-                  {userProfile?.full_name || user.email?.split("@")[0]}
-                </span>
+                <Link
+                  href="/profile"
+                  className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                >
+                  <Avatar className="w-5 h-5">
+                    <AvatarImage
+                      src={userProfile?.avatar_url || undefined}
+                      alt="Avatar"
+                      key={`mobile-avatar-${avatarKey}-${userProfile?.avatar_url}`}
+                    />
+                    <AvatarFallback className="text-xs">{displayName.charAt(0).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <span className="max-w-24 truncate">{displayName}</span>
+                </Link>
               ) : (
                 <Link href="/login">
                   <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1">
@@ -330,6 +427,17 @@ export function SimpleNavigation() {
                   <span>Historial</span>
                 </Link>
               )}
+
+              <Link
+                href="/profile"
+                className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium ${
+                  pathname === "/profile" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                }`}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Settings className="h-5 w-5" />
+                <span>Mi Perfil</span>
+              </Link>
 
               {user && (
                 <button

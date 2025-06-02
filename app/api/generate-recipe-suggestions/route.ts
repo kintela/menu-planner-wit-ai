@@ -1,81 +1,100 @@
 import { NextResponse } from "next/server"
-import { generateText } from "ai"
-import { openai } from "@ai-sdk/openai"
+import { createClient } from "@supabase/supabase-js"
+import OpenAI from "openai"
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+})
 
 export async function POST(request: Request) {
   try {
-    const { searchQuery, mealType, dishOrder, dayName } = await request.json()
+    const { ingredients, preferences, count = 3 } = await request.json()
 
-    if (!searchQuery?.trim()) {
-      return NextResponse.json({ error: "Se requiere una búsqueda" }, { status: 400 })
-    }
-
-    // Verificar que la API key esté disponible
     if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ error: "API key de OpenAI no configurada" }, { status: 500 })
+      return NextResponse.json({ error: "OpenAI API key not configured" }, { status: 500 })
     }
 
-    const mealTypeText = mealType === "comida" ? "almuerzo" : "cena"
-    const dishOrderText = dishOrder ? (dishOrder === 1 ? "primer plato" : "segundo plato") : ""
-    const contextText = dishOrder ? `${dishOrderText} para ${mealTypeText}` : `plato para ${mealTypeText}`
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    const prompt = `Genera exactamente 3 recetas diferentes para ${contextText} del ${dayName} basadas en: "${searchQuery}".
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
+    }
 
-Para cada receta, proporciona:
-1. Nombre del plato
-2. Lista de ingredientes (uno por línea, con cantidades específicas)
-3. Instrucciones de preparación (paso a paso, numeradas)
-4. Breve descripción del plato (máximo 2 líneas)
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-Responde SOLO con este formato JSON válido:
+    // Obtener recetas existentes para evitar duplicados
+    const { data: existingRecipes, error: recipesError } = await supabase.from("recipes").select("title").limit(100)
+
+    if (recipesError) {
+      console.error("Error fetching existing recipes:", recipesError)
+    }
+
+    const existingTitles = existingRecipes ? existingRecipes.map((r) => r.title).join(", ") : ""
+
+    const prompt = `
+Sugiere ${count} recetas únicas y creativas basadas en:
+
+Ingredientes disponibles: ${ingredients}
+Preferencias: ${preferences}
+
+${existingTitles ? `Evita estas recetas que ya existen: ${existingTitles}` : ""}
+
+Responde SOLO con un JSON válido en este formato:
 {
-  "recipes": [
+  "suggestions": [
     {
-      "name": "Nombre del plato",
-      "ingredients": "ingrediente 1\\ningrediente 2\\ningrediente 3",
-      "preparation": "1. Paso uno\\n2. Paso dos\\n3. Paso tres",
-      "description": "Descripción breve del plato"
+      "title": "Nombre de la receta",
+      "description": "Descripción breve y atractiva",
+      "difficulty": "easy|medium|hard",
+      "prep_time": 15,
+      "cook_time": 30,
+      "category": "Categoría de la receta"
     }
   ]
 }
 
-Asegúrate de que las recetas sean:
-- Prácticas y realizables en casa
-- Con ingredientes comunes y accesibles
-- Apropiadas para ${contextText}
-- Variadas entre sí
-- Tiempo de preparación razonable (30-60 minutos)`
+Asegúrate de que:
+- El JSON sea válido
+- Las recetas sean factibles con los ingredientes dados
+- Sean variadas y atractivas
+- Incluyan tiempos realistas
+- Tengan nombres únicos y creativos
+`
 
-    const { text } = await generateText({
-      model: openai("gpt-4o"),
-      prompt,
-      temperature: 0.7,
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content:
+            "Eres un chef experto que sugiere recetas creativas. Respondes SOLO con JSON válido, sin texto adicional.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.8,
+      max_tokens: 1000,
     })
 
-    // Intentar parsear la respuesta JSON
-    let parsedResponse
-    try {
-      // Limpiar la respuesta para extraer solo el JSON
-      const jsonMatch = text.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        parsedResponse = JSON.parse(jsonMatch[0])
-      } else {
-        throw new Error("No se encontró JSON válido en la respuesta")
-      }
-    } catch (parseError) {
-      console.error("Error parsing AI response:", parseError)
-      console.error("Raw response:", text)
-      return NextResponse.json({ error: "Error al procesar la respuesta de la IA" }, { status: 500 })
+    const response = completion.choices[0]?.message?.content
+
+    if (!response) {
+      return NextResponse.json({ error: "No response from OpenAI" }, { status: 500 })
     }
 
-    if (parsedResponse?.recipes && Array.isArray(parsedResponse.recipes)) {
-      const recipes = parsedResponse.recipes.slice(0, 3) // Asegurar máximo 3 recetas
-      return NextResponse.json({ recipes })
-    } else {
-      return NextResponse.json({ error: "Formato de respuesta inválido" }, { status: 500 })
+    try {
+      const suggestionsData = JSON.parse(response)
+      return NextResponse.json(suggestionsData)
+    } catch (parseError) {
+      console.error("Error parsing OpenAI response:", parseError)
+      console.error("Raw response:", response)
+      return NextResponse.json({ error: "Invalid response format from AI" }, { status: 500 })
     }
   } catch (error) {
-    console.error("Error generating suggestions:", error)
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
+    console.error("Error generating recipe suggestions:", error)
+    return NextResponse.json({ error: "Failed to generate suggestions" }, { status: 500 })
   }
 }

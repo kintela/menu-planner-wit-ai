@@ -5,7 +5,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { AuthProvider } from "@/components/auth/auth-provider"
-import { SimpleNavigation } from "@/components/simple-navigation"
+import SimpleNavigation from "@/components/simple-navigation"
 import { SessionWrapper } from "@/components/providers/session-wrapper"
 
 const inter = Inter({
