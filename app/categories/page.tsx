@@ -1,14 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Link from "next/link"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { CategoryManager } from "@/components/category-manager"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import type { User } from "@supabase/supabase-js"
 import type { Category } from "@/lib/types"
+import { getCurrentUserProfile } from "@/lib/auth"
+import { RestrictedAccessMessage } from "@/components/restricted-access-message"
 
 interface CategoryWithCount extends Category {
   recipe_count: number
@@ -20,6 +19,7 @@ export default function CategoriesPage() {
   const [categories, setCategories] = useState<CategoryWithCount[]>([])
   const [duplicateCategories, setDuplicateCategories] = useState<any[]>([])
   const supabase = getSupabaseClient()
+  const profile = getCurrentUserProfile()
 
   useEffect(() => {
     const getUser = async () => {
@@ -91,10 +91,19 @@ export default function CategoriesPage() {
     return () => subscription.unsubscribe()
   }, [supabase])
 
+  if (!profile) {
+    return <RestrictedAccessMessage feature="gestión de categorías" />
+  }
+
+  // Solo usuarios con permisos completos pueden gestionar categorías
+  if (profile.role === "user_restricted") {
+    return <RestrictedAccessMessage feature="gestión de categorías" />
+  }
+
   if (loading) {
     return (
-      <div className="container py-10">
-        <h1 className="text-3xl font-bold mb-6">Categorías</h1>
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-6">Gestión de Categorías</h1>
         <div className="flex items-center justify-center py-10">
           <Loader2 className="h-8 w-8 animate-spin" />
           <span className="ml-2">Cargando...</span>
@@ -103,38 +112,13 @@ export default function CategoriesPage() {
     )
   }
 
-  if (!user) {
-    return (
-      <div className="container py-10">
-        <h1 className="text-3xl font-bold mb-6">Categorías</h1>
-        <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-yellow-600">
-              <AlertCircle className="h-5 w-5" />
-              Acceso Restringido
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-yellow-700 dark:text-yellow-300">
-              Necesitas iniciar sesión para gestionar las categorías de recetas.
-            </p>
-            <div className="flex gap-2">
-              <Button asChild>
-                <Link href="/login?redirect=/categories">Iniciar Sesión</Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link href="/">Volver al Inicio</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
   return (
-    <div className="container py-10">
-      <h1 className="text-3xl font-bold mb-6">Gestión de Categorías</h1>
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Gestión de Categorías</h1>
+        <p className="text-gray-600 mt-2">Organiza tus recetas por categorías</p>
+      </div>
+
       <CategoryManager categories={categories} duplicateCategories={duplicateCategories} />
     </div>
   )

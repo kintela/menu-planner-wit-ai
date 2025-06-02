@@ -1,16 +1,51 @@
 import { NextResponse } from "next/server"
+import OpenAI from "openai"
 
 export async function GET() {
   try {
-    const apiKey = process.env.OPENAI_API_KEY
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        {
+          error: "OpenAI API key not configured",
+          configured: false,
+        },
+        { status: 500 },
+      )
+    }
+
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "user",
+          content: "Responde solo con 'OK' si puedes leer este mensaje.",
+        },
+      ],
+      max_tokens: 10,
+    })
+
+    const response = completion.choices[0]?.message?.content
 
     return NextResponse.json({
-      hasApiKey: !!apiKey,
-      keyLength: apiKey?.length || 0,
-      keyPrefix: apiKey?.substring(0, 7) || "none",
-      allEnvVars: Object.keys(process.env).filter((key) => key.includes("OPENAI") || key.includes("SUPABASE")),
+      success: true,
+      configured: true,
+      response: response,
+      model: "gpt-3.5-turbo",
+      timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    return NextResponse.json({ error: "Failed to check environment" })
+    console.error("OpenAI test error:", error)
+    return NextResponse.json(
+      {
+        error: "OpenAI API test failed",
+        details: error instanceof Error ? error.message : "Unknown error",
+        configured: !!process.env.OPENAI_API_KEY,
+      },
+      { status: 500 },
+    )
   }
 }

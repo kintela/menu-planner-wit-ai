@@ -43,8 +43,20 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({
+    const envInfo = {
+      NODE_ENV: process.env.NODE_ENV,
+      VERCEL: process.env.VERCEL,
+      VERCEL_URL: process.env.VERCEL_URL,
+      VERCEL_REGION: process.env.VERCEL_REGION,
+      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ? "SET" : "NOT SET",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "SET" : "NOT SET",
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? "SET" : "NOT SET",
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY ? "SET" : "NOT SET",
       timestamp: new Date().toISOString(),
+    }
+
+    return NextResponse.json({
+      ...envInfo,
       environment: process.env.NODE_ENV,
       vercel: {
         region: process.env.VERCEL_REGION || "unknown",

@@ -1,27 +1,21 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 
-export async function GET(request: NextRequest) {
-  try {
-    const debugInfo = {
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV,
-      vercelEnv: process.env.VERCEL_ENV,
-      vercelUrl: process.env.VERCEL_URL,
-      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ? "SET" : "NOT SET",
-      supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "SET" : "NOT SET",
-      headers: Object.fromEntries(request.headers.entries()),
-      url: request.url,
-      userAgent: request.headers.get("user-agent"),
-    }
-
-    return NextResponse.json(debugInfo, { status: 200 })
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: "Error getting debug info",
-        message: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 },
-    )
+export async function GET() {
+  const deploymentInfo = {
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    vercelUrl: process.env.VERCEL_URL,
+    vercelRegion: process.env.VERCEL_REGION,
+    nextjsVersion: process.env.npm_package_dependencies_next || "unknown",
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ? "configured" : "missing",
+    supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "configured" : "missing",
+    supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? "configured" : "missing",
+    openaiKey: process.env.OPENAI_API_KEY ? "configured" : "missing",
+    headers: {
+      host: process.env.VERCEL_URL || "localhost",
+      userAgent: "server-side",
+    },
   }
+
+  return NextResponse.json(deploymentInfo)
 }
