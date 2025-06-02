@@ -19,7 +19,7 @@ interface UserProfile {
   avatar_url?: string
 }
 
-export function SimpleNavigation() {
+export default function SimpleNavigation() {
   const pathname = usePathname()
   const [user, setUser] = useState<User | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
@@ -59,8 +59,6 @@ export function SimpleNavigation() {
 
   const loadUserProfile = async (userId: string) => {
     try {
-
-
       const { data: profile, error } = await supabase
         .from("user_profiles")
         .select("role, full_name, first_name, last_name, alias, avatar_url")
@@ -68,13 +66,11 @@ export function SimpleNavigation() {
         .single()
 
       if (error) {
-
         return null
       }
 
       return profile
     } catch (error) {
-
       return null
     }
   }
@@ -122,34 +118,26 @@ export function SimpleNavigation() {
     const handleProfileUpdate = async (event: Event) => {
       const customEvent = event as CustomEvent
 
-
-
       // Forzar recarga del avatar
       setAvatarKey(Date.now())
 
       // Recargar el perfil del usuario inmediatamente
       if (user) {
-
         const profile = await loadUserProfile(user.id)
         if (profile) {
-
           setUserProfile(profile)
         }
       }
     }
 
     // Escuchar el evento personalizado
-
-
     window.addEventListener("avatar_updated", handleProfileUpdate)
 
     return () => {
       subscription.unsubscribe()
       window.removeEventListener("avatar_updated", handleProfileUpdate)
     }
-
   }, [supabase]) // Solo supabase como dependencia, NO user
-
 
   const handleSignOut = async () => {
     try {

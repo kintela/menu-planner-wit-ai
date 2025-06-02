@@ -2,34 +2,48 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import { SessionWrapper } from "@/components/providers/session-wrapper"
-import { SimpleNavigation } from "@/components/simple-navigation"
+import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/toaster"
+import { AuthProvider } from "@/components/auth/auth-provider"
+import SimpleNavigation from "@/components/simple-navigation"
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  preload: true,
+})
 
 export const metadata: Metadata = {
-  title: "Menu Planner AI",
-  description: "Planifica tus menús semanales con ayuda de la inteligencia artificial",
-  keywords: ["menú", "planificación", "recetas", "cocina", "IA", "inteligencia artificial"],
-  authors: [{ name: "Menu Planner AI Team" }],
-  viewport: "width=device-width, initial-scale=1",
+  title: "Planificador de Menús Semanales",
+  description: "Planifica tus comidas y cenas semanales de manera sencilla",
   generator: "v0.dev",
+  viewport: "width=device-width, initial-scale=1",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "white" },
+    { media: "(prefers-color-scheme: dark)", color: "black" },
+  ],
 }
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode
-}) {
+}>) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
       <body className={inter.className}>
-        <SessionWrapper>
-          <div className="min-h-screen bg-gray-50">
-            <SimpleNavigation />
-            <main className="pb-16 md:pb-0">{children}</main>
-          </div>
-        </SessionWrapper>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <AuthProvider>
+            <div className="flex min-h-screen flex-col">
+              <SimpleNavigation />
+              <main className="flex-1">{children}</main>
+            </div>
+            <Toaster />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   )
