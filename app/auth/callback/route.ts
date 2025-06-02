@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
   const errorDescription = searchParams.get("error_description")
   const next = searchParams.get("next") ?? "/"
 
+
   console.log("Auth callback - type:", type, "code:", code ? "present" : "missing", "error:", error)
 
   // Si hay un error en los parámetros, redirigir con el error
@@ -19,8 +20,10 @@ export async function GET(request: NextRequest) {
     if (errorCode) errorParams.set("error_code", errorCode)
     if (errorDescription) errorParams.set("error_description", errorDescription)
 
+
     return NextResponse.redirect(`${origin}/login?${errorParams.toString()}`)
   }
+
 
   if (code) {
     const supabase = createServerClient(
@@ -32,6 +35,7 @@ export async function GET(request: NextRequest) {
             return request.cookies.getAll()
           },
           setAll(cookiesToSet) {
+
             let response: NextResponse
 
             // Si es una recuperación de contraseña, redirigir a la página de reset
@@ -41,6 +45,7 @@ export async function GET(request: NextRequest) {
               response = NextResponse.redirect(`${origin}${next}`)
             }
 
+
             cookiesToSet.forEach(({ name, value, options }) => {
               response.cookies.set(name, value, options)
             })
@@ -49,6 +54,7 @@ export async function GET(request: NextRequest) {
         },
       },
     )
+
 
     try {
       const { error } = await supabase.auth.exchangeCodeForSession(code)
@@ -66,6 +72,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(`${origin}/auth/reset-password`)
       }
 
+
       // Si es un login normal, redirigir a la página solicitada
       return NextResponse.redirect(`${origin}${next}`)
     } catch (error: any) {
@@ -78,4 +85,5 @@ export async function GET(request: NextRequest) {
 
   // Si no hay código, redirigir al login
   return NextResponse.redirect(`${origin}/login?error=missing_code`)
+
 }

@@ -1,6 +1,8 @@
 "use client"
 
+
 import { useState, useEffect } from "react"
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
@@ -8,6 +10,7 @@ import { Loader2 } from "lucide-react"
 export default function FixPreviewPage() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+
   const [systemInfo, setSystemInfo] = useState<{
     userAgent: string
     currentUrl: string
@@ -46,6 +49,7 @@ export default function FixPreviewPage() {
         }
       })
 
+
       const results = await Promise.all(promises)
       setResult(JSON.stringify(results, null, 2))
     } catch (error) {
@@ -56,7 +60,9 @@ export default function FixPreviewPage() {
   }
 
   const clearCache = async () => {
+
     if (typeof window === "undefined") return
+
 
     setLoading(true)
     setResult(null)
@@ -83,6 +89,7 @@ export default function FixPreviewPage() {
         <p className="text-gray-600 mt-2">Herramientas para solucionar problemas de caché y preview</p>
       </div>
 
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -103,8 +110,11 @@ export default function FixPreviewPage() {
           </CardContent>
         </Card>
 
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
+
             <CardTitle>Limpiar Caché Local</CardTitle>
           </CardHeader>
           <CardContent>
@@ -119,6 +129,7 @@ export default function FixPreviewPage() {
                 </>
               ) : (
                 "Limpiar Caché"
+
               )}
             </Button>
           </CardContent>
@@ -128,6 +139,7 @@ export default function FixPreviewPage() {
       {result && (
         <Card className="mt-6">
           <CardHeader>
+
             <CardTitle>Resultado</CardTitle>
           </CardHeader>
           <CardContent>
@@ -159,6 +171,7 @@ export default function FixPreviewPage() {
           </CardContent>
         </Card>
       )}
+
     </div>
   )
 }
