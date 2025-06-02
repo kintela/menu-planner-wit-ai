@@ -284,11 +284,12 @@ export function UserProfileForm() {
 
     try {
       const originalEmail = profile.email
-      const emailHasChanged = formData.email !== originalEmail
+      const emailHasChanged = formData.email.trim().toLowerCase() !== originalEmail.trim().toLowerCase()
 
-      console.log("📧 Email changed:", emailHasChanged)
-      console.log("📧 Original email:", originalEmail)
-      console.log("📧 New email:", formData.email)
+      console.log("📧 Email comparison:")
+      console.log("📧 Original email (trimmed/lowercase):", originalEmail.trim().toLowerCase())
+      console.log("📧 New email (trimmed/lowercase):", formData.email.trim().toLowerCase())
+      console.log("📧 Email has changed:", emailHasChanged)
 
       let avatarUrl = profile.avatar_url
 
@@ -311,7 +312,7 @@ export function UserProfileForm() {
       const fullName = [formData.first_name, formData.last_name].filter(Boolean).join(" ") || null
 
       if (emailHasChanged) {
-        console.log("📧 Processing email change...")
+        console.log("📧 Email is different - processing email change...")
 
         // Primero actualizamos todos los demás campos del perfil
         console.log("📝 Updating profile fields first...")
@@ -415,6 +416,7 @@ export function UserProfileForm() {
           }
         }
       } else {
+        console.log("📧 Email is the same - skipping email update...")
         console.log("📝 Processing normal profile update...")
 
         const { error: profileError } = await supabase
