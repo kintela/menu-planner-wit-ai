@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
@@ -21,6 +21,7 @@ interface UserProfile {
 
 export default function SimpleNavigation() {
   const pathname = usePathname()
+  const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -147,33 +148,44 @@ export default function SimpleNavigation() {
       const { error } = await supabase.auth.signOut()
 
       if (error) {
-        throw error
+        console.error("❌ Error durante el cierre de sesión:", error)
+        // Continuar con la limpieza incluso si hay error
       }
 
-      // Limpiar estado local
+      // Limpiar estado local inmediatamente
       setUser(null)
       setUserProfile(null)
 
-      // Limpiar localStorage y sessionStorage
+      // Limpiar almacenamiento local
       if (typeof window !== "undefined") {
         localStorage.clear()
         sessionStorage.clear()
       }
 
-      // Redirigir a la página principal
-      window.location.href = "/"
+      // Usar router.push en lugar de window.location.href para mejor manejo
+      router.push("/")
+
+      // Forzar recarga de la página después de un breve delay
+      setTimeout(() => {
+        window.location.reload()
+      }, 100)
     } catch (error) {
-      console.error("❌ Error durante el cierre de sesión:", error)
-      // Incluso si hay error, intentar limpiar y redirigir
+      console.error("❌ Error inesperado durante el cierre de sesión:", error)
+
+      // Forzar limpieza y redirección incluso con errores
       setUser(null)
       setUserProfile(null)
+
       if (typeof window !== "undefined") {
         localStorage.clear()
         sessionStorage.clear()
         window.location.href = "/"
       }
     } finally {
-      setIsSigningOut(false)
+      // Asegurar que el estado de carga se resetee
+      setTimeout(() => {
+        setIsSigningOut(false)
+      }, 500)
     }
   }
 
