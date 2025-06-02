@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
@@ -8,6 +8,24 @@ import { Loader2 } from "lucide-react"
 export default function FixPreviewPage() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<string | null>(null)
+  const [systemInfo, setSystemInfo] = useState<{
+    userAgent: string
+    currentUrl: string
+    timestamp: string
+    viewport: string
+  } | null>(null)
+
+  // Only access browser APIs after component mounts
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setSystemInfo({
+        userAgent: navigator.userAgent,
+        currentUrl: window.location.href,
+        timestamp: new Date().toISOString(),
+        viewport: `${window.innerWidth} x ${window.innerHeight}`,
+      })
+    }
+  }, [])
 
   const forceRevalidation = async () => {
     setLoading(true)
@@ -38,6 +56,8 @@ export default function FixPreviewPage() {
   }
 
   const clearCache = async () => {
+    if (typeof window === "undefined") return
+
     setLoading(true)
     setResult(null)
 
@@ -116,27 +136,29 @@ export default function FixPreviewPage() {
         </Card>
       )}
 
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Información del Sistema</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <p>
-              <strong>User Agent:</strong> {navigator.userAgent}
-            </p>
-            <p>
-              <strong>URL actual:</strong> {window.location.href}
-            </p>
-            <p>
-              <strong>Timestamp:</strong> {new Date().toISOString()}
-            </p>
-            <p>
-              <strong>Viewport:</strong> {window.innerWidth} x {window.innerHeight}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {systemInfo && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Información del Sistema</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <p>
+                <strong>User Agent:</strong> {systemInfo.userAgent}
+              </p>
+              <p>
+                <strong>URL actual:</strong> {systemInfo.currentUrl}
+              </p>
+              <p>
+                <strong>Timestamp:</strong> {systemInfo.timestamp}
+              </p>
+              <p>
+                <strong>Viewport:</strong> {systemInfo.viewport}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
