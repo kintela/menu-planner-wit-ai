@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2, Clock } from "lucide-react"
 
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -22,6 +22,7 @@ export function LoginForm() {
   const [message, setMessage] = useState<string | null>(null)
   const [isSignUp, setIsSignUp] = useState(false)
   const [isResetMode, setIsResetMode] = useState(false)
+  const [resetCooldown, setResetCooldown] = useState(0)
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = getSupabaseClient()
@@ -46,6 +47,16 @@ export function LoginForm() {
       setError(decodeURIComponent(message))
     }
   }, [searchParams])
+
+  // Countdown para el cooldown
+  useEffect(() => {
+    if (resetCooldown > 0) {
+      const timer = setTimeout(() => {
+        setResetCooldown(resetCooldown - 1)
+      }, 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [resetCooldown])
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -106,18 +117,39 @@ export function LoginForm() {
         redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
       })
 
-      if (error) throw error
-
-      setMessage(
-        "Te hemos enviado un enlace de recuperación a tu email. El enlace expira en 1 hora. Revisa tu bandeja de entrada y spam.",
-      )
-      setIsResetMode(false)
+      if (error) {
+        // Manejar específicamente el error de rate limit
+        if (error.message.includes("rate limit") || error.message.includes("too many requests")) {
+          setError(
+            "Has excedido el límite de emails de recuperación. Por favor, espera 60 segundos antes de intentar de nuevo.",
+          )
+          setResetCooldown(60)
+        } else {
+          throw error
+        }
+      } else {
+        setMessage(
+          "Te hemos enviado un enlace de recuperación a tu email. El enlace expira en 1 hora. Revisa tu bandeja de entrada y spam.",
+        )
+        setIsResetMode(false)
+        // Establecer un cooldown preventivo
+        setResetCooldown(60)
+      }
     } catch (error: any) {
-      setError(error.message || "Error al enviar el email de recuperación")
+      if (error.message.includes("rate limit") || error.message.includes("too many requests")) {
+        setError(
+          "Has excedido el límite de emails de recuperación. Por favor, espera unos minutos antes de intentar de nuevo.",
+        )
+        setResetCooldown(60)
+      } else {
+        setError(error.message || "Error al enviar el email de recuperación")
+      }
     } finally {
       setLoading(false)
     }
   }
+
+  const isResetDisabled = loading || resetCooldown > 0
 
   return (
     <div className="min-h-screen flex flex-col justify-start bg-gray-50 pt-8 pb-12 px-4 sm:px-6 lg:px-8">
@@ -191,12 +223,23 @@ export function LoginForm() {
                 </Alert>
               )}
 
-              <Button type="submit" className="w-full" disabled={loading}>
+              {resetCooldown > 0 && isResetMode && (
+                <Alert>
+                  <Clock className="h-4 w-4" />
+                  <AlertDescription>
+                    Puedes solicitar otro email de recuperación en {resetCooldown} segundos.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <Button type="submit" className="w-full" disabled={isResetMode ? isResetDisabled : loading}>
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     {isResetMode ? "Enviando..." : isSignUp ? "Creando cuenta..." : "Iniciando sesión..."}
                   </>
+                ) : isResetMode && resetCooldown > 0 ? (
+                  `Esperar ${resetCooldown}s`
                 ) : isResetMode ? (
                   "Enviar enlace de recuperación"
                 ) : isSignUp ? (
@@ -231,6 +274,7 @@ export function LoginForm() {
                       setError(null)
                       setMessage(null)
                       setPassword("")
+                      setResetCooldown(0)
                     }}
                     disabled={loading}
                     className="text-sm"
@@ -239,6 +283,14 @@ export function LoginForm() {
                   </Button>
                 </div>
               </div>
+
+              {isResetMode && (
+                <div className="text-xs text-muted-foreground text-center mt-4 space-y-1">
+                  <p>• Solo puedes solicitar 1 email cada 60 segundos</p>
+                  <p>• Máximo 5 intentos por hora por seguridad</p>
+                  <p>• Revisa también tu carpeta de spam</p>
+                </div>
+              )}
             </form>
           </CardContent>
         </Card>
