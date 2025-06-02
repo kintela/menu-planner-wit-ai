@@ -43,11 +43,53 @@ export function ChangePasswordForm() {
     return ""
   }
 
+  const validateCurrentPassword = async (password: string) => {
+    if (!password) return
+
+    setLoading(true)
+    try {
+      // Obtenemos el email del usuario actual
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser()
+
+      if (userError || !user?.email) {
+        setErrors((prev) => ({ ...prev, currentPassword: "No se pudo verificar el usuario" }))
+        return false
+      }
+
+      // Intentamos iniciar sesión con la contraseña proporcionada
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: password,
+      })
+
+      if (signInError) {
+        setErrors((prev) => ({ ...prev, currentPassword: "La contraseña actual es incorrecta" }))
+        return false
+      }
+
+      // Si no hay error, la contraseña es correcta
+      return true
+    } catch (error) {
+      console.error("Error validating current password:", error)
+      setErrors((prev) => ({ ...prev, currentPassword: "Error al validar la contraseña" }))
+      return false
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleInputChange = (field: string, value: string) => {
     switch (field) {
       case "currentPassword":
         setCurrentPassword(value)
         setErrors((prev) => ({ ...prev, currentPassword: "" }))
+        // Si el campo tiene contenido y pierde el foco, validamos la contraseña
+        if (value) {
+          validateCurrentPassword(value)
+        }
         break
       case "newPassword":
         setNewPassword(value)
@@ -107,25 +149,11 @@ export function ChangePasswordForm() {
     setLoading(true)
 
     try {
-      // Primero verificamos la contraseña actual intentando hacer login
-      const {
-        data: { user },
-        error: currentUserError,
-      } = await supabase.auth.getUser()
+      // Validar la contraseña actual primero
+      const isCurrentPasswordValid = await validateCurrentPassword(currentPassword)
 
-      if (currentUserError || !user?.email) {
-        setMessage("Error: No se pudo verificar el usuario actual")
-        return
-      }
-
-      // Verificar la contraseña actual
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: currentPassword,
-      })
-
-      if (signInError) {
-        setErrors((prev) => ({ ...prev, currentPassword: "La contraseña actual es incorrecta" }))
+      if (!isCurrentPasswordValid) {
+        // El error ya se estableció en validateCurrentPassword
         return
       }
 
@@ -197,6 +225,7 @@ export function ChangePasswordForm() {
                 type={showCurrentPassword ? "text" : "password"}
                 value={currentPassword}
                 onChange={(e) => handleInputChange("currentPassword", e.target.value)}
+                onBlur={() => currentPassword && validateCurrentPassword(currentPassword)}
                 placeholder="Introduce tu contraseña actual"
                 disabled={loading}
                 className={errors.currentPassword ? "border-red-500" : ""}
