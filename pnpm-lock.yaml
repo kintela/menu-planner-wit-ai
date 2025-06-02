@@ -104,6 +104,11 @@ importers:
       '@supabase/supabase-js':
         specifier: latest
         version: 2.49.9
+
+      ai:
+        specifier: latest
+        version: 4.3.16(react@19.0.0)(zod@3.24.1)
+
       autoprefixer:
         specifier: ^10.4.20
         version: 10.4.20(postcss@8.0.0)

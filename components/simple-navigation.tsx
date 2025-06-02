@@ -59,7 +59,8 @@ export function SimpleNavigation() {
 
   const loadUserProfile = async (userId: string) => {
     try {
-      console.log("Loading user profile for navigation:", userId)
+
+
       const { data: profile, error } = await supabase
         .from("user_profiles")
         .select("role, full_name, first_name, last_name, alias, avatar_url")
@@ -67,14 +68,13 @@ export function SimpleNavigation() {
         .single()
 
       if (error) {
-        console.error("Error loading profile for navigation:", error)
+
         return null
       }
 
-      console.log("Profile loaded for navigation:", profile)
       return profile
     } catch (error) {
-      console.error("Unexpected error loading profile for navigation:", error)
+
       return null
     }
   }
@@ -121,46 +121,46 @@ export function SimpleNavigation() {
     // Listener para actualizaciones de perfil
     const handleProfileUpdate = async (event: Event) => {
       const customEvent = event as CustomEvent
-      console.log("🔄 Navigation received profile update event:", customEvent.detail)
+
+
 
       // Forzar recarga del avatar
       setAvatarKey(Date.now())
 
       // Recargar el perfil del usuario inmediatamente
       if (user) {
-        console.log("🔄 Reloading user profile in navigation...")
+
         const profile = await loadUserProfile(user.id)
         if (profile) {
-          console.log("✅ Navigation profile updated:", profile)
+
           setUserProfile(profile)
         }
       }
     }
 
     // Escuchar el evento personalizado
-    console.log("🎧 Navigation listening for avatar_updated events")
+
+
     window.addEventListener("avatar_updated", handleProfileUpdate)
 
     return () => {
       subscription.unsubscribe()
       window.removeEventListener("avatar_updated", handleProfileUpdate)
     }
-  }, [supabase, user]) // Añadir 'user' como dependencia
+
+  }, [supabase]) // Solo supabase como dependencia, NO user
+
 
   const handleSignOut = async () => {
     try {
       setIsSigningOut(true)
-      console.log("🔄 Iniciando cierre de sesión...")
 
       // Cerrar sesión en Supabase
       const { error } = await supabase.auth.signOut()
 
       if (error) {
-        console.error("❌ Error al cerrar sesión:", error)
         throw error
       }
-
-      console.log("✅ Sesión cerrada exitosamente")
 
       // Limpiar estado local
       setUser(null)

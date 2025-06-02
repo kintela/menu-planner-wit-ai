@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Upload, Save, Loader2, AlertCircle } from "lucide-react"
+
+import { Upload, Loader2, AlertCircle } from "lucide-react"
+
 
 interface UserProfile {
   id: string
@@ -271,29 +273,42 @@ export function UserProfileForm() {
       return
     }
 
+
+    console.log("🚀 Starting form submission...")
+    setSaving(true)
+    setMessage("Guardando cambios...")
+
+    // Timeout de seguridad
+    const timeoutId = setTimeout(() => {
+      console.log("⏰ Timeout reached, stopping process")
+      setSaving(false)
+      setMessage("Error: La operación ha tardado demasiado tiempo.")
+    }, 15000) // 15 segundos
+
     try {
-      setSaving(true)
-      setMessage("Guardando cambios...")
-
-      // Guardar el email original antes de cualquier cambio
       const originalEmail = profile.email
+      const emailHasChanged = formData.email.trim().toLowerCase() !== originalEmail.trim().toLowerCase()
 
-      // Establecer un timeout de seguridad más corto
-      saveTimeoutRef.current = setTimeout(() => {
-        setSaving(false)
-        setFormData((prev) => ({ ...prev, email: originalEmail }))
-        setMessage("Error: La operación ha tardado demasiado tiempo. Se ha revertido al email original.")
-      }, 5000) // 5 segundos de timeout
+      console.log("📧 Email comparison:")
+      console.log("📧 Original email (trimmed/lowercase):", originalEmail.trim().toLowerCase())
+      console.log("📧 New email (trimmed/lowercase):", formData.email.trim().toLowerCase())
+      console.log("📧 Email has changed:", emailHasChanged)
+
 
       let avatarUrl = profile.avatar_url
 
       // Subir avatar si se seleccionó uno nuevo
       if (avatarFile) {
+
+        console.log("📷 Uploading avatar...")
         const uploadedUrl = await uploadAvatar(avatarFile)
         if (uploadedUrl) {
           avatarUrl = uploadedUrl
+          console.log("✅ Avatar uploaded successfully")
         } else {
-          clearTimeout(saveTimeoutRef.current)
+          console.log("❌ Avatar upload failed")
+          clearTimeout(timeoutId)
+
           setSaving(false)
           return
         }
@@ -302,37 +317,143 @@ export function UserProfileForm() {
       // Construir el nombre completo
       const fullName = [formData.first_name, formData.last_name].filter(Boolean).join(" ") || null
 
-      // Actualizar solo el perfil en la base de datos
-      setMessage("Actualizando perfil...")
-      const { error: profileError } = await supabase
-        .from("user_profiles")
-        .update({
-          first_name: formData.first_name || null,
-          last_name: formData.last_name || null,
-          alias: formData.alias || null,
-          phone: formData.phone || null,
+      if (emailHasChanged) {
+        console.log("📧 Email is different - processing email change...")
+
+        // Primero actualizamos todos los demás campos del perfil
+        console.log("📝 Updating profile fields first...")
+        const { error: profileError } = await supabase
+          .from("user_profiles")
+          .update({
+            first_name: formData.first_name || null,
+            last_name: formData.last_name || null,
+            alias: formData.alias || null,
+            phone: formData.phone || null,
+            // Mantenemos el email original por ahora
+            full_name: fullName,
+            avatar_url: avatarUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", profile.id)
+
+        if (profileError) {
+          console.error("❌ Error updating profile:", profileError)
+          setMessage("Error al actualizar el perfil en la base de datos")
+          clearTimeout(timeoutId)
+          setSaving(false)
+          return
+        }
+
+        console.log("✅ Profile fields updated successfully")
+
+        // Ahora intentamos actualizar el email
+        setMessage("Intentando actualizar email...")
+        console.log("📧 Attempting to update auth.users...")
+
+        const { error: authError } = await supabase.auth.updateUser({
           email: formData.email,
-          full_name: fullName,
-          avatar_url: avatarUrl,
-          updated_at: new Date().toISOString(),
         })
-        .eq("id", profile.id)
 
-      if (profileError) {
-        console.error("Error updating profile:", profileError)
-        setMessage("Error al actualizar el perfil en la base de datos")
-        setFormData((prev) => ({ ...prev, email: originalEmail }))
-        clearTimeout(saveTimeoutRef.current)
-        setSaving(false)
-        return
+        if (authError) {
+          console.error("❌ Error updating auth.users:", authError)
+
+          // Manejar específicamente el error de límite de velocidad
+          if (authError.message.includes("email rate limit exceeded")) {
+            setMessage(
+              "✅ Perfil actualizado correctamente. ⚠️ El cambio de email no se pudo procesar debido al límite de velocidad de Supabase. Por favor, espera unos minutos e intenta cambiar solo el email más tarde.",
+            )
+
+            // Revertir el email en el formulario al original
+            setFormData((prev) => ({ ...prev, email: originalEmail }))
+
+            // Actualizar estado local sin el nuevo email
+            setProfile((prev) => ({
+              ...prev!,
+              first_name: formData.first_name || null,
+              last_name: formData.last_name || null,
+              alias: formData.alias || null,
+              phone: formData.phone || null,
+              // Mantener el email original
+              email: originalEmail,
+              full_name: fullName,
+              avatar_url: avatarUrl,
+            }))
+          } else if (authError.message.includes("email address already in use")) {
+            setMessage(
+              "✅ Perfil actualizado correctamente. ⚠️ Esta dirección de email ya está siendo utilizada por otra cuenta.",
+            )
+            setFormData((prev) => ({ ...prev, email: originalEmail }))
+          } else {
+            setMessage(`✅ Perfil actualizado correctamente. ⚠️ Error al actualizar el email: ${authError.message}`)
+            setFormData((prev) => ({ ...prev, email: originalEmail }))
+          }
+        } else {
+          console.log("✅ Auth.users updated successfully")
+
+          // Si el email se actualizó correctamente, actualizamos también user_profiles
+          const { error: emailUpdateError } = await supabase
+            .from("user_profiles")
+            .update({
+              email: formData.email,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", profile.id)
+
+          if (emailUpdateError) {
+            console.error("❌ Error updating email in user_profiles:", emailUpdateError)
+            setMessage("✅ Perfil actualizado. ⚠️ Error al sincronizar el email en la base de datos.")
+          } else {
+            console.log("✅ Email updated in user_profiles successfully")
+            setMessage(
+              "📧 Perfil actualizado correctamente. Se ha enviado un email de confirmación a la nueva dirección. Por favor, verifica tu bandeja de entrada para confirmar el cambio de email.",
+            )
+
+            // Actualizar estado local con el nuevo email
+            setProfile((prev) => ({
+              ...prev!,
+              first_name: formData.first_name || null,
+              last_name: formData.last_name || null,
+              alias: formData.alias || null,
+              phone: formData.phone || null,
+              email: formData.email,
+              full_name: fullName,
+              avatar_url: avatarUrl,
+            }))
+          }
+        }
+      } else {
+        console.log("📧 Email is the same - skipping email update...")
+        console.log("📝 Processing normal profile update...")
+
+        const { error: profileError } = await supabase
+          .from("user_profiles")
+          .update({
+            first_name: formData.first_name || null,
+            last_name: formData.last_name || null,
+            alias: formData.alias || null,
+            phone: formData.phone || null,
+            email: formData.email,
+            full_name: fullName,
+            avatar_url: avatarUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", profile.id)
+
+        if (profileError) {
+          console.error("❌ Error updating profile:", profileError)
+          setMessage("Error al actualizar el perfil en la base de datos")
+          clearTimeout(timeoutId)
+          setSaving(false)
+          return
+        }
+
+        console.log("✅ Profile updated successfully")
+        setMessage("✅ Perfil actualizado correctamente")
       }
 
-      // Limpiar el timeout ya que todo salió bien
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
+      // Actualizar estado local
+      console.log("🔄 Updating local state...")
 
-      // Actualizar el estado local del perfil sin recargar
       setProfile((prev) => ({
         ...prev!,
         first_name: formData.first_name || null,
@@ -344,12 +465,6 @@ export function UserProfileForm() {
         avatar_url: avatarUrl,
       }))
 
-      // Disparar evento personalizado para actualizar la navegación
-      console.log("🚀 Dispatching avatar_updated event with:", {
-        avatarUrl: avatarUrl,
-        fullName: fullName,
-        timestamp: Date.now(),
-      })
 
       const event = new CustomEvent("avatar_updated", {
         detail: {
@@ -360,33 +475,22 @@ export function UserProfileForm() {
       })
       window.dispatchEvent(event)
 
-      // Pequeña pausa para asegurar que el evento se procese
-      setTimeout(() => {
-        console.log("🔄 Forcing navigation update...")
-        window.dispatchEvent(
-          new CustomEvent("avatar_updated", {
-            detail: {
-              avatarUrl: avatarUrl,
-              fullName: fullName,
-              timestamp: Date.now() + 1,
-            },
-          }),
-        )
-      }, 100)
 
       // Limpiar estado del formulario de avatar
       setAvatarFile(null)
       setAvatarPreview(null)
 
-      setMessage("✅ Perfil actualizado correctamente")
+      // Limpiar mensaje después de un tiempo
+      setTimeout(() => setMessage(""), emailHasChanged ? 10000 : 3000)
 
-      // Limpiar mensaje después de 3 segundos
-      setTimeout(() => setMessage(""), 3000)
+      console.log("✅ Form submission completed successfully")
     } catch (error) {
-      console.error("Error:", error)
+      console.error("❌ Unexpected error in handleSubmit:", error)
       setMessage("Error inesperado al actualizar el perfil")
-      setFormData((prev) => ({ ...prev, email: profile.email }))
     } finally {
+      console.log("🏁 Cleaning up form submission...")
+      clearTimeout(timeoutId)
+
       setSaving(false)
     }
   }
@@ -549,7 +653,9 @@ export function UserProfileForm() {
               disabled={saving || uploading || emailError !== "" || phoneError !== ""}
               className="flex items-center space-x-2"
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+
               <span>{saving ? "Guardando..." : "Guardar Cambios"}</span>
             </Button>
           </div>
