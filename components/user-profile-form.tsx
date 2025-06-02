@@ -301,67 +301,66 @@ export function UserProfileForm() {
         // Si el email ha cambiado, enviar email de confirmación a través de Supabase
         setMessage("Enviando email de confirmación...")
 
-        const { error: updateError } = await supabase.auth.updateUser({
-          email: formData.email,
-        })
+        try {
+          // 1. Primero actualizamos el email en auth.users (esto enviará el email de confirmación)
+          const { error: updateError } = await supabase.auth.updateUser({
+            email: formData.email,
+          })
 
-        if (updateError) {
-          console.error("Error updating email:", updateError)
-          setMessage(`Error al actualizar el email: ${updateError.message}`)
-          setFormData((prev) => ({ ...prev, email: originalEmail }))
-          setSaving(false)
-          return
-        }
+          if (updateError) {
+            console.error("Error updating email in auth.users:", updateError)
+            setMessage(`Error al actualizar el email: ${updateError.message}`)
+            setSaving(false)
+            return
+          }
 
-        // Si llegamos aquí, el email de confirmación se ha enviado correctamente
-        setMessage(
-          "📧 Se ha enviado un email de confirmación a la nueva dirección. El cambio de email se aplicará una vez que confirmes desde tu bandeja de entrada. Los demás cambios se han guardado correctamente.",
-        )
+          // 2. También actualizamos el email en user_profiles para mantener la sincronización
+          // Aunque el email no esté verificado, mantenemos ambas tablas sincronizadas
+          const { error: profileError } = await supabase
+            .from("user_profiles")
+            .update({
+              first_name: formData.first_name || null,
+              last_name: formData.last_name || null,
+              alias: formData.alias || null,
+              phone: formData.phone || null,
+              email: formData.email, // Actualizamos el email para mantener la sincronización
+              full_name: fullName,
+              avatar_url: avatarUrl,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", profile.id)
 
-        // Actualizar solo el perfil en la base de datos (sin cambiar el email hasta que se confirme)
-        const { error: profileError } = await supabase
-          .from("user_profiles")
-          .update({
+          if (profileError) {
+            console.error("Error updating profile:", profileError)
+            setMessage("Error al actualizar el perfil en la base de datos")
+            setSaving(false)
+            return
+          }
+
+          // 3. Actualizamos el estado local con el nuevo email
+          setProfile((prev) => ({
+            ...prev!,
             first_name: formData.first_name || null,
             last_name: formData.last_name || null,
             alias: formData.alias || null,
             phone: formData.phone || null,
-            // No actualizamos el email aquí, se actualizará cuando el usuario confirme
+            email: formData.email, // Usamos el nuevo email
             full_name: fullName,
             avatar_url: avatarUrl,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", profile.id)
+          }))
 
-        if (profileError) {
-          console.error("Error updating profile:", profileError)
-          setMessage("Error al actualizar el perfil en la base de datos")
+          // Mostramos mensaje de éxito
+          setMessage(
+            "📧 Se ha enviado un email de confirmación a la nueva dirección. Por favor, verifica tu bandeja de entrada para confirmar el cambio de email.",
+          )
+        } catch (error) {
+          console.error("Error in email update process:", error)
+          setMessage("Error inesperado al actualizar el email")
           setSaving(false)
           return
         }
-
-        // Revertir el email en el formulario hasta que se confirme
-        setFormData((prev) => ({ ...prev, email: originalEmail }))
-
-        // Actualizar el estado local del perfil sin recargar (manteniendo el email original)
-        setProfile((prev) => ({
-          ...prev!,
-          first_name: formData.first_name || null,
-          last_name: formData.last_name || null,
-          alias: formData.alias || null,
-          phone: formData.phone || null,
-          // Mantenemos el email original hasta que se confirme
-          full_name: fullName,
-          avatar_url: avatarUrl,
-        }))
       } else {
-        // Si el email no ha cambiado, establecer timeout solo para operaciones normales
-        saveTimeoutRef.current = setTimeout(() => {
-          setSaving(false)
-          setMessage("Error: La operación ha tardado demasiado tiempo.")
-        }, 10000) // 10 segundos para operaciones normales
-
-        // Actualizar el perfil normalmente
+        // Si el email no ha cambiado, actualizar el perfil normalmente
         const { error: profileError } = await supabase
           .from("user_profiles")
           .update({
@@ -379,16 +378,8 @@ export function UserProfileForm() {
         if (profileError) {
           console.error("Error updating profile:", profileError)
           setMessage("Error al actualizar el perfil en la base de datos")
-          if (saveTimeoutRef.current) {
-            clearTimeout(saveTimeoutRef.current)
-          }
           setSaving(false)
           return
-        }
-
-        // Limpiar el timeout ya que todo salió bien
-        if (saveTimeoutRef.current) {
-          clearTimeout(saveTimeoutRef.current)
         }
 
         // Actualizar el estado local del perfil sin recargar
@@ -404,11 +395,6 @@ export function UserProfileForm() {
         }))
 
         setMessage("✅ Perfil actualizado correctamente")
-      }
-
-      // Limpiar el timeout ya que todo salió bien
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
       }
 
       // Disparar evento personalizado para actualizar la navegación
@@ -455,8 +441,8 @@ export function UserProfileForm() {
     } catch (error) {
       console.error("Error:", error)
       setMessage("Error inesperado al actualizar el perfil")
-      setFormData((prev) => ({ ...prev, email: profile.email }))
     } finally {
+      // Siempre desactivamos el estado de guardado al finalizar
       setSaving(false)
     }
   }
