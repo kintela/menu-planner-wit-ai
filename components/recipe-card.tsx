@@ -44,6 +44,9 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
   // Obtener la información del creador (puede venir de creator o user_profiles)
   const creatorInfo = recipe.creator || recipe.user_profiles || null
 
+  // Debug temporal para ver los datos del creador
+  console.log("Creator info for recipe:", recipe.name, creatorInfo)
+
   // Función para manejar la eliminación de la receta
   const handleDelete = () => {
     // Refrescar la página para mostrar la lista actualizada
@@ -74,8 +77,23 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
         {/* Información del creador en la esquina inferior derecha de la imagen */}
         {creatorInfo && (
           <div className="absolute bottom-2 right-2 flex items-center gap-1 text-xs bg-black/60 text-white backdrop-blur-sm rounded px-2 py-1 shadow-md">
-            <User className="h-3 w-3" />
-            <span>{creatorInfo.full_name || creatorInfo.email}</span>
+            {creatorInfo.avatar_url ? (
+              <Image
+                src={creatorInfo.avatar_url || "/placeholder.svg"}
+                alt="Avatar"
+                width={12}
+                height={12}
+                className="h-3 w-3 rounded-full object-cover"
+              />
+            ) : (
+              <User className="h-3 w-3" />
+            )}
+            <span>
+              {creatorInfo.alias ||
+                (creatorInfo.first_name && creatorInfo.last_name
+                  ? `${creatorInfo.first_name} ${creatorInfo.last_name}`
+                  : creatorInfo.full_name || creatorInfo.email)}
+            </span>
           </div>
         )}
       </div>
