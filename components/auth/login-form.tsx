@@ -34,12 +34,16 @@ export function LoginForm() {
     const message = searchParams.get("message")
     const errorDescription = searchParams.get("error_description")
 
-    if (error === "recovery_expired") {
+    if (error === "missing_code") {
+      setError("El enlace de recuperación no es válido o ha expirado. Por favor, solicita uno nuevo.")
+    } else if (error === "recovery_expired") {
       setError("El enlace de recuperación ha expirado. Por favor, solicita uno nuevo.")
     } else if (error === "recovery_error") {
       setError(message || "Error en la recuperación de contraseña. Solicita un nuevo enlace.")
     } else if (error && errorDescription) {
       setError(decodeURIComponent(errorDescription))
+    } else if (message) {
+      setError(decodeURIComponent(message))
     }
   }, [searchParams])
 
@@ -99,7 +103,7 @@ export function LoginForm() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?type=recovery&next=/auth/reset-password`,
+        redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
       })
 
       if (error) throw error

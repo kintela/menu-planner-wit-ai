@@ -4,22 +4,21 @@ import { NextResponse, type NextRequest } from "next/server"
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
+  const tokenHash = searchParams.get("token_hash")
   const type = searchParams.get("type")
   const error = searchParams.get("error")
   const errorCode = searchParams.get("error_code")
   const errorDescription = searchParams.get("error_description")
   const next = searchParams.get("next") ?? "/"
 
-  console.log(
-    "Auth callback - type:",
+  console.log("Auth callback params:", {
+    code: code ? "present" : "missing",
+    tokenHash: tokenHash ? "present" : "missing",
     type,
-    "code:",
-    code ? "present" : "missing",
-    "error:",
     error,
-    "errorCode:",
     errorCode,
-  )
+    url: request.url,
+  })
 
   // Si hay un error específico de OTP expirado para recovery
   if (error === "access_denied" && errorCode === "otp_expired" && type === "recovery") {
@@ -39,7 +38,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?${errorParams.toString()}`)
   }
 
-  if (code) {
+  // Para recovery, podemos usar tanto code como token_hash
+  const authCode = code || tokenHash
+
+  if (authCode) {
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -68,10 +70,21 @@ export async function GET(request: NextRequest) {
     )
 
     try {
-      const { error } = await supabase.auth.exchangeCodeForSession(code)
+      let authResult
 
-      if (error) {
-        console.error("Error exchanging code for session:", error)
+      if (type === "recovery" && tokenHash) {
+        // Para recovery con token_hash, usar verifyOtp
+        authResult = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: "recovery",
+        })
+      } else {
+        // Para otros casos, usar exchangeCodeForSession
+        authResult = await supabase.auth.exchangeCodeForSession(authCode)
+      }
+
+      if (authResult.error) {
+        console.error("Error in auth process:", authResult.error)
 
         // Si es un error de recovery, redirigir con mensaje específico
         if (type === "recovery") {
@@ -81,7 +94,7 @@ export async function GET(request: NextRequest) {
         }
 
         return NextResponse.redirect(
-          `${origin}/login?error=auth_error&error_description=${encodeURIComponent(error.message)}`,
+          `${origin}/login?error=auth_error&error_description=${encodeURIComponent(authResult.error.message)}`,
         )
       }
 
@@ -100,6 +113,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Si no hay código, redirigir al login
-  return NextResponse.redirect(`${origin}/login?error=missing_code`)
+  // Si no hay código ni token_hash, redirigir al login con error
+  console.log("No code or token_hash found in callback")
+  return NextResponse.redirect(`${origin}/login?error=missing_code&message=No se encontró el código de autenticación`)
 }
