@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 
-export default function LoginForm() {
+export function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
 
