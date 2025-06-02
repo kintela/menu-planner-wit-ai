@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Upload, Save, Loader2, AlertCircle } from "lucide-react"
+import { Upload, Loader2, AlertCircle } from "lucide-react"
 
 interface UserProfile {
   id: string
@@ -644,7 +644,7 @@ export function UserProfileForm() {
               disabled={saving || uploading || emailError !== "" || phoneError !== ""}
               className="flex items-center space-x-2"
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               <span>{saving ? "Guardando..." : "Guardar Cambios"}</span>
             </Button>
           </div>
