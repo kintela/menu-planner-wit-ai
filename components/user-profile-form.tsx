@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+
 import { Upload, Loader2, AlertCircle } from "lucide-react"
+
 
 interface UserProfile {
   id: string
@@ -271,6 +273,7 @@ export function UserProfileForm() {
       return
     }
 
+
     console.log("🚀 Starting form submission...")
     setSaving(true)
     setMessage("Guardando cambios...")
@@ -291,10 +294,12 @@ export function UserProfileForm() {
       console.log("📧 New email (trimmed/lowercase):", formData.email.trim().toLowerCase())
       console.log("📧 Email has changed:", emailHasChanged)
 
+
       let avatarUrl = profile.avatar_url
 
       // Subir avatar si se seleccionó uno nuevo
       if (avatarFile) {
+
         console.log("📷 Uploading avatar...")
         const uploadedUrl = await uploadAvatar(avatarFile)
         if (uploadedUrl) {
@@ -303,6 +308,7 @@ export function UserProfileForm() {
         } else {
           console.log("❌ Avatar upload failed")
           clearTimeout(timeoutId)
+
           setSaving(false)
           return
         }
@@ -447,6 +453,7 @@ export function UserProfileForm() {
 
       // Actualizar estado local
       console.log("🔄 Updating local state...")
+
       setProfile((prev) => ({
         ...prev!,
         first_name: formData.first_name || null,
@@ -458,7 +465,7 @@ export function UserProfileForm() {
         avatar_url: avatarUrl,
       }))
 
-      // Disparar evento para navegación
+
       const event = new CustomEvent("avatar_updated", {
         detail: {
           avatarUrl: avatarUrl,
@@ -467,6 +474,7 @@ export function UserProfileForm() {
         },
       })
       window.dispatchEvent(event)
+
 
       // Limpiar estado del formulario de avatar
       setAvatarFile(null)
@@ -482,6 +490,7 @@ export function UserProfileForm() {
     } finally {
       console.log("🏁 Cleaning up form submission...")
       clearTimeout(timeoutId)
+
       setSaving(false)
     }
   }
@@ -644,7 +653,9 @@ export function UserProfileForm() {
               disabled={saving || uploading || emailError !== "" || phoneError !== ""}
               className="flex items-center space-x-2"
             >
+
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+
               <span>{saving ? "Guardando..." : "Guardar Cambios"}</span>
             </Button>
           </div>

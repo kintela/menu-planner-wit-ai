@@ -1,5 +1,6 @@
 "use client"
 
+
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -152,6 +153,7 @@ export default function DebugMobilePage() {
           <li>Comparte todos estos resultados para diagnosticar el problema</li>
         </ul>
       </div>
+
     </div>
   )
 }

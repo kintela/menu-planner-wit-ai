@@ -1,46 +1,25 @@
-"use client"
-
-import { useAuth } from "@/components/auth/auth-provider"
 import { LoginForm } from "@/components/auth/login-form"
-import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect } from "react"
-import { Loader2 } from "lucide-react"
+import { getCurrentUser } from "@/lib/auth"
+import { redirect } from "next/navigation"
 
-export default function LoginPage() {
-  const { user, loading } = useAuth()
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const redirectTo = searchParams.get("redirect") || "/"
-
-  useEffect(() => {
-    if (!loading && user) {
-      console.log("✅ Usuario ya autenticado, redirigiendo a:", redirectTo)
-      router.push(redirectTo)
-    }
-  }, [user, loading, redirectTo, router])
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Verificando autenticación...</p>
-        </div>
-      </div>
-    )
-  }
+export default async function LoginPage() {
+  const user = await getCurrentUser()
 
   if (user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p className="text-lg font-medium">¡Ya estás autenticado!</p>
-          <p className="text-sm text-muted-foreground">Redirigiendo...</p>
-        </div>
-      </div>
-    )
+    redirect("/")
   }
 
-  return <LoginForm />
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">Inicia sesión en tu cuenta</h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Accede a Menu Planner AI para gestionar tus recetas y menús
+          </p>
+        </div>
+        <LoginForm />
+      </div>
+    </div>
+  )
 }

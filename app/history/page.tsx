@@ -4,16 +4,18 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, Loader2 } from "lucide-react"
 import type { User } from "@supabase/supabase-js"
 import type { WeeklyMenu } from "@/lib/types"
+import { getCurrentUserProfile } from "@/lib/auth"
 
 export default function HistoryPage() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [weeklyMenus, setWeeklyMenus] = useState<WeeklyMenu[]>([])
   const supabase = getSupabaseClient()
+  const profile = getCurrentUserProfile()
 
   useEffect(() => {
     const getUser = async () => {
@@ -67,7 +69,7 @@ export default function HistoryPage() {
     )
   }
 
-  if (!user) {
+  if (!profile || !user) {
     return (
       <div className="container py-10">
         <h1 className="text-3xl font-bold mb-6">Historial</h1>
@@ -97,40 +99,18 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="container py-10">
-      <h1 className="text-3xl font-bold mb-6">Historial de Menús</h1>
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Historial</h1>
+        <p className="text-gray-600 mt-2">Revisa tu actividad reciente en la aplicación</p>
+      </div>
 
-      {weeklyMenus && weeklyMenus.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {weeklyMenus.map((menu: WeeklyMenu) => (
-            <Card key={menu.id}>
-              <CardHeader>
-                <CardTitle>{menu.name || `Menú del ${menu.start_date} al ${menu.end_date}`}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Desde {new Date(menu.start_date).toLocaleDateString()} hasta{" "}
-                  {new Date(menu.end_date).toLocaleDateString()}
-                </p>
-                {menu.saved_at && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Guardado el {new Date(menu.saved_at).toLocaleDateString()}
-                  </p>
-                )}
-              </CardContent>
-              <CardFooter>
-                <Button asChild className="w-full">
-                  <Link href={`/history/${menu.id}`}>Ver Detalles</Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-10">
-          <p className="text-muted-foreground">No hay menús anteriores en el historial.</p>
-        </div>
-      )}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <p className="text-gray-600">Esta funcionalidad está en desarrollo.</p>
+        <p className="text-sm text-gray-500 mt-2">
+          Pronto podrás ver tu historial de recetas creadas, menús planificados y más.
+        </p>
+      </div>
     </div>
   )
 }

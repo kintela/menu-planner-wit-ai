@@ -1,30 +1,35 @@
-# Menu planner with AI
+# Menu Planner AI
 
-*tomatically synced with your [v0.dev](https://v0.dev) deployments*
+Una aplicación web para planificar menús semanales con sugerencias de IA.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/kintelas-projects/v0-menu-planner-with-ai)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/M4AK43HW4ji)
+## Características
 
-## Overview
+- 🤖 Sugerencias de recetas con IA
+- 📅 Planificación de menús semanales
+- 📱 Responsive design
+- 👥 Sistema de usuarios con roles
+- 🖼️ Subida de imágenes para recetas
+- 🔍 Búsqueda y filtrado de recetas
+- 📊 Gestión de categorías
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+## Tecnologías
 
-## Deployment
+- Next.js 14 (App Router)
+- Supabase (Base de datos y autenticación)
+- Tailwind CSS
+- TypeScript
+- OpenAI API para sugerencias
 
-Your project is live at:
+## Instalación
 
-**[https://vercel.com/kintelas-projects/v0-menu-planner-with-ai](https://vercel.com/kintelas-projects/v0-menu-planner-with-ai)**
+1. Clona el repositorio
+2. Instala las dependencias: `npm install`
+3. Configura las variables de entorno
+4. Ejecuta el proyecto: `npm run dev`
 
-## Build your app
+## Variables de entorno requeridas
 
-Continue building your app on:
-
-**[https://v0.dev/chat/projects/M4AK43HW4ji](https://v0.dev/chat/projects/M4AK43HW4ji)**
-
-## How It Works
-
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENAI_API_KEY`

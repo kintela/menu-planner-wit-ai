@@ -1,64 +1,99 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import OpenAI from "openai"
 
-// Esta función generaría un menú semanal utilizando IA
-// Por ahora, simplemente selecciona recetas aleatorias
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+})
+
 export async function POST(request: Request) {
   try {
-    const { weeklyMenuId } = await request.json()
+    const { preferences, days = 7 } = await request.json()
 
-    if (!weeklyMenuId) {
-      return NextResponse.json({ error: "Se requiere el ID del menú semanal" }, { status: 400 })
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json({ error: "OpenAI API key not configured" }, { status: 500 })
     }
 
-    const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    // Obtener todas las recetas
-    const { data: recipes, error: recipesError } = await supabase.from("recipes").select("id")
-
-    if (recipesError || !recipes || recipes.length === 0) {
-      return NextResponse.json({ error: "No hay recetas disponibles" }, { status: 400 })
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json({ error: "Supabase not configured" }, { status: 500 })
     }
 
-    // Eliminar los platos existentes
-    await supabase.from("menu_items").delete().eq("weekly_menu_id", weeklyMenuId)
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Crear nuevos platos aleatorios
-    const menuItems = []
+    // Obtener recetas existentes para usar como referencia
+    const { data: recipes, error: recipesError } = await supabase
+      .from("recipes")
+      .select("title, category, tags, difficulty")
+      .limit(50)
 
-    for (let day = 0; day < 7; day++) {
-      // Comida - 2 platos
-      for (let dishOrder = 1; dishOrder <= 2; dishOrder++) {
-        const lunchIndex = Math.floor(Math.random() * recipes.length)
-        menuItems.push({
-          weekly_menu_id: weeklyMenuId,
-          recipe_id: recipes[lunchIndex].id,
-          day_of_week: day,
-          meal_type: "comida",
-          dish_order: dishOrder,
-        })
-      }
-
-      // Cena - 1 plato
-      const dinnerIndex = Math.floor(Math.random() * recipes.length)
-      menuItems.push({
-        weekly_menu_id: weeklyMenuId,
-        recipe_id: recipes[dinnerIndex].id,
-        day_of_week: day,
-        meal_type: "cena",
-        dish_order: 1,
-      })
+    if (recipesError) {
+      console.error("Error fetching recipes:", recipesError)
     }
 
-    const { error: insertError } = await supabase.from("menu_items").insert(menuItems)
+    const recipesContext = recipes ? recipes.map((r) => `${r.title} (${r.category}, ${r.difficulty})`).join(", ") : ""
 
-    if (insertError) {
-      return NextResponse.json({ error: "Error al generar el menú" }, { status: 500 })
+    const prompt = `
+Genera un menú semanal de ${days} días basado en las siguientes preferencias:
+${preferences}
+
+${recipesContext ? `Recetas disponibles en la base de datos: ${recipesContext}` : ""}
+
+Responde SOLO con un JSON válido en este formato:
+{
+  "menu": [
+    {
+      "day": "Lunes",
+      "breakfast": "Nombre del desayuno",
+      "lunch": "Nombre del almuerzo", 
+      "dinner": "Nombre de la cena"
+    }
+  ]
+}
+
+Asegúrate de que:
+- El JSON sea válido
+- Incluya ${days} días
+- Las comidas sean variadas y equilibradas
+- Considere las preferencias mencionadas
+- Use nombres de platos específicos y atractivos
+`
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        {
+          role: "system",
+          content:
+            "Eres un chef experto en planificación de menús. Respondes SOLO con JSON válido, sin texto adicional.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 1500,
+    })
+
+    const response = completion.choices[0]?.message?.content
+
+    if (!response) {
+      return NextResponse.json({ error: "No response from OpenAI" }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true })
+    try {
+      const menuData = JSON.parse(response)
+      return NextResponse.json(menuData)
+    } catch (parseError) {
+      console.error("Error parsing OpenAI response:", parseError)
+      console.error("Raw response:", response)
+      return NextResponse.json({ error: "Invalid response format from AI" }, { status: 500 })
+    }
   } catch (error) {
     console.error("Error generating menu:", error)
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 })
+    return NextResponse.json({ error: "Failed to generate menu" }, { status: 500 })
   }
 }

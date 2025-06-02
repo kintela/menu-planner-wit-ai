@@ -33,5 +33,6 @@ export async function GET(request: Request, { params }: { params: { id: string }
       recipeId: params.id,
       timestamp: new Date().toISOString(),
     })
+
   }
 }

@@ -45,6 +45,7 @@ export default async function DebugRecipePage({ params }: { params: { id: string
     <div className="p-4 font-mono text-xs">
       <h1 className="text-lg font-bold mb-4">Debug Info para Receta {params.id}</h1>
       <pre className="bg-gray-100 p-4 rounded overflow-auto">{JSON.stringify(debugInfo, null, 2)}</pre>
+
     </div>
   )
 }

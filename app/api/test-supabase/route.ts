@@ -32,5 +32,6 @@ export async function GET() {
       success: false,
       error: error instanceof Error ? error.message : "Error desconocido",
     })
+
   }
 }
