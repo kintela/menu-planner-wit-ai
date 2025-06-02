@@ -3,91 +3,104 @@
 import { useState, useEffect } from "react"
 import { Star } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@/lib/supabase/client"
 
 interface StarRatingProps {
   recipeId: number
 }
 
 export function StarRating({ recipeId }: StarRatingProps) {
-  const [rating, setRating] = useState<number | null>(null)
-  const [hover, setHover] = useState<number | null>(null)
-  const [userRating, setUserRating] = useState<number | null>(null)
-  const [averageRating, setAverageRating] = useState<number | null>(null)
+  const [userRating, setUserRating] = useState<number>(0)
+  const [averageRating, setAverageRating] = useState<number>(0)
   const [totalRatings, setTotalRatings] = useState<number>(0)
+  const [hoveredStar, setHoveredStar] = useState<number>(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { user } = useAuth()
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
 
-  // Fetch user's rating and average rating when component mounts
+  // Load existing ratings
   useEffect(() => {
-    async function fetchRatings() {
+    const loadRatings = async () => {
       try {
-        // Get average rating for this recipe
-        const { data: avgData, error: avgError } = await supabase
+        // Get all ratings for this recipe to calculate average
+        const { data: allRatings, error: ratingsError } = await supabase
           .from("recipe_ratings")
           .select("rating")
           .eq("recipe_id", recipeId)
 
-        if (avgError) throw avgError
-
-        if (avgData && avgData.length > 0) {
-          const sum = avgData.reduce((acc, curr) => acc + curr.rating, 0)
-          setAverageRating(sum / avgData.length)
-          setTotalRatings(avgData.length)
+        if (ratingsError) {
+          console.error("Error loading ratings:", ratingsError)
+          return
         }
 
-        // If user is logged in, get their rating
+        if (allRatings && allRatings.length > 0) {
+          const total = allRatings.length
+          const sum = allRatings.reduce((acc, curr) => acc + curr.rating, 0)
+          const average = sum / total
+
+          setAverageRating(Math.round(average * 10) / 10)
+          setTotalRatings(total)
+        } else {
+          setAverageRating(0)
+          setTotalRatings(0)
+        }
+
+        // Get user's rating if logged in
         if (user) {
           const { data: userRatingData, error: userRatingError } = await supabase
             .from("recipe_ratings")
             .select("rating")
             .eq("recipe_id", recipeId)
             .eq("user_id", user.id)
-            .single()
+            .maybeSingle()
 
-          if (userRatingError && userRatingError.code !== "PGRST116") {
-            throw userRatingError
+          if (userRatingError) {
+            console.error("Error loading user rating:", userRatingError)
+            return
           }
 
           if (userRatingData) {
             setUserRating(userRatingData.rating)
-            setRating(userRatingData.rating)
+          } else {
+            setUserRating(0)
           }
         }
       } catch (error) {
-        console.error("Error fetching ratings:", error)
+        console.error("Error in loadRatings:", error)
       }
     }
 
-    fetchRatings()
+    loadRatings()
   }, [recipeId, user, supabase])
 
-  const handleRating = async (value: number) => {
-    if (!user) return
+  const handleStarClick = async (starValue: number) => {
+    if (!user || isSubmitting) return
+
+    setIsSubmitting(true)
 
     try {
-      setIsSubmitting(true)
-
-      // Check if user has already rated this recipe
+      // Check if user already has a rating for this recipe
       const { data: existingRating, error: checkError } = await supabase
         .from("recipe_ratings")
-        .select("id")
+        .select("id, rating")
         .eq("recipe_id", recipeId)
         .eq("user_id", user.id)
-        .single()
+        .maybeSingle()
 
-      if (checkError && checkError.code !== "PGRST116") {
-        throw checkError
+      if (checkError) {
+        console.error("Error checking existing rating:", checkError)
+        return
       }
 
       let result
-
       if (existingRating) {
         // Update existing rating
         result = await supabase
           .from("recipe_ratings")
-          .update({ rating: value, updated_at: new Date().toISOString() })
+          .update({
+            rating: starValue,
+            updated_at: new Date().toISOString(),
+          })
           .eq("recipe_id", recipeId)
           .eq("user_id", user.id)
       } else {
@@ -95,30 +108,33 @@ export function StarRating({ recipeId }: StarRatingProps) {
         result = await supabase.from("recipe_ratings").insert({
           recipe_id: recipeId,
           user_id: user.id,
-          rating: value,
+          rating: starValue,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
       }
 
-      if (result.error) throw result.error
+      if (result.error) {
+        console.error("Error saving rating:", result.error)
+        return
+      }
 
       // Update local state
-      setUserRating(value)
-      setRating(value)
+      setUserRating(starValue)
 
-      // Refetch average rating
-      const { data: avgData, error: avgError } = await supabase
+      // Reload all ratings to get updated average
+      const { data: allRatings, error: ratingsError } = await supabase
         .from("recipe_ratings")
         .select("rating")
         .eq("recipe_id", recipeId)
 
-      if (avgError) throw avgError
+      if (!ratingsError && allRatings) {
+        const total = allRatings.length
+        const sum = allRatings.reduce((acc, curr) => acc + curr.rating, 0)
+        const average = sum / total
 
-      if (avgData && avgData.length > 0) {
-        const sum = avgData.reduce((acc, curr) => acc + curr.rating, 0)
-        setAverageRating(sum / avgData.length)
-        setTotalRatings(avgData.length)
+        setAverageRating(Math.round(average * 10) / 10)
+        setTotalRatings(total)
       }
     } catch (error) {
       console.error("Error submitting rating:", error)
@@ -127,46 +143,49 @@ export function StarRating({ recipeId }: StarRatingProps) {
     }
   }
 
+  const displayRating = hoveredStar || userRating || 0
+
   return (
-    <div className="flex flex-col items-center">
-      <div className="flex items-center mb-1">
+    <div className="flex flex-col items-center space-y-1">
+      <div className="flex items-center gap-1">
         {[1, 2, 3, 4, 5].map((star) => (
-          <Star
+          <button
             key={star}
-            size={20}
-            className={`cursor-pointer transition-colors ${
-              (
-                hover !== null
-                  ? hover >= star
-                  : rating !== null
-                    ? rating >= star
-                    : averageRating !== null
-                      ? averageRating >= star
-                      : false
-              )
-                ? "text-yellow-400 fill-yellow-400"
-                : "text-gray-300"
-            } ${!user ? "opacity-70 cursor-not-allowed" : ""}`}
-            onClick={() => user && handleRating(star)}
-            onMouseEnter={() => user && setHover(star)}
-            onMouseLeave={() => user && setHover(null)}
-          />
+            type="button"
+            disabled={!user || isSubmitting}
+            onClick={() => handleStarClick(star)}
+            onMouseEnter={() => user && setHoveredStar(star)}
+            onMouseLeave={() => user && setHoveredStar(0)}
+            className={`transition-all duration-150 ${
+              !user ? "cursor-not-allowed opacity-50" : "hover:scale-110 cursor-pointer"
+            }`}
+          >
+            <Star
+              className={`h-4 w-4 transition-colors ${
+                star <= displayRating
+                  ? "fill-yellow-400 text-yellow-400"
+                  : star <= averageRating && !hoveredStar && !userRating
+                    ? "fill-yellow-200 text-yellow-200"
+                    : "text-gray-300"
+              }`}
+            />
+          </button>
         ))}
       </div>
+
       <div className="text-xs text-center text-muted-foreground">
-        {user ? (
-          userRating ? (
-            <span>Tu puntuación: {userRating}/5</span>
-          ) : (
-            <span>¡Puntúa esta receta!</span>
-          )
-        ) : (
+        {!user ? (
           <span>Inicia sesión para puntuar</span>
+        ) : userRating > 0 ? (
+          <span>Tu puntuación: {userRating}/5</span>
+        ) : (
+          <span>¡Puntúa esta receta!</span>
         )}
-        {averageRating !== null && (
+
+        {totalRatings > 0 && (
           <div className="mt-1">
             <span>
-              {averageRating.toFixed(1)}/5 ({totalRatings} {totalRatings === 1 ? "voto" : "votos"})
+              {averageRating}/5 ({totalRatings} {totalRatings === 1 ? "voto" : "votos"})
             </span>
           </div>
         )}
