@@ -10,7 +10,7 @@ import { ArrowLeft, Loader2 } from "lucide-react"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
@@ -21,6 +21,7 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [isSignUp, setIsSignUp] = useState(false)
+  const [isResetMode, setIsResetMode] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = getSupabaseClient()
@@ -76,27 +77,60 @@ export function LoginForm() {
     }
   }
 
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    setMessage(null)
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+      })
+
+      if (error) throw error
+
+      setMessage("Te hemos enviado un enlace de recuperación a tu email. Revisa tu bandeja de entrada.")
+      setIsResetMode(false)
+    } catch (error: any) {
+      setError(error.message || "Error al enviar el email de recuperación")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-4">
-        <Button asChild variant="ghost" className="self-start">
-          <Link href="/">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Volver al inicio
-          </Link>
-        </Button>
+    <div className="min-h-screen flex flex-col justify-start bg-gray-50 pt-8 pb-12 px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <Button asChild variant="ghost" className="self-start">
+            <Link href="/">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Volver al inicio
+            </Link>
+          </Button>
+        </div>
+
+        <div className="text-center mb-6">
+
+          <h2 className="text-3xl font-extrabold text-gray-900">
+            {isResetMode ? "Recuperar contraseña" : isSignUp ? "Crear cuenta" : "Iniciar sesión"}
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            {isResetMode
+              ? "Introduce tu email para recibir un enlace de recuperación"
+              : isSignUp
+                ? "Crea tu cuenta para comenzar a planificar tus menús"
+                : "Accede a Menu Planner AI para gestionar tus recetas y menús"}
+
+          </p>
+        </div>
 
         <Card className="w-full">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">
-              {isSignUp ? "Crear cuenta" : "Iniciar sesión"}
-            </CardTitle>
-            <CardDescription className="text-center">
-              {isSignUp ? "Crea tu cuenta para comenzar a planificar tus menús" : "Ingresa a tu cuenta para continuar"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <form onSubmit={handleEmailAuth} className="space-y-4">
+          <CardContent className="pt-6">
+
+            <form onSubmit={isResetMode ? handlePasswordReset : handleEmailAuth} className="space-y-4">
+
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -109,22 +143,25 @@ export function LoginForm() {
                   disabled={loading}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Contraseña</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={loading}
-                  minLength={6}
-                />
-                {isSignUp && (
-                  <p className="text-xs text-muted-foreground">La contraseña debe tener al menos 6 caracteres</p>
-                )}
-              </div>
+
+              {!isResetMode && (
+                <div className="space-y-2">
+                  <Label htmlFor="password">Contraseña</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={loading}
+                    minLength={6}
+                  />
+                  {isSignUp && (
+                    <p className="text-xs text-muted-foreground">La contraseña debe tener al menos 6 caracteres</p>
+                  )}
+                </div>
+              )}
 
               {error && (
                 <Alert variant="destructive">
@@ -142,8 +179,10 @@ export function LoginForm() {
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isSignUp ? "Creando cuenta..." : "Iniciando sesión..."}
+                    {isResetMode ? "Enviando..." : isSignUp ? "Creando cuenta..." : "Iniciando sesión..."}
                   </>
+                ) : isResetMode ? (
+                  "Enviar enlace de recuperación"
                 ) : isSignUp ? (
                   "Crear cuenta"
                 ) : (
@@ -151,19 +190,38 @@ export function LoginForm() {
                 )}
               </Button>
 
-              <div className="text-center">
-                <Button
-                  type="button"
-                  variant="link"
-                  onClick={() => {
-                    setIsSignUp(!isSignUp)
-                    setError(null)
-                    setMessage(null)
-                  }}
-                  disabled={loading}
-                >
-                  {isSignUp ? "¿Ya tienes cuenta? Inicia sesión" : "¿No tienes cuenta? Regístrate"}
-                </Button>
+              <div className="text-center space-y-2">
+                {!isResetMode && (
+                  <Button
+                    type="button"
+                    variant="link"
+                    onClick={() => {
+                      setIsSignUp(!isSignUp)
+                      setError(null)
+                      setMessage(null)
+                    }}
+                    disabled={loading}
+                  >
+                    {isSignUp ? "¿Ya tienes cuenta? Inicia sesión" : "¿No tienes cuenta? Regístrate"}
+                  </Button>
+                )}
+
+                <div>
+                  <Button
+                    type="button"
+                    variant="link"
+                    onClick={() => {
+                      setIsResetMode(!isResetMode)
+                      setError(null)
+                      setMessage(null)
+                      setPassword("")
+                    }}
+                    disabled={loading}
+                    className="text-sm"
+                  >
+                    {isResetMode ? "Volver al login" : "¿Olvidaste tu contraseña?"}
+                  </Button>
+                </div>
               </div>
             </form>
           </CardContent>

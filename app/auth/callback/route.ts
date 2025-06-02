@@ -4,9 +4,26 @@ import { NextResponse, type NextRequest } from "next/server"
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
+  const type = searchParams.get("type")
+  const error = searchParams.get("error")
+  const errorCode = searchParams.get("error_code")
+  const errorDescription = searchParams.get("error_description")
   const next = searchParams.get("next") ?? "/"
 
-  console.log("🔄 Auth callback - Code:", code ? "Present" : "Missing")
+
+  console.log("Auth callback - type:", type, "code:", code ? "present" : "missing", "error:", error)
+
+  // Si hay un error en los parámetros, redirigir con el error
+  if (error) {
+    const errorParams = new URLSearchParams()
+    errorParams.set("error", error)
+    if (errorCode) errorParams.set("error_code", errorCode)
+    if (errorDescription) errorParams.set("error_description", errorDescription)
+
+
+    return NextResponse.redirect(`${origin}/login?${errorParams.toString()}`)
+  }
+
 
   if (code) {
     const supabase = createServerClient(
@@ -18,77 +35,55 @@ export async function GET(request: NextRequest) {
             return request.cookies.getAll()
           },
           setAll(cookiesToSet) {
+
+            let response: NextResponse
+
+            // Si es una recuperación de contraseña, redirigir a la página de reset
+            if (type === "recovery") {
+              response = NextResponse.redirect(`${origin}/auth/reset-password`)
+            } else {
+              response = NextResponse.redirect(`${origin}${next}`)
+            }
+
+
             cookiesToSet.forEach(({ name, value, options }) => {
-              request.cookies.set(name, value)
+              response.cookies.set(name, value, options)
             })
+            return response
           },
         },
       },
     )
 
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
-    if (!error && data.user) {
-      console.log("✅ User authenticated:", data.user.email)
+    try {
+      const { error } = await supabase.auth.exchangeCodeForSession(code)
 
-      // Crear el perfil del usuario después de confirmar el email
-      try {
-        const userName = data.user.user_metadata?.full_name || data.user.email?.split("@")[0] || "Usuario"
-
-        // Solo roberto.quintela@protonmail.com será admin, todos los demás user_restricted
-        const userRole = data.user.email === "roberto.quintela@protonmail.com" ? "admin" : "user_restricted"
-
-        console.log(`👤 Creating profile for: ${data.user.email} with role: ${userRole}`)
-
-        // Verificar si el perfil ya existe
-        const { data: existingProfile, error: checkError } = await supabase
-          .from("user_profiles")
-          .select("id")
-          .eq("id", data.user.id)
-          .maybeSingle()
-
-        if (checkError) {
-          console.error("❌ Error checking existing profile:", checkError)
-        }
-
-        if (!existingProfile) {
-          // Crear el perfil solo si no existe
-          const { error: profileError } = await supabase.from("user_profiles").insert({
-            id: data.user.id,
-            email: data.user.email!,
-            full_name: userName,
-            role: userRole,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-
-          if (profileError) {
-            console.error("❌ Error creating user profile:", profileError)
-            console.error("❌ Profile error details:", JSON.stringify(profileError, null, 2))
-          } else {
-            console.log(`✅ User profile created successfully for: ${data.user.email} with role: ${userRole}`)
-          }
-        } else {
-          console.log("ℹ️ User profile already exists for:", data.user.email)
-        }
-      } catch (profileError) {
-        console.error("❌ Failed to create user profile:", profileError)
+      if (error) {
+        console.error("Error exchanging code for session:", error)
+        // Redirigir con error específico
+        return NextResponse.redirect(
+          `${origin}/?error=auth_error&error_description=${encodeURIComponent(error.message)}`,
+        )
       }
 
-      // Detectar si estamos en preview de Vercel
-      const isVercelPreview = origin.includes(".vercel.app")
-      const redirectPath = isVercelPreview ? "/" : next
+      // Si es una recuperación de contraseña, redirigir a la página de reset
+      if (type === "recovery") {
+        return NextResponse.redirect(`${origin}/auth/reset-password`)
+      }
 
-      console.log(`🔄 Redirecting to: ${origin}${redirectPath} (Preview: ${isVercelPreview})`)
 
-      // Redirigir al usuario
-      return NextResponse.redirect(`${origin}${redirectPath}`)
-    } else {
-      console.error("❌ Auth error:", error)
+      // Si es un login normal, redirigir a la página solicitada
+      return NextResponse.redirect(`${origin}${next}`)
+    } catch (error: any) {
+      console.error("Unexpected error in auth callback:", error)
+      return NextResponse.redirect(
+        `${origin}/?error=unexpected_error&error_description=${encodeURIComponent(error.message)}`,
+      )
     }
   }
 
-  // Si hay error, redirigir a login
-  console.log("🔄 Redirecting to login due to error")
-  return NextResponse.redirect(`${origin}/login`)
+  // Si no hay código, redirigir al login
+  return NextResponse.redirect(`${origin}/login?error=missing_code`)
+
 }
