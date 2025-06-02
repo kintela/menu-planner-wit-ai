@@ -4,7 +4,10 @@ import { NextResponse, type NextRequest } from "next/server"
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
+  const type = searchParams.get("type")
   const next = searchParams.get("next") ?? "/"
+
+  console.log("Auth callback - type:", type, "code:", code ? "present" : "missing")
 
   if (code) {
     const supabase = createServerClient(
@@ -16,7 +19,15 @@ export async function GET(request: NextRequest) {
             return request.cookies.getAll()
           },
           setAll(cookiesToSet) {
-            const response = NextResponse.redirect(`${origin}${next}`)
+            let response: NextResponse
+
+            // Si es una recuperación de contraseña, redirigir a la página de reset
+            if (type === "recovery") {
+              response = NextResponse.redirect(`${origin}/auth/reset-password`)
+            } else {
+              response = NextResponse.redirect(`${origin}${next}`)
+            }
+
             cookiesToSet.forEach(({ name, value, options }) => {
               response.cookies.set(name, value, options)
             })
@@ -27,11 +38,17 @@ export async function GET(request: NextRequest) {
     )
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
+
     if (!error) {
+      // Si es una recuperación de contraseña, redirigir a la página de reset
+      if (type === "recovery") {
+        return NextResponse.redirect(`${origin}/auth/reset-password`)
+      }
+      // Si es un login normal, redirigir a la página solicitada
       return NextResponse.redirect(`${origin}${next}`)
     }
   }
 
-  // return the user to an error page with instructions
-  return NextResponse.redirect(`${origin}/auth/auth-code-error`)
+  // Si hay error, redirigir al login con mensaje de error
+  return NextResponse.redirect(`${origin}/login?error=auth_callback_error`)
 }
