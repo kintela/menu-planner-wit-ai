@@ -86,10 +86,7 @@ export function ChangePasswordForm() {
       case "currentPassword":
         setCurrentPassword(value)
         setErrors((prev) => ({ ...prev, currentPassword: "" }))
-        // Si el campo tiene contenido y pierde el foco, validamos la contraseña
-        if (value) {
-          validateCurrentPassword(value)
-        }
+        // No validar mientras escribe, solo limpiar errores
         break
       case "newPassword":
         setNewPassword(value)
@@ -225,7 +222,11 @@ export function ChangePasswordForm() {
                 type={showCurrentPassword ? "text" : "password"}
                 value={currentPassword}
                 onChange={(e) => handleInputChange("currentPassword", e.target.value)}
-                onBlur={() => currentPassword && validateCurrentPassword(currentPassword)}
+                onBlur={() => {
+                  if (currentPassword.trim()) {
+                    validateCurrentPassword(currentPassword)
+                  }
+                }}
                 placeholder="Introduce tu contraseña actual"
                 disabled={loading}
                 className={errors.currentPassword ? "border-red-500" : ""}
