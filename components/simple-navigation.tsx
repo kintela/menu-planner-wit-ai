@@ -148,11 +148,13 @@ export default function SimpleNavigation() {
       const { error } = await supabase.auth.signOut()
 
       if (error) {
+
         console.error("❌ Error durante el cierre de sesión:", error)
         // Continuar con la limpieza incluso si hay error
       }
 
       // Limpiar estado local inmediatamente
+
       setUser(null)
       setUserProfile(null)
 

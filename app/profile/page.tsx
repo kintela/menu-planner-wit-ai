@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+
 import { ChangePasswordForm } from "@/components/change-password-form"
+
 
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
@@ -79,7 +81,9 @@ export default function ProfilePage() {
 
       <div className="space-y-6">
         <UserProfileForm />
+
         <ChangePasswordForm />
+
       </div>
     </div>
   )
