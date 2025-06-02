@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Loader2 } from "lucide-react"
@@ -28,6 +28,20 @@ export function LoginForm() {
 
   // Buscar tanto "redirect" como "redirectTo" para compatibilidad
   const redirectTo = searchParams.get("redirect") || searchParams.get("redirectTo") || "/"
+
+  useEffect(() => {
+    const error = searchParams.get("error")
+    const message = searchParams.get("message")
+    const errorDescription = searchParams.get("error_description")
+
+    if (error === "recovery_expired") {
+      setError("El enlace de recuperación ha expirado. Por favor, solicita uno nuevo.")
+    } else if (error === "recovery_error") {
+      setError(message || "Error en la recuperación de contraseña. Solicita un nuevo enlace.")
+    } else if (error && errorDescription) {
+      setError(decodeURIComponent(errorDescription))
+    }
+  }, [searchParams])
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -85,12 +99,14 @@ export function LoginForm() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+        redirectTo: `${window.location.origin}/auth/callback?type=recovery&next=/auth/reset-password`,
       })
 
       if (error) throw error
 
-      setMessage("Te hemos enviado un enlace de recuperación a tu email. Revisa tu bandeja de entrada.")
+      setMessage(
+        "Te hemos enviado un enlace de recuperación a tu email. El enlace expira en 1 hora. Revisa tu bandeja de entrada y spam.",
+      )
       setIsResetMode(false)
     } catch (error: any) {
       setError(error.message || "Error al enviar el email de recuperación")
@@ -112,7 +128,6 @@ export function LoginForm() {
         </div>
 
         <div className="text-center mb-6">
-
           <h2 className="text-3xl font-extrabold text-gray-900">
             {isResetMode ? "Recuperar contraseña" : isSignUp ? "Crear cuenta" : "Iniciar sesión"}
           </h2>
@@ -122,15 +137,12 @@ export function LoginForm() {
               : isSignUp
                 ? "Crea tu cuenta para comenzar a planificar tus menús"
                 : "Accede a Menu Planner AI para gestionar tus recetas y menús"}
-
           </p>
         </div>
 
         <Card className="w-full">
           <CardContent className="pt-6">
-
             <form onSubmit={isResetMode ? handlePasswordReset : handleEmailAuth} className="space-y-4">
-
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
