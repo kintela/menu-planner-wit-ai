@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
   const errorDescription = searchParams.get("error_description")
   const next = searchParams.get("next") ?? "/"
 
+
   console.log("Auth callback - type:", type, "code:", code ? "present" : "missing", "error:", error)
 
   // Si hay un error en los parámetros, redirigir con el error
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/?${errorParams.toString()}`)
   }
 
+
   if (code) {
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,6 +34,7 @@ export async function GET(request: NextRequest) {
             return request.cookies.getAll()
           },
           setAll(cookiesToSet) {
+
             let response: NextResponse
 
             // Si es una recuperación de contraseña, redirigir a la página de reset
@@ -41,6 +44,7 @@ export async function GET(request: NextRequest) {
               response = NextResponse.redirect(`${origin}${next}`)
             }
 
+
             cookiesToSet.forEach(({ name, value, options }) => {
               response.cookies.set(name, value, options)
             })
@@ -49,6 +53,7 @@ export async function GET(request: NextRequest) {
         },
       },
     )
+
 
     try {
       const { error } = await supabase.auth.exchangeCodeForSession(code)
@@ -78,4 +83,5 @@ export async function GET(request: NextRequest) {
 
   // Si no hay código, redirigir al login
   return NextResponse.redirect(`${origin}/login?error=missing_code`)
+
 }

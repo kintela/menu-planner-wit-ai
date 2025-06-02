@@ -112,6 +112,7 @@ export function LoginForm() {
         </div>
 
         <div className="text-center mb-6">
+
           <h2 className="text-3xl font-extrabold text-gray-900">
             {isResetMode ? "Recuperar contraseña" : isSignUp ? "Crear cuenta" : "Iniciar sesión"}
           </h2>
@@ -121,12 +122,15 @@ export function LoginForm() {
               : isSignUp
                 ? "Crea tu cuenta para comenzar a planificar tus menús"
                 : "Accede a Menu Planner AI para gestionar tus recetas y menús"}
+
           </p>
         </div>
 
         <Card className="w-full">
           <CardContent className="pt-6">
+
             <form onSubmit={isResetMode ? handlePasswordReset : handleEmailAuth} className="space-y-4">
+
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
