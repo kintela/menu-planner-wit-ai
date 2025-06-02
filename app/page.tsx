@@ -1,83 +1,53 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { ChefHat, Calendar, Users, Sparkles } from "lucide-react"
 import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { CalendarDays, ChefHat, PlusCircle } from "lucide-react"
 
 export default function HomePage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">Planificador de Menús con IA</h1>
-        <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-          Organiza tus comidas semanales de manera inteligente con la ayuda de la inteligencia artificial
+        <h1 className="text-4xl font-bold tracking-tight mb-4">Planificador de Menús Semanales</h1>
+        <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+          Planifica tus comidas y cenas para toda la semana de manera sencilla. Añade tus propias recetas y si no se te
+          ocurre nada pídeselas a la IA.
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-        <Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+        <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ChefHat className="h-5 w-5" />
-              Recetas Inteligentes
+              <CalendarDays className="h-5 w-5 text-blue-600" />
+              Planificar Menús
             </CardTitle>
-            <CardDescription>Descubre nuevas recetas personalizadas según tus preferencias</CardDescription>
+            <CardDescription>Crea y organiza tus menús semanales de forma intuitiva</CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/recipes">
-              <Button className="w-full">Ver Recetas</Button>
-            </Link>
+            <Button asChild className="w-full">
+              <Link href="/weekly-menu">Ir al Planificador</Link>
+            </Button>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Planificación Semanal
+              <ChefHat className="h-5 w-5 text-green-600" />
+              Gestionar Recetas
             </CardTitle>
-            <CardDescription>Organiza tus menús para toda la semana de forma automática</CardDescription>
+            <CardDescription>Explora, añade y organiza todas tus recetas favoritas</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Link href="/weekly-menu">
-              <Button className="w-full">Planificar Menú</Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Gestión de Perfil
-            </CardTitle>
-            <CardDescription>Personaliza tu experiencia y preferencias alimentarias</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/profile">
-              <Button className="w-full">Mi Perfil</Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="text-center">
-        <Card className="max-w-2xl mx-auto">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-center gap-2">
-              <Sparkles className="h-5 w-5" />
-              ¿Listo para empezar?
-            </CardTitle>
-            <CardDescription>Comienza a planificar tus menús de manera inteligente</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4 justify-center">
-              <Link href="/login">
-                <Button>Iniciar Sesión</Button>
+          <CardContent className="space-y-2">
+            <Button asChild variant="default" className="w-full">
+              <Link href="/recipes">Ver Recetas</Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/recipes/add">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Añadir Receta
               </Link>
-              <Link href="/recipes/new">
-                <Button variant="outline">Añadir Receta</Button>
-              </Link>
-            </div>
+            </Button>
           </CardContent>
         </Card>
       </div>
