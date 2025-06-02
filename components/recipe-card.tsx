@@ -134,8 +134,8 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
           )}
           <StarRating recipeId={recipe.id} />
         </CardContent>
-        <CardFooter className="flex gap-2 mt-auto">
-          <Button asChild className="flex-1" size="sm">
+        <CardFooter className="grid grid-cols-3 gap-2 mt-auto">
+          <Button asChild size="sm">
             <Link href={`/recipes/${recipe.id}`}>
               <Eye className="h-4 w-4" />
             </Link>
