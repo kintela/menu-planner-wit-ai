@@ -1,15 +1,17 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Star } from "lucide-react"
+import { Star, AlertCircle } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { createClient } from "@/lib/supabase/client"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface StarRatingProps {
   recipeId: number
+  creatorId?: string // ID del creador de la receta
 }
 
-export function StarRating({ recipeId }: StarRatingProps) {
+export function StarRating({ recipeId, creatorId }: StarRatingProps) {
   const [userRating, setUserRating] = useState<number>(0)
   const [averageRating, setAverageRating] = useState<number>(0)
   const [totalRatings, setTotalRatings] = useState<number>(0)
@@ -17,6 +19,9 @@ export function StarRating({ recipeId }: StarRatingProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { user } = useAuth()
   const supabase = createClient()
+
+  // Determinar si el usuario es el creador de la receta
+  const isCreator = user?.id === creatorId
 
   // Load existing ratings
   useEffect(() => {
@@ -45,8 +50,8 @@ export function StarRating({ recipeId }: StarRatingProps) {
           setTotalRatings(0)
         }
 
-        // Get user's rating if logged in
-        if (user) {
+        // Get user's rating if logged in and not the creator
+        if (user && !isCreator) {
           const { data: userRatingData, error: userRatingError } = await supabase
             .from("recipe_ratings")
             .select("rating")
@@ -71,10 +76,10 @@ export function StarRating({ recipeId }: StarRatingProps) {
     }
 
     loadRatings()
-  }, [recipeId, user, supabase])
+  }, [recipeId, user, supabase, isCreator])
 
   const handleStarClick = async (starValue: number) => {
-    if (!user || isSubmitting) return
+    if (!user || isSubmitting || isCreator) return
 
     setIsSubmitting(true)
 
@@ -152,12 +157,12 @@ export function StarRating({ recipeId }: StarRatingProps) {
           <button
             key={star}
             type="button"
-            disabled={!user || isSubmitting}
+            disabled={!user || isSubmitting || isCreator}
             onClick={() => handleStarClick(star)}
-            onMouseEnter={() => user && setHoveredStar(star)}
-            onMouseLeave={() => user && setHoveredStar(0)}
+            onMouseEnter={() => user && !isCreator && setHoveredStar(star)}
+            onMouseLeave={() => user && !isCreator && setHoveredStar(0)}
             className={`transition-all duration-150 ${
-              !user ? "cursor-not-allowed opacity-50" : "hover:scale-110 cursor-pointer"
+              !user || isCreator ? "cursor-not-allowed opacity-50" : "hover:scale-110 cursor-pointer"
             }`}
           >
             <Star
@@ -176,6 +181,20 @@ export function StarRating({ recipeId }: StarRatingProps) {
       <div className="text-xs text-center text-muted-foreground">
         {!user ? (
           <span>Inicia sesión para puntuar</span>
+        ) : isCreator ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1 text-amber-500">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>No puedes puntuar tu propia receta</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Para mantener un sistema justo, no puedes puntuar recetas que has creado tú mismo.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : userRating > 0 ? (
           <span>Tu puntuación: {userRating}/5</span>
         ) : (
