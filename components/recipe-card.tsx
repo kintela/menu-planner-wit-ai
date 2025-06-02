@@ -132,7 +132,7 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
               <span className="text-xs text-muted-foreground">cal/ración</span>
             </div>
           )}
-          <StarRating recipeId={recipe.id} />
+          <StarRating recipeId={recipe.id} creatorId={recipe.user_id} />
         </CardContent>
         <CardFooter className="grid grid-cols-3 gap-2 mt-auto">
           <Button asChild size="sm">

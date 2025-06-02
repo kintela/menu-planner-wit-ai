@@ -23,6 +23,9 @@ export function StarRating({ recipeId, creatorId }: StarRatingProps) {
   // Determinar si el usuario es el creador de la receta
   const isCreator = user?.id === creatorId
 
+  // Debug para verificar la comparación
+  console.log("User ID:", user?.id, "Creator ID:", creatorId, "Is Creator:", isCreator)
+
   // Load existing ratings
   useEffect(() => {
     const loadRatings = async () => {
