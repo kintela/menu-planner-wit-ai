@@ -10,7 +10,7 @@ import { ArrowLeft, Loader2 } from "lucide-react"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
@@ -77,25 +77,28 @@ export function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-4">
-        <Button asChild variant="ghost" className="self-start">
-          <Link href="/">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Volver al inicio
-          </Link>
-        </Button>
+    <div className="min-h-screen flex flex-col justify-start bg-gray-50 pt-8 pb-12 px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <Button asChild variant="ghost" className="self-start">
+            <Link href="/">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Volver al inicio
+            </Link>
+          </Button>
+        </div>
+
+        <div className="text-center mb-6">
+          <h2 className="text-3xl font-extrabold text-gray-900">{isSignUp ? "Crear cuenta" : "Iniciar sesión"}</h2>
+          <p className="mt-2 text-sm text-gray-600">
+            {isSignUp
+              ? "Crea tu cuenta para comenzar a planificar tus menús"
+              : "Accede a Menu Planner AI para gestionar tus recetas y menús"}
+          </p>
+        </div>
 
         <Card className="w-full">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">
-              {isSignUp ? "Crear cuenta" : "Iniciar sesión"}
-            </CardTitle>
-            <CardDescription className="text-center">
-              {isSignUp ? "Crea tu cuenta para comenzar a planificar tus menús" : "Ingresa a tu cuenta para continuar"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="pt-6">
             <form onSubmit={handleEmailAuth} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
