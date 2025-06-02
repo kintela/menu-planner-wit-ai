@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { ChefHat, Flame, Users, User } from "lucide-react"
+import { ChefHat, Flame, Users, User, Eye, Pencil } from "lucide-react"
 
 import { useRouter } from "next/navigation"
 
@@ -135,17 +135,21 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
           <StarRating recipeId={recipe.id} />
         </CardContent>
         <CardFooter className="flex gap-2 mt-auto">
-          <Button asChild className="flex-1">
-            <Link href={`/recipes/${recipe.id}`}>Ver Receta</Link>
+          <Button asChild className="flex-1" size="sm">
+            <Link href={`/recipes/${recipe.id}`}>
+              <Eye className="h-4 w-4" />
+            </Link>
           </Button>
 
           {canEdit ? (
-            <Button asChild variant="outline">
-              <Link href={`/recipes/${recipe.id}/edit`}>Editar</Link>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/recipes/${recipe.id}/edit`}>
+                <Pencil className="h-4 w-4" />
+              </Link>
             </Button>
           ) : (
-            <Button variant="outline" disabled>
-              Editar
+            <Button variant="outline" disabled size="sm">
+              <Pencil className="h-4 w-4" />
             </Button>
           )}
 
@@ -154,6 +158,7 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
             recipeUserId={recipe.user_id}
             recipeName={recipe.name}
             onDelete={handleDelete}
+            iconOnly={true}
           />
         </CardFooter>
       </Card>
