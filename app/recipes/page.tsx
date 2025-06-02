@@ -1,6 +1,6 @@
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
-import RecipeCard from "@/components/RecipeCard"
+import { RecipeCard } from "@/components/recipe-card"
 import type { Recipe } from "@/types"
 
 const getRecipes = async (): Promise<Recipe[]> => {
