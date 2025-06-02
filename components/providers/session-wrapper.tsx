@@ -7,7 +7,7 @@ interface SessionWrapperProps {
   children: ReactNode
 }
 
-export function SessionWrapper({ children }: SessionWrapperProps) {
+export default function SessionWrapper({ children }: SessionWrapperProps) {
   const [isMounted, setIsMounted] = useState(false)
 
   // Intercept fetch requests from NextAuth.js

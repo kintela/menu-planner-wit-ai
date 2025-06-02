@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
     if (errorCode) errorParams.set("error_code", errorCode)
     if (errorDescription) errorParams.set("error_description", errorDescription)
 
-    return NextResponse.redirect(`${origin}/?${errorParams.toString()}`)
+
+    return NextResponse.redirect(`${origin}/login?${errorParams.toString()}`)
   }
 
 
@@ -70,6 +71,7 @@ export async function GET(request: NextRequest) {
       if (type === "recovery") {
         return NextResponse.redirect(`${origin}/auth/reset-password`)
       }
+
 
       // Si es un login normal, redirigir a la página solicitada
       return NextResponse.redirect(`${origin}${next}`)
