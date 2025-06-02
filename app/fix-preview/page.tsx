@@ -1,192 +1,142 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, ExternalLink, GitBranch, RefreshCw } from "lucide-react"
-import Link from "next/link"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Loader2 } from "lucide-react"
 
 export default function FixPreviewPage() {
-  return (
-    <div className="container py-10 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6">🔧 Solucionar Preview de Vercel</h1>
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
 
-      <div className="space-y-6">
-        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800">
+  const forceRevalidation = async () => {
+    setLoading(true)
+    setResult(null)
+
+    try {
+      // Forzar revalidación de varias rutas
+      const routes = ["/", "/recipes", "/weekly-menu", "/categories"]
+
+      const promises = routes.map(async (route) => {
+        try {
+          const response = await fetch(`/api/revalidate?path=${route}`, {
+            method: "POST",
+          })
+          return { route, success: response.ok, status: response.status }
+        } catch (error) {
+          return { route, success: false, error: error instanceof Error ? error.message : "Error" }
+        }
+      })
+
+      const results = await Promise.all(promises)
+      setResult(JSON.stringify(results, null, 2))
+    } catch (error) {
+      setResult(`Error: ${error instanceof Error ? error.message : "Error desconocido"}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const clearCache = async () => {
+    setLoading(true)
+    setResult(null)
+
+    try {
+      // Limpiar localStorage
+      localStorage.clear()
+
+      // Limpiar sessionStorage
+      sessionStorage.clear()
+
+      // Forzar recarga de la página
+      window.location.reload()
+    } catch (error) {
+      setResult(`Error: ${error instanceof Error ? error.message : "Error desconocido"}`)
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Arreglar Preview</h1>
+        <p className="text-gray-600 mt-2">Herramientas para solucionar problemas de caché y preview</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-amber-600">
-              <AlertCircle className="h-5 w-5" />
-              Problema Identificado
-            </CardTitle>
+            <CardTitle>Revalidar Rutas</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-amber-700 dark:text-amber-300">
-              El Preview de Vercel tiene un problema de caché con las variables de entorno. Aunque están configuradas
-              correctamente, el Preview sigue usando valores antiguos.
-            </p>
+            <p className="text-gray-600 mb-4">Fuerza la revalidación de las rutas principales de la aplicación.</p>
+            <Button onClick={forceRevalidation} disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Revalidando...
+                </>
+              ) : (
+                "Revalidar Rutas"
+              )}
+            </Button>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <GitBranch className="h-5 w-5" />
-              Método 1: Forzar nuevo deployment con Git
-            </CardTitle>
+            <CardTitle>Limpiar Caché Local</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              La forma más efectiva de forzar que Vercel use las variables actualizadas:
+          <CardContent>
+            <p className="text-gray-600 mb-4">
+              Limpia el localStorage, sessionStorage y recarga la página completamente.
             </p>
-
-            <div className="bg-muted p-4 rounded-lg">
-              <h4 className="font-medium mb-3">Pasos:</h4>
-              <ol className="list-decimal list-inside space-y-2 text-sm">
-                <li>
-                  Ve a tu repositorio en GitHub:{" "}
-                  <a
-                    href="https://github.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline inline-flex items-center gap-1"
-                  >
-                    github.com <ExternalLink className="h-3 w-3" />
-                  </a>
-                </li>
-                <li>Busca tu proyecto del menú planner</li>
-                <li>Haz un cambio mínimo (por ejemplo, añade un espacio en cualquier archivo README o comentario)</li>
-                <li>Haz commit y push del cambio</li>
-                <li>Esto forzará un nuevo deployment automáticamente</li>
-                <li>Espera 2-3 minutos a que termine</li>
-              </ol>
-            </div>
-
-            <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg">
-              <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">💡 ¿Por qué funciona esto?</h4>
-              <p className="text-sm text-blue-700 dark:text-blue-300">
-                Un nuevo commit fuerza a Vercel a crear un deployment completamente nuevo, sin usar caché de variables
-                de entorno.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <RefreshCw className="h-5 w-5" />
-              Método 2: Recrear las variables
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">Si el método anterior no funciona:</p>
-
-            <div className="bg-muted p-4 rounded-lg">
-              <h4 className="font-medium mb-3">Pasos:</h4>
-              <ol className="list-decimal list-inside space-y-2 text-sm">
-                <li>Ve a Vercel → Tu proyecto → Settings → Environment Variables</li>
-                <li>
-                  <strong>Elimina</strong> la variable NEXT_PUBLIC_SUPABASE_URL (haz clic en los 3 puntos → Delete)
-                </li>
-                <li>
-                  <strong>Elimina</strong> la variable NEXT_PUBLIC_SUPABASE_ANON_KEY
-                </li>
-                <li>Espera 30 segundos</li>
-                <li>
-                  <strong>Vuelve a crear</strong> NEXT_PUBLIC_SUPABASE_URL con el valor:{" "}
-                  <code>https://iqarhmetoagfjjyfztzq.supabase.co</code>
-                </li>
-                <li>
-                  <strong>Vuelve a crear</strong> NEXT_PUBLIC_SUPABASE_ANON_KEY con tu clave real
-                </li>
-                <li>Asegúrate de marcar las 3 casillas para cada variable</li>
-                <li>Haz un nuevo deployment (método 1)</li>
-              </ol>
-            </div>
-
-            <div className="bg-red-50 dark:bg-red-950 p-4 rounded-lg">
-              <h4 className="font-medium text-red-800 dark:text-red-200 mb-2">⚠️ Importante:</h4>
-              <p className="text-sm text-red-700 dark:text-red-300">
-                Ten a mano los valores de las variables antes de eliminarlas para poder recrearlas exactamente igual.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>📋 Valores de las Variables</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">Para referencia, estos son los valores correctos:</p>
-
-            <div className="bg-muted p-4 rounded-lg space-y-3">
-              <div>
-                <strong>NEXT_PUBLIC_SUPABASE_URL</strong>
-                <div className="bg-background p-2 rounded border font-mono text-sm mt-1 flex justify-between items-center">
-                  <span>https://iqarhmetoagfjjyfztzq.supabase.co</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigator.clipboard.writeText("https://iqarhmetoagfjjyfztzq.supabase.co")}
-                  >
-                    Copiar
-                  </Button>
-                </div>
-              </div>
-              <div>
-                <strong>NEXT_PUBLIC_SUPABASE_ANON_KEY</strong>
-                <div className="bg-background p-2 rounded border font-mono text-sm mt-1">
-                  eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9... (tu clave real de Supabase)
-                </div>
-              </div>
-              <div>
-                <strong>OPENAI_API_KEY</strong>
-                <div className="bg-background p-2 rounded border font-mono text-sm mt-1">
-                  sk-proj-... (tu clave real de OpenAI)
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>🎯 Método 3: Usar Production directamente</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Como solución temporal, puedes usar el dominio de Production en lugar del Preview:
-            </p>
-
-            <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg">
-              <h4 className="font-medium text-green-800 dark:text-green-200 mb-2">✅ Dominio de Production:</h4>
-              <p className="text-sm text-green-700 dark:text-green-300">
-                En lugar de usar el preview (que tiene el problema), usa directamente tu dominio de production que
-                debería funcionar correctamente.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800">
-          <CardHeader>
-            <CardTitle className="text-green-600">✅ Verificar Solución</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-green-700 dark:text-green-300">
-              Después de aplicar cualquiera de los métodos anteriores:
-            </p>
-            <div className="flex gap-2">
-              <Button asChild variant="outline">
-                <Link href="/debug">Verificar Variables</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/recipes">Probar Aplicación</Link>
-              </Button>
-            </div>
+            <Button onClick={clearCache} disabled={loading} variant="destructive">
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Limpiando...
+                </>
+              ) : (
+                "Limpiar Caché"
+              )}
+            </Button>
           </CardContent>
         </Card>
       </div>
+
+      {result && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Resultado</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="bg-gray-100 p-4 rounded-md overflow-auto text-sm">{result}</pre>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Información del Sistema</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <p>
+              <strong>User Agent:</strong> {navigator.userAgent}
+            </p>
+            <p>
+              <strong>URL actual:</strong> {window.location.href}
+            </p>
+            <p>
+              <strong>Timestamp:</strong> {new Date().toISOString()}
+            </p>
+            <p>
+              <strong>Viewport:</strong> {window.innerWidth} x {window.innerHeight}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
