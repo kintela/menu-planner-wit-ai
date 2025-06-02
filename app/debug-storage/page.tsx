@@ -1,160 +1,170 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2 } from "lucide-react"
+import { Loader2, RefreshCw } from "lucide-react"
+
+interface StorageDebugInfo {
+  buckets: any[]
+  recipeImagesFiles: any[]
+  avatarsFiles: any[]
+  debug: any
+  error?: string
+}
 
 export default function DebugStoragePage() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [result, setResult] = useState<any>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<StorageDebugInfo | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const testStorage = async () => {
-    setIsLoading(true)
-    setError(null)
-
+  const loadDebugInfo = async () => {
+    setLoading(true)
     try {
       const response = await fetch("/api/debug-storage")
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || "Error desconocido")
+        setDebugInfo({
+          buckets: [],
+          recipeImagesFiles: [],
+          avatarsFiles: [],
+          debug: null,
+          error: data.error || "Error desconocido",
+        })
+      } else {
+        setDebugInfo(data)
       }
-
-      setResult(data)
-    } catch (err) {
-      console.error("Error testing storage:", err)
-      setError(err instanceof Error ? err.message : "Error desconocido")
+    } catch (error) {
+      console.error("Error loading debug info:", error)
+      setDebugInfo({
+        buckets: [],
+        recipeImagesFiles: [],
+        avatarsFiles: [],
+        debug: null,
+        error: error instanceof Error ? error.message : "Error de red",
+      })
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
-  const testImageUpload = async () => {
-    setIsLoading(true)
-    setError(null)
+  useEffect(() => {
+    loadDebugInfo()
+  }, [])
 
-    try {
-      // Crear un archivo de imagen de prueba
-      const canvas = document.createElement("canvas")
-      canvas.width = 200
-      canvas.height = 200
-      const ctx = canvas.getContext("2d")
-      if (ctx) {
-        ctx.fillStyle = "blue"
-        ctx.fillRect(0, 0, 200, 200)
-        ctx.fillStyle = "white"
-        ctx.font = "20px Arial"
-        ctx.fillText("Test Image", 50, 100)
-      }
-
-      // Convertir el canvas a un blob
-      const blob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((b) => resolve(b!), "image/png")
-      })
-
-      // Crear un archivo a partir del blob
-      const file = new File([blob], "test-image.png", { type: "image/png" })
-
-      // Crear FormData y añadir el archivo
-      const formData = new FormData()
-      formData.append("file", file)
-
-      // Enviar la solicitud
-      const response = await fetch("/api/upload-image?recipeId=test", {
-        method: "POST",
-        body: formData,
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Error desconocido")
-      }
-
-      setResult(data)
-    } catch (err) {
-      console.error("Error testing image upload:", err)
-      setError(err instanceof Error ? err.message : "Error desconocido")
-    } finally {
-      setIsLoading(false)
-    }
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin mr-2" />
+          <span>Cargando información de almacenamiento...</span>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="container py-10">
-      <h1 className="text-2xl font-bold mb-6">Diagnóstico de Almacenamiento</h1>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Probar Funcionalidad de Almacenamiento</CardTitle>
-            <CardDescription>Verifica la configuración y permisos del almacenamiento de Supabase</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={testStorage} disabled={isLoading} className="w-full">
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Probando...
-                </>
-              ) : (
-                "Probar Almacenamiento"
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Probar Subida de Imágenes</CardTitle>
-            <CardDescription>Verifica la funcionalidad de subida de imágenes</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={testImageUpload} disabled={isLoading} className="w-full">
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Subiendo...
-                </>
-              ) : (
-                "Probar Subida de Imagen"
-              )}
-            </Button>
-          </CardContent>
-        </Card>
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Debug Almacenamiento</h1>
+          <p className="text-gray-600 mt-2">Información detallada del almacenamiento de Supabase</p>
+        </div>
+        <Button onClick={loadDebugInfo} variant="outline">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Actualizar
+        </Button>
       </div>
 
-      {error && (
-        <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-md text-red-800">
-          <h3 className="font-bold mb-2">Error:</h3>
-          <p>{error}</p>
+      {debugInfo?.error ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-red-600">Error</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>{debugInfo.error}</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {/* Buckets */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Buckets de Almacenamiento</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {debugInfo?.buckets && debugInfo.buckets.length > 0 ? (
+                <div className="space-y-4">
+                  {debugInfo.buckets.map((bucket, index) => (
+                    <div key={index} className="border rounded p-4">
+                      <h3 className="font-semibold">{bucket.name}</h3>
+                      <p className="text-sm text-gray-600">ID: {bucket.id}</p>
+                      <p className="text-sm text-gray-600">Público: {bucket.public ? "Sí" : "No"}</p>
+                      <p className="text-sm text-gray-600">Creado: {new Date(bucket.created_at).toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500">No se encontraron buckets</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Archivos de Recipe Images */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Archivos en recipe-images</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {debugInfo?.recipeImagesFiles && debugInfo.recipeImagesFiles.length > 0 ? (
+                <div className="space-y-2">
+                  {debugInfo.recipeImagesFiles.map((file, index) => (
+                    <div key={index} className="border rounded p-3">
+                      <p className="font-medium">{file.name}</p>
+                      <p className="text-sm text-gray-600">Tamaño: {file.metadata?.size || "Desconocido"} bytes</p>
+                      <p className="text-sm text-gray-600">Modificado: {new Date(file.updated_at).toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500">No se encontraron archivos en recipe-images</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Archivos de Avatars */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Archivos en avatars</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {debugInfo?.avatarsFiles && debugInfo.avatarsFiles.length > 0 ? (
+                <div className="space-y-2">
+                  {debugInfo.avatarsFiles.map((file, index) => (
+                    <div key={index} className="border rounded p-3">
+                      <p className="font-medium">{file.name}</p>
+                      <p className="text-sm text-gray-600">Tamaño: {file.metadata?.size || "Desconocido"} bytes</p>
+                      <p className="text-sm text-gray-600">Modificado: {new Date(file.updated_at).toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500">No se encontraron archivos en avatars</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
 
-      {result && (
-        <div className="mt-6">
-          <h3 className="font-bold mb-2">Resultado:</h3>
-          <pre className="p-4 bg-gray-50 border rounded-md overflow-auto max-h-96">
-            {JSON.stringify(result, null, 2)}
-          </pre>
-
-          {result.testFile?.publicUrl && (
-            <div className="mt-4">
-              <h4 className="font-medium mb-2">Archivo de prueba:</h4>
-              <a
-                href={result.testFile.publicUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                {result.testFile.publicUrl}
-              </a>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Datos Raw */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Datos Raw (JSON)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <pre className="bg-gray-100 p-4 rounded-md overflow-auto text-sm">{JSON.stringify(debugInfo, null, 2)}</pre>
+        </CardContent>
+      </Card>
     </div>
   )
 }
