@@ -8,7 +8,6 @@ import { Plus } from "lucide-react"
 interface CategoryWithCount {
   id: number
   name: string
-  created_at: string
   recipeCount: number
 }
 
@@ -20,10 +19,6 @@ const getRecipesAndCategories = async () => {
     .from("recipes")
     .select(`
       *,
-      categories (
-        id,
-        name
-      ),
       user_profiles (
         id,
         full_name,
@@ -40,44 +35,47 @@ const getRecipesAndCategories = async () => {
     console.log("Error fetching recipes:", recipesError)
   }
 
-  // Obtener todas las categorías
-  const { data: categoriesData, error: categoriesError } = await supabase
-    .from("categories")
-    .select("id, name, created_at")
-    .order("name")
+  // Obtener la información de categorías y conteos desde nuestra API de debug
+  let categories: CategoryWithCount[] = []
+  let recipes = (allRecipes as any) || []
 
-  if (categoriesError) {
-    console.log("Error fetching categories:", categoriesError)
-  }
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_VERCEL_URL || ""}/api/debug-categories`, {
+      cache: "no-store",
+    })
 
-  // Calcular el conteo de recetas por categoría
-  const recipes = (allRecipes as any) || []
+    if (response.ok) {
+      const data = await response.json()
+      categories = data.categoryCounts
 
-  // Debug: log para ver la estructura de las recetas
-  console.log("Sample recipe structure:", recipes[0])
+      // Enriquecer las recetas con información de categorías
+      const { data: recipesWithCategories } = await supabase.from("recipe_categories").select(`
+          recipe_id,
+          category_id,
+          categories (
+            id,
+            name
+          )
+        `)
 
-  const categories: CategoryWithCount[] = (categoriesData || []).map((category: any) => {
-    // Contar recetas que tienen esta categoría
-    const recipeCount = recipes.filter((recipe: any) => {
-      // Verificar si la receta tiene categoría y si coincide con la categoría actual
-      const hasCategory = recipe.categories && recipe.categories.id === category.id
-      if (hasCategory) {
-        console.log(`Recipe "${recipe.name}" belongs to category "${category.name}"`)
-      }
-      return hasCategory
-    }).length
+      // Crear un mapa de recetas a categorías
+      const recipeToCategories = {}
+      recipesWithCategories?.forEach((rc) => {
+        if (!recipeToCategories[rc.recipe_id]) {
+          recipeToCategories[rc.recipe_id] = []
+        }
+        recipeToCategories[rc.recipe_id].push(rc.categories)
+      })
 
-    console.log(`Category "${category.name}" has ${recipeCount} recipes`)
-
-    return {
-      id: category.id,
-      name: category.name,
-      created_at: category.created_at,
-      recipeCount,
+      // Añadir categorías a cada receta
+      recipes = recipes.map((recipe) => ({
+        ...recipe,
+        categories: recipeToCategories[recipe.id] || [],
+      }))
     }
-  })
-
-  console.log("Categories with counts:", categories)
+  } catch (error) {
+    console.error("Error fetching category counts:", error)
+  }
 
   return {
     recipes,
