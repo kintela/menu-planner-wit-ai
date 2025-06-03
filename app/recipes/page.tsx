@@ -62,7 +62,7 @@ const getRecipesAndCategories = async (searchParams: { [key: string]: string | s
     recipesQuery = recipesQuery.or(`name.ilike.%${search}%,ingredients.ilike.%${search}%`)
   }
 
-  // Aplicar filtro por categorías
+  // Aplicar filtro por categorías - corregir el campo de filtrado
   const categoriesFilter = searchParams.categories as string
   if (categoriesFilter) {
     const categoryIds = categoriesFilter
@@ -70,7 +70,8 @@ const getRecipesAndCategories = async (searchParams: { [key: string]: string | s
       .map((id) => Number.parseInt(id.trim()))
       .filter((id) => !isNaN(id))
     if (categoryIds.length > 0) {
-      recipesQuery = recipesQuery.in("category_id", categoryIds)
+      // Cambiar de category_id a categories.id para usar la relación
+      recipesQuery = recipesQuery.in("categories.id", categoryIds)
     }
   }
 
@@ -78,6 +79,7 @@ const getRecipesAndCategories = async (searchParams: { [key: string]: string | s
 
   if (recipesError) {
     console.log("Error fetching recipes:", recipesError)
+    console.log("Query details:", { search, categoriesFilter })
   }
 
   return {
