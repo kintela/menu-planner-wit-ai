@@ -4,7 +4,6 @@ import { RecipeSearch } from "@/components/recipe-search"
 import { RecipesClientFilter } from "@/components/recipes-client-filter"
 import Link from "next/link"
 import { Plus } from "lucide-react"
-import { redirect } from "next/navigation"
 
 interface CategoryWithCount {
   id: number
@@ -16,7 +15,7 @@ const getRecipesAndCategories = async () => {
   const supabase = createServerComponentClient({ cookies })
 
   try {
-    // Obtener todas las recetas sin filtros del servidor
+    // Obtener todas las recetas
     const { data: allRecipes, error: recipesError } = await supabase
       .from("recipes")
       .select(`
@@ -37,8 +36,6 @@ const getRecipesAndCategories = async () => {
       console.error("Error fetching recipes:", recipesError)
       throw new Error("Failed to fetch recipes")
     }
-
-    const recipes = (allRecipes as any) || []
 
     // Obtener todas las categorías
     const { data: categoriesData, error: categoriesError } = await supabase
@@ -63,8 +60,9 @@ const getRecipesAndCategories = async () => {
 
     if (rcError) {
       console.error("Error fetching recipe categories:", rcError)
-      // No lanzar error aquí, solo log
     }
+
+    const recipes = (allRecipes as any) || []
 
     // Crear un mapa de recetas a categorías
     const recipeToCategories: { [key: number]: any[] } = {}
@@ -99,6 +97,13 @@ const getRecipesAndCategories = async () => {
     console.log("Data loaded successfully:", {
       recipesCount: enrichedRecipes.length,
       categoriesCount: categories.length,
+      sampleRecipe: enrichedRecipes[0]
+        ? {
+            id: enrichedRecipes[0].id,
+            name: enrichedRecipes[0].name,
+            categoriesCount: enrichedRecipes[0].categories.length,
+          }
+        : null,
     })
 
     return {
@@ -123,11 +128,6 @@ interface RecipesPageProps {
 
 const Recipes = async ({ searchParams }: RecipesPageProps) => {
   const { recipes, categories, totalRecipesCount } = await getRecipesAndCategories()
-
-  // Si no hay datos y hay parámetros de búsqueda, redirigir a la página limpia
-  if (recipes.length === 0 && categories.length === 0 && Object.keys(searchParams).length > 0) {
-    redirect("/recipes")
-  }
 
   // Verificar si hay filtros activos
   const hasActiveFilters = !!(searchParams.search || searchParams.categories || searchParams.my)
