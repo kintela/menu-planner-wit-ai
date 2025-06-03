@@ -90,9 +90,14 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+    // Verificar si es una eliminación forzada
+    const url = new URL(request.url)
+    const forceDelete = url.searchParams.get("force") === "true"
+
+    // Obtener la receta con su información completa
     const { data: recipe, error: fetchError } = await supabase
       .from("recipes")
-      .select("user_id")
+      .select("user_id, image_url, name")
       .eq("id", params.id)
       .single()
 
@@ -101,6 +106,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "Recipe not found" }, { status: 404 })
     }
 
+    // Verificar permisos de usuario primero
     const {
       data: { user },
       error: authError,
@@ -114,9 +120,45 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     // Verificar que el usuario es el propietario de la receta
     if (recipe.user_id !== user.id) {
       console.error("User ID mismatch:", { recipeUserId: recipe.user_id, currentUserId: user.id })
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      return NextResponse.json({ error: "Forbidden: No puedes eliminar recetas de otros usuarios" }, { status: 403 })
     }
 
+    // Si no es eliminación forzada, verificar si la receta está en algún menú
+    if (!forceDelete) {
+      const { data: menuItems, error: menuError } = await supabase
+        .from("menu_items")
+        .select("id, weekly_menu_id")
+        .eq("recipe_id", params.id)
+
+      if (menuError) {
+        console.error("Error checking menu items:", menuError)
+        // Continuar aunque haya error en la verificación de menús
+      }
+
+      // Si está en menús, devolver información sobre ello
+      if (menuItems && menuItems.length > 0) {
+        return NextResponse.json(
+          {
+            error: "RECIPE_IN_MENU",
+            message: `La receta "${recipe.name}" está incluida en ${menuItems.length} menú(s). ¿Deseas eliminarla de todos modos?`,
+            menuCount: menuItems.length,
+          },
+          { status: 409 },
+        )
+      }
+    }
+
+    // Si es eliminación forzada, eliminar primero de los menús
+    if (forceDelete) {
+      const { error: menuDeleteError } = await supabase.from("menu_items").delete().eq("recipe_id", params.id)
+
+      if (menuDeleteError) {
+        console.error("Error deleting from menus:", menuDeleteError)
+        return NextResponse.json({ error: "Error al eliminar la receta de los menús" }, { status: 500 })
+      }
+    }
+
+    // Eliminar la receta de la base de datos
     const { error: deleteError } = await supabase.from("recipes").delete().eq("id", params.id)
 
     if (deleteError) {
@@ -124,7 +166,35 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "Failed to delete recipe" }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true })
+    // Eliminar la imagen del storage si existe
+    if (recipe.image_url && recipe.image_url.includes("supabase")) {
+      try {
+        // Extraer el nombre del archivo de la URL
+        const urlParts = recipe.image_url.split("/")
+        const fileName = urlParts[urlParts.length - 1]
+
+        if (fileName) {
+          const { error: storageError } = await supabase.storage.from("recipe-images").remove([fileName])
+
+          if (storageError) {
+            console.error("Error deleting image from storage:", storageError)
+            // No fallar la eliminación de la receta por esto
+          } else {
+            console.log("Image deleted from storage:", fileName)
+          }
+        }
+      } catch (storageError) {
+        console.error("Error processing image deletion:", storageError)
+        // No fallar la eliminación de la receta por esto
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: forceDelete
+        ? "Receta eliminada de menús y base de datos correctamente"
+        : "Receta eliminada correctamente",
+    })
   } catch (error) {
     console.error("API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
