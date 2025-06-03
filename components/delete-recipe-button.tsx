@@ -32,14 +32,6 @@ export function DeleteRecipeButton({
   // Usar la misma lógica que StarRating para verificar ownership
   const canDelete = user && (user.id === recipeUserId || user.email === recipeUserId)
 
-  console.log("DeleteRecipeButton Debug:", {
-    recipeId,
-    recipeUserId,
-    recipeName,
-    user,
-    canDelete,
-  })
-
   async function handleDelete() {
     if (!canDelete || !user) {
       toast({
@@ -48,6 +40,15 @@ export function DeleteRecipeButton({
         variant: "destructive",
       })
       return
+    }
+
+    // SIEMPRE pedir confirmación inicial
+    const initialConfirmation = window.confirm(
+      `¿Estás seguro de que quieres eliminar la receta "${recipeName}"?\n\nEsta acción no se puede deshacer.`,
+    )
+
+    if (!initialConfirmation) {
+      return // Usuario canceló
     }
 
     setIsDeleting(true)
@@ -80,12 +81,12 @@ export function DeleteRecipeButton({
           }
         })
       } else if (response.status === 409 && data.error === "RECIPE_IN_MENU") {
-        // La receta está en menús, pedir confirmación
-        const confirmed = window.confirm(
+        // La receta está en menús, pedir confirmación adicional
+        const menuConfirmation = window.confirm(
           `${data.message || "Esta receta está incluida en uno o más menús."}\n\n¿Deseas eliminarla de todos los menús y borrarla permanentemente?`,
         )
 
-        if (confirmed) {
+        if (menuConfirmation) {
           // Eliminación forzada
           const forceResponse = await fetch(`/api/recipes/${recipeId}?force=true`, {
             method: "DELETE",
@@ -115,7 +116,7 @@ export function DeleteRecipeButton({
             throw new Error(forceData.error || "Error al eliminar la receta")
           }
         } else {
-          // Usuario canceló la eliminación
+          // Usuario canceló la eliminación forzada
           toast({
             title: "Eliminación cancelada",
             description: "La receta no ha sido eliminada.",
