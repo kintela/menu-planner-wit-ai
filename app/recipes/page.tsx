@@ -14,98 +14,73 @@ interface CategoryWithCount {
 const getRecipesAndCategories = async () => {
   const supabase = createServerComponentClient({ cookies })
 
+  // Obtener todas las recetas sin filtros del servidor
+  const { data: allRecipes, error: recipesError } = await supabase
+    .from("recipes")
+    .select(`
+      *,
+      user_profiles (
+        id,
+        full_name,
+        email,
+        alias,
+        first_name,
+        last_name,
+        avatar_url
+      )
+    `)
+    .order("created_at", { ascending: false })
+
+  if (recipesError) {
+    console.log("Error fetching recipes:", recipesError)
+  }
+
+  // Obtener la información de categorías y conteos desde nuestra API de debug
+  let categories: CategoryWithCount[] = []
+  let recipes = (allRecipes as any) || []
+
   try {
-    // Obtener todas las recetas
-    const { data: allRecipes, error: recipesError } = await supabase
-      .from("recipes")
-      .select(`
-        *,
-        user_profiles (
-          id,
-          full_name,
-          email,
-          alias,
-          first_name,
-          last_name,
-          avatar_url
-        )
-      `)
-      .order("created_at", { ascending: false })
+    const response = await fetch(`${process.env.NEXT_PUBLIC_VERCEL_URL || ""}/api/debug-categories`, {
+      cache: "no-store",
+    })
 
-    if (recipesError) {
-      console.error("Error fetching recipes:", recipesError)
-      return { recipes: [], categories: [], totalRecipesCount: 0 }
-    }
+    if (response.ok) {
+      const data = await response.json()
+      categories = data.categoryCounts
 
-    // Obtener todas las categorías
-    const { data: categoriesData, error: categoriesError } = await supabase
-      .from("categories")
-      .select("id, name")
-      .order("name")
+      // Enriquecer las recetas con información de categorías
+      const { data: recipesWithCategories } = await supabase.from("recipe_categories").select(`
+          recipe_id,
+          category_id,
+          categories (
+            id,
+            name
+          )
+        `)
 
-    if (categoriesError) {
-      console.error("Error fetching categories:", categoriesError)
-      return { recipes: allRecipes || [], categories: [], totalRecipesCount: (allRecipes || []).length }
-    }
-
-    // Obtener las relaciones receta-categoría
-    const { data: recipeCategories, error: rcError } = await supabase.from("recipe_categories").select(`
-        recipe_id,
-        category_id,
-        categories (
-          id,
-          name
-        )
-      `)
-
-    if (rcError) {
-      console.error("Error fetching recipe categories:", rcError)
-    }
-
-    // Crear un mapa de recetas a categorías
-    const recipeToCategories: { [key: number]: any[] } = {}
-    recipeCategories?.forEach((rc) => {
-      if (!recipeToCategories[rc.recipe_id]) {
-        recipeToCategories[rc.recipe_id] = []
-      }
-      if (rc.categories) {
+      // Crear un mapa de recetas a categorías
+      const recipeToCategories = {}
+      recipesWithCategories?.forEach((rc) => {
+        if (!recipeToCategories[rc.recipe_id]) {
+          recipeToCategories[rc.recipe_id] = []
+        }
         recipeToCategories[rc.recipe_id].push(rc.categories)
-      }
-    })
+      })
 
-    // Enriquecer las recetas con sus categorías
-    const recipes = (allRecipes || []).map((recipe) => ({
-      ...recipe,
-      categories: recipeToCategories[recipe.id] || [],
-    }))
-
-    // Calcular el conteo de recetas por categoría
-    const categories: CategoryWithCount[] = (categoriesData || []).map((category) => {
-      const recipeCount = recipes.filter((recipe) =>
-        recipe.categories.some((cat: any) => cat.id === category.id),
-      ).length
-
-      return {
-        id: category.id,
-        name: category.name,
-        recipeCount,
-      }
-    })
-
-    console.log("Data loaded successfully:", {
-      recipesCount: recipes.length,
-      categoriesCount: categories.length,
-      sampleRecipe: recipes[0],
-    })
-
-    return {
-      recipes,
-      categories,
-      totalRecipesCount: recipes.length,
+      // Añadir categorías a cada receta
+      recipes = recipes.map((recipe) => ({
+        ...recipe,
+        categories: recipeToCategories[recipe.id] || [],
+      }))
     }
   } catch (error) {
-    console.error("Error in getRecipesAndCategories:", error)
-    return { recipes: [], categories: [], totalRecipesCount: 0 }
+    console.error("Error fetching category counts:", error)
+  }
+
+  return {
+    recipes,
+    categories,
+    totalRecipesCount: recipes.length,
   }
 }
 

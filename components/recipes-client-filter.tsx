@@ -42,20 +42,21 @@ export function RecipesClientFilter({
   const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>(recipes)
 
   useEffect(() => {
-    // Comenzar con todas las recetas
+    // Aplicar todos los filtros secuencialmente sobre el conjunto completo de recetas
     let filtered = [...recipes]
 
-    console.log("Starting filter process with", filtered.length, "recipes")
-
-    // PASO 1: Filtrar por "mis recetas" primero si está activo
-    if (showOnlyMyRecipes && user?.id) {
+    // Filtrar por texto de búsqueda
+    const searchText = searchParams.search?.toLowerCase()
+    if (searchText) {
       filtered = filtered.filter((recipe) => {
-        return recipe.user_id === user.id || recipe.user_id === user.email
+        const nameMatch = recipe.name?.toLowerCase().includes(searchText)
+        const ingredientsMatch = recipe.ingredients?.toLowerCase().includes(searchText)
+        const preparationMatch = recipe.preparation?.toLowerCase().includes(searchText)
+        return nameMatch || ingredientsMatch || preparationMatch
       })
-      console.log("After 'my recipes' filter:", filtered.length, "recipes")
     }
 
-    // PASO 2: Filtrar por categorías seleccionadas (encadenado)
+    // Filtrar por categorías seleccionadas
     const selectedCategories = searchParams.categories
     if (selectedCategories) {
       const categoryIds = selectedCategories
@@ -67,33 +68,24 @@ export function RecipesClientFilter({
         filtered = filtered.filter((recipe) => {
           // Verificar si la receta tiene alguna de las categorías seleccionadas
           const recipeCategories = recipe.categories || []
-          const hasCategory = recipeCategories.some((category) => categoryIds.includes(category.id))
-          return hasCategory
+          return recipeCategories.some((category) => categoryIds.includes(category.id))
         })
-        console.log("After category filter:", filtered.length, "recipes", "Categories:", categoryIds)
       }
     }
 
-    // PASO 3: Filtrar por texto de búsqueda (encadenado con los filtros anteriores)
-    const searchText = searchParams.search?.toLowerCase()
-    if (searchText) {
+    // Filtrar por "mis recetas"
+    if (showOnlyMyRecipes && user?.id) {
       filtered = filtered.filter((recipe) => {
-        const nameMatch = recipe.name?.toLowerCase().includes(searchText)
-        const ingredientsMatch = recipe.ingredients?.toLowerCase().includes(searchText)
-        const preparationMatch = recipe.preparation?.toLowerCase().includes(searchText)
-        return nameMatch || ingredientsMatch || preparationMatch
+        return recipe.user_id === user.id || recipe.user_id === user.email
       })
-      console.log("After text search filter:", filtered.length, "recipes", "Search:", searchText)
     }
 
-    console.log("Final filtering results:", {
+    console.log("Filtering results:", {
       originalCount: recipes.length,
-      finalCount: filtered.length,
-      filters: {
-        myRecipes: showOnlyMyRecipes,
-        categories: selectedCategories,
-        search: searchText,
-      },
+      searchText,
+      selectedCategories,
+      showOnlyMyRecipes,
+      filteredCount: filtered.length,
     })
 
     setFilteredRecipes(filtered)
@@ -125,9 +117,7 @@ export function RecipesClientFilter({
             )}
             {showOnlyMyRecipes && <Badge variant="secondary">Solo mis recetas</Badge>}
           </div>
-          <p className="text-sm text-muted-foreground mt-2">
-            {filteredRecipes.length} receta(s) encontrada(s) de {totalRecipesCount} totales
-          </p>
+          <p className="text-sm text-muted-foreground mt-2">{filteredRecipes.length} receta(s) encontrada(s)</p>
         </div>
       )}
 
