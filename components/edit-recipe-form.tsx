@@ -297,7 +297,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       // Actualizar la receta
       const updateData = {
         name: name.trim(),
-        ingredients: ingredients || "",
+        ingredients: finalIngredients || "",
         preparation: preparation.trim() || "",
         image_url: finalImageUrl,
         video_url: video_url?.trim() || null,
