@@ -27,6 +27,7 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategories, setSelectedCategories] = useState<number[]>([])
+  const [forceRender, setForceRender] = useState(0)
 
   // Inicializar desde URL solo una vez
   useEffect(() => {
@@ -112,7 +113,7 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
         }
       }
     }
-  }, [selectedCategories, searchTerm, applyFilters, router])
+  }, [selectedCategories, searchTerm, applyFilters, router, forceRender])
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
     let newSelectedCategories: number[]
@@ -138,29 +139,13 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
   }
 
   const clearFilters = () => {
-    // Limpiar timeouts pendientes
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
-
-    // Limpiar estado local inmediatamente
-    setSearchTerm("")
-    setSelectedCategories([])
-
-    // Navegar a la URL limpia inmediatamente
-    router.replace("/recipes")
-
-    // Forzar re-renderizado para asegurar que los checkboxes se desmarquen
-    setTimeout(() => {
-      setSelectedCategories([])
-      setSearchTerm("")
-    }, 50)
+    // SOLUCIÓN RADICAL: Usar window.location para forzar una recarga completa
+    // Esto garantiza que todo el estado se resetee completamente
+    window.location.href = "/recipes"
   }
 
   const resetPage = () => {
     // Limpiar todo y recargar la página completamente
-    setSearchTerm("")
-    setSelectedCategories([])
     window.location.href = "/recipes"
   }
 
@@ -178,7 +163,13 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
           />
         </div>
         {(searchTerm || selectedCategories.length > 0) && (
-          <Button type="button" variant="outline" onClick={clearFilters}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={clearFilters}
+            id="clear-filters-button" // ID para pruebas
+            data-testid="clear-filters-button" // Para pruebas
+          >
             <X className="mr-2 h-4 w-4" />
             Limpiar
           </Button>
@@ -198,6 +189,7 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
                   id={`category-${category.id}`}
                   checked={selectedCategories.includes(category.id)}
                   onCheckedChange={(checked) => handleCategoryChange(category.id, checked as boolean)}
+                  data-testid={`category-checkbox-${category.id}`} // Para pruebas
                 />
                 <Label htmlFor={`category-${category.id}`} className="cursor-pointer flex items-center">
                   {category.name}
@@ -215,7 +207,7 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
 
       {/* Mostrar filtros activos */}
       {(searchTerm || selectedCategories.length > 0) && (
-        <div className="flex flex-wrap gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center" data-testid="active-filters">
           <span className="text-sm text-muted-foreground">Filtros activos:</span>
           {searchTerm && (
             <span className="bg-primary/10 text-primary px-2 py-1 rounded-md text-sm">Búsqueda: "{searchTerm}"</span>
