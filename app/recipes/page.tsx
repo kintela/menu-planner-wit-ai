@@ -4,6 +4,7 @@ import { RecipeSearch } from "@/components/recipe-search"
 import { RecipesClientFilter } from "@/components/recipes-client-filter"
 import Link from "next/link"
 import { Plus } from "lucide-react"
+import { safeQuery } from "@/lib/supabase/rate-limiter"
 
 interface CategoryWithCount {
   id: number
@@ -15,66 +16,159 @@ const getRecipesAndCategories = async () => {
   const supabase = createServerComponentClient({ cookies })
 
   try {
-    console.log("🚀 Cargando datos completos...")
+    console.log("🚀 Cargando datos con protección de rate limiting...")
 
-    // Cargar todas las recetas con información completa
-    const { data: allRecipes, error: recipesError } = await supabase
-      .from("recipes")
-      .select(`
-        *,
-        user_profiles (
-          id,
-          full_name,
-          email,
-          alias,
-          first_name,
-          last_name,
-          avatar_url
+    // Paso 1: Cargar recetas básicas primero
+    let recipes: any[] = []
+    let hasFullRecipeData = false
+
+    try {
+      console.log("📋 Intentando cargar recetas completas...")
+      const recipesData = await safeQuery(
+        async () => {
+          const result = await supabase
+            .from("recipes")
+            .select(`
+              *,
+              user_profiles (
+                id,
+                full_name,
+                email,
+                alias,
+                first_name,
+                last_name,
+                avatar_url
+              )
+            `)
+            .order("created_at", { ascending: false })
+
+          if (result.error) throw result.error
+          return result
+        },
+        {
+          endpoint: "recipes-full",
+          maxRetries: 2,
+          baseDelay: 1000,
+        },
+      )
+
+      recipes = recipesData.data || []
+      hasFullRecipeData = true
+      console.log(`✅ Recetas completas cargadas: ${recipes.length}`)
+    } catch (error) {
+      console.warn("⚠️ Fallback a recetas básicas debido a rate limiting")
+
+      // Fallback: cargar solo datos básicos de recetas
+      try {
+        const basicRecipesData = await safeQuery(
+          async () => {
+            const result = await supabase
+              .from("recipes")
+              .select("id, name, ingredients, preparation, image_url, user_id, created_at")
+              .order("created_at", { ascending: false })
+              .limit(50)
+
+            if (result.error) throw result.error
+            return result
+          },
+          {
+            endpoint: "recipes-basic",
+            maxRetries: 1,
+            baseDelay: 2000,
+          },
         )
-      `)
-      .order("created_at", { ascending: false })
 
-    if (recipesError) {
-      console.error("Error fetching recipes:", recipesError)
-      throw new Error(`Failed to fetch recipes: ${recipesError.message}`)
+        recipes = (basicRecipesData.data || []).map((recipe) => ({
+          ...recipe,
+          user_profiles: null,
+        }))
+        console.log(`✅ Recetas básicas cargadas: ${recipes.length}`)
+      } catch (fallbackError) {
+        console.error("❌ Error en fallback de recetas:", fallbackError)
+        recipes = []
+      }
     }
 
-    const recipes = (allRecipes as any) || []
-    console.log(`✅ Cargadas ${recipes.length} recetas`)
+    // Paso 2: Cargar categorías con delay
+    await new Promise((resolve) => setTimeout(resolve, 500))
 
-    // Cargar todas las categorías
-    const { data: categoriesData, error: categoriesError } = await supabase
-      .from("categories")
-      .select("id, name")
-      .order("name")
+    let categoriesData: any[] = []
+    let hasCategoriesData = false
 
-    if (categoriesError) {
-      console.error("Error fetching categories:", categoriesError)
-      throw new Error(`Failed to fetch categories: ${categoriesError.message}`)
+    try {
+      console.log("📂 Intentando cargar categorías...")
+      const categoriesResult = await safeQuery(
+        async () => {
+          const result = await supabase.from("categories").select("id, name").order("name")
+
+          if (result.error) throw result.error
+          return result
+        },
+        {
+          endpoint: "categories",
+          maxRetries: 2,
+          baseDelay: 1000,
+        },
+      )
+
+      categoriesData = categoriesResult.data || []
+      hasCategoriesData = true
+      console.log(`✅ Categorías cargadas: ${categoriesData.length}`)
+    } catch (error) {
+      console.warn("⚠️ Error cargando categorías, usando fallback estático")
+      categoriesData = [
+        { id: 1, name: "Desayuno" },
+        { id: 2, name: "Almuerzo" },
+        { id: 3, name: "Cena" },
+        { id: 4, name: "Postre" },
+        { id: 5, name: "Snacks" },
+      ]
     }
 
-    console.log(`✅ Cargadas ${categoriesData?.length || 0} categorías`)
+    // Paso 3: Cargar relaciones solo si tenemos datos completos
+    await new Promise((resolve) => setTimeout(resolve, 500))
 
-    // Cargar relaciones receta-categoría
-    const { data: recipeCategories, error: recipeCategoriesError } = await supabase.from("recipe_categories").select(`
-        recipe_id,
-        category_id,
-        categories (
-          id,
-          name
+    let recipeCategories: any[] = []
+    let hasRelationsData = false
+
+    if (hasFullRecipeData && hasCategoriesData && recipes.length > 0) {
+      try {
+        console.log("🔗 Intentando cargar relaciones receta-categoría...")
+        const relationsResult = await safeQuery(
+          async () => {
+            const result = await supabase.from("recipe_categories").select(`
+                recipe_id,
+                category_id,
+                categories (
+                  id,
+                  name
+                )
+              `)
+
+            if (result.error) throw result.error
+            return result
+          },
+          {
+            endpoint: "recipe-categories",
+            maxRetries: 1,
+            baseDelay: 1500,
+          },
         )
-      `)
 
-    if (recipeCategoriesError) {
-      console.error("Error fetching recipe categories:", recipeCategoriesError)
-      throw new Error(`Failed to fetch recipe categories: ${recipeCategoriesError.message}`)
+        recipeCategories = relationsResult.data || []
+        hasRelationsData = true
+        console.log(`✅ Relaciones cargadas: ${recipeCategories.length}`)
+      } catch (error) {
+        console.warn("⚠️ Error cargando relaciones, continuando sin ellas")
+        recipeCategories = []
+      }
+    } else {
+      console.log("⏭️ Saltando relaciones debido a datos incompletos")
     }
 
-    console.log(`✅ Cargadas ${recipeCategories?.length || 0} relaciones receta-categoría`)
-
-    // Crear un mapa de recetas a categorías
+    // Paso 4: Procesar datos
     const recipeToCategories: { [key: number]: any[] } = {}
-    recipeCategories?.forEach((rc) => {
+    recipeCategories.forEach((rc) => {
       if (!recipeToCategories[rc.recipe_id]) {
         recipeToCategories[rc.recipe_id] = []
       }
@@ -87,14 +181,13 @@ const getRecipesAndCategories = async () => {
     const enrichedRecipes = recipes.map((recipe) => ({
       ...recipe,
       categories: recipeToCategories[recipe.id] || [],
-      creator: recipe.user_profiles,
     }))
 
     // Calcular el conteo de recetas por categoría
-    const categories: CategoryWithCount[] = (categoriesData || []).map((category) => {
-      const recipeCount = enrichedRecipes.filter((recipe) =>
-        recipe.categories.some((cat: any) => cat.id === category.id),
-      ).length
+    const categories: CategoryWithCount[] = categoriesData.map((category) => {
+      const recipeCount = hasRelationsData
+        ? enrichedRecipes.filter((recipe) => recipe.categories.some((cat: any) => cat.id === category.id)).length
+        : 0
 
       return {
         id: category.id,
@@ -103,25 +196,39 @@ const getRecipesAndCategories = async () => {
       }
     })
 
-    console.log("✅ Datos procesados completamente:", {
+    console.log("✅ Procesamiento completado:", {
       recipesCount: enrichedRecipes.length,
       categoriesCount: categories.length,
-      totalRelations: recipeCategories?.length || 0,
+      hasFullData: hasFullRecipeData && hasCategoriesData && hasRelationsData,
     })
 
     return {
       recipes: enrichedRecipes,
       categories,
       totalRecipesCount: enrichedRecipes.length,
+      dataQuality: {
+        hasFullRecipeData,
+        hasCategoriesData,
+        hasRelationsData,
+      },
     }
   } catch (error) {
-    console.error("❌ Error cargando datos:", error)
+    console.error("❌ Error crítico:", error)
 
-    // Fallback básico en caso de error
     return {
       recipes: [],
-      categories: [],
+      categories: [
+        { id: 1, name: "Desayuno", recipeCount: 0 },
+        { id: 2, name: "Almuerzo", recipeCount: 0 },
+        { id: 3, name: "Cena", recipeCount: 0 },
+        { id: 4, name: "Postre", recipeCount: 0 },
+      ],
       totalRecipesCount: 0,
+      dataQuality: {
+        hasFullRecipeData: false,
+        hasCategoriesData: false,
+        hasRelationsData: false,
+      },
     }
   }
 }
@@ -131,7 +238,7 @@ interface RecipesPageProps {
 }
 
 const Recipes = async ({ searchParams }: RecipesPageProps) => {
-  const { recipes, categories, totalRecipesCount } = await getRecipesAndCategories()
+  const { recipes, categories, totalRecipesCount, dataQuality } = await getRecipesAndCategories()
 
   const hasActiveFilters = !!(searchParams.search || searchParams.categories || searchParams.my)
   const showOnlyMyRecipes = searchParams.my === "true"
@@ -148,6 +255,20 @@ const Recipes = async ({ searchParams }: RecipesPageProps) => {
           Añadir Receta
         </Link>
       </div>
+
+      {/* Mostrar estado de los datos */}
+      {!dataQuality.hasFullRecipeData && recipes.length > 0 && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center gap-2">
+            <span className="text-blue-600">ℹ️</span>
+            <p className="text-blue-800">
+              <strong>Modo adaptativo:</strong> Algunos datos se cargaron de forma simplificada para optimizar el
+              rendimiento.
+              {!dataQuality.hasRelationsData && " Los filtros por categoría pueden tener conteos limitados."}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Mostrar mensaje si no hay datos */}
       {recipes.length === 0 ? (
@@ -178,15 +299,6 @@ const Recipes = async ({ searchParams }: RecipesPageProps) => {
         </div>
       ) : (
         <>
-          {/* Mostrar advertencia solo si hay problemas con categorías */}
-          {categories.length === 0 && recipes.length > 0 && (
-            <div className="mb-4 p-4 bg-yellow-100 border border-yellow-400 rounded-lg">
-              <p className="text-yellow-800">
-                ⚠️ Las categorías no se pudieron cargar completamente. Los filtros por categoría pueden no funcionar.
-              </p>
-            </div>
-          )}
-
           {/* Filtros de búsqueda */}
           <div className="mb-6">
             <RecipeSearch categories={categories} />
