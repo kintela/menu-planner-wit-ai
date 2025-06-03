@@ -11,118 +11,118 @@ interface CategoryWithCount {
   recipeCount: number
 }
 
-// Función helper para retry con backoff exponencial
-async function retryWithBackoff<T>(fn: () => Promise<T>, maxRetries = 3, baseDelay = 1000): Promise<T> {
-  let lastError: Error
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn()
-    } catch (error: any) {
-      lastError = error
-
-      // Si es el último intento, lanzar el error
-      if (attempt === maxRetries) {
-        throw error
-      }
-
-      // Si es un error de rate limiting, esperar antes de reintentar
-      if (error.message?.includes("Too Many") || error.status === 429) {
-        const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 1000
-        console.log(`Rate limit hit, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`)
-        await new Promise((resolve) => setTimeout(resolve, delay))
-      } else {
-        // Para otros errores, no reintentar
-        throw error
-      }
-    }
+// Función para parsear errores de Supabase que pueden no ser JSON
+function parseSupabaseError(error: any): string {
+  if (typeof error === "string") {
+    return error
   }
-
-  throw lastError!
+  if (error?.message) {
+    return error.message
+  }
+  if (error?.error_description) {
+    return error.error_description
+  }
+  return "Unknown error occurred"
 }
+
+// Función para esperar con delay
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const getRecipesAndCategories = async () => {
   const supabase = createServerComponentClient({ cookies })
 
   try {
-    console.log("Starting data fetch...")
+    console.log("Starting simplified data fetch...")
 
-    // Obtener recetas con retry
-    const recipes = await retryWithBackoff(async () => {
-      const { data: allRecipes, error: recipesError } = await supabase
+    // Intentar cargar solo recetas básicas primero
+    let recipes: any[] = []
+    try {
+      console.log("Fetching recipes...")
+      const { data: recipesData, error: recipesError } = await supabase
         .from("recipes")
         .select(`
-          *,
-          user_profiles (
-            id,
-            full_name,
-            email,
-            alias,
-            first_name,
-            last_name,
-            avatar_url
-          )
+          id,
+          name,
+          ingredients,
+          preparation,
+          image_url,
+          video_url,
+          source_url,
+          calories,
+          user_id,
+          created_at,
+          updated_at
         `)
         .order("created_at", { ascending: false })
+        .limit(50) // Limitar para evitar rate limiting
 
       if (recipesError) {
-        console.error("Error fetching recipes:", recipesError)
-        throw new Error(`Failed to fetch recipes: ${recipesError.message}`)
+        const errorMsg = parseSupabaseError(recipesError)
+        console.error("Error fetching recipes:", errorMsg)
+        throw new Error(`Failed to fetch recipes: ${errorMsg}`)
       }
 
-      return (allRecipes as any) || []
-    })
+      recipes = recipesData || []
+      console.log(`Successfully fetched ${recipes.length} recipes`)
+    } catch (error) {
+      console.error("Failed to fetch recipes:", error)
+      // Continuar con array vacío
+      recipes = []
+    }
 
-    console.log(`Fetched ${recipes.length} recipes`)
+    // Esperar un poco antes de la siguiente consulta
+    await delay(500)
 
-    // Pequeño delay para evitar rate limiting
-    await new Promise((resolve) => setTimeout(resolve, 100))
-
-    // Obtener categorías con retry
-    const categoriesData = await retryWithBackoff(async () => {
+    // Intentar cargar categorías
+    let categoriesData: any[] = []
+    try {
+      console.log("Fetching categories...")
       const { data, error } = await supabase.from("categories").select("id, name").order("name")
 
       if (error) {
-        console.error("Error fetching categories:", error)
-        throw new Error(`Failed to fetch categories: ${error.message}`)
+        const errorMsg = parseSupabaseError(error)
+        console.error("Error fetching categories:", errorMsg)
+        throw new Error(`Failed to fetch categories: ${errorMsg}`)
       }
 
-      return data || []
-    })
+      categoriesData = data || []
+      console.log(`Successfully fetched ${categoriesData.length} categories`)
+    } catch (error) {
+      console.error("Failed to fetch categories:", error)
+      // Continuar con array vacío
+      categoriesData = []
+    }
 
-    console.log(`Fetched ${categoriesData.length} categories`)
+    // Esperar antes de la siguiente consulta
+    await delay(500)
 
-    // Otro pequeño delay
-    await new Promise((resolve) => setTimeout(resolve, 100))
-
-    // Obtener relaciones receta-categoría con retry
+    // Intentar cargar relaciones (opcional)
     let recipeCategories: any[] = []
-    try {
-      recipeCategories = await retryWithBackoff(async () => {
+    if (recipes.length > 0 && categoriesData.length > 0) {
+      try {
+        console.log("Fetching recipe-category relations...")
         const { data, error } = await supabase.from("recipe_categories").select(`
             recipe_id,
             category_id,
-            categories (
+            categories!inner (
               id,
               name
             )
           `)
 
         if (error) {
-          console.error("Error fetching recipe categories:", error)
-          throw new Error(`Failed to fetch recipe categories: ${error.message}`)
+          const errorMsg = parseSupabaseError(error)
+          console.warn("Error fetching recipe categories (non-critical):", errorMsg)
+        } else {
+          recipeCategories = data || []
+          console.log(`Successfully fetched ${recipeCategories.length} recipe-category relations`)
         }
-
-        return data || []
-      })
-    } catch (error) {
-      console.warn("Failed to fetch recipe categories, continuing without them:", error)
-      // Continuar sin las relaciones de categorías
+      } catch (error) {
+        console.warn("Failed to fetch recipe categories (continuing without them):", error)
+      }
     }
 
-    console.log(`Fetched ${recipeCategories.length} recipe-category relations`)
-
-    // Crear un mapa de recetas a categorías
+    // Procesar datos
     const recipeToCategories: { [key: number]: any[] } = {}
     recipeCategories.forEach((rc) => {
       if (!recipeToCategories[rc.recipe_id]) {
@@ -133,13 +133,14 @@ const getRecipesAndCategories = async () => {
       }
     })
 
-    // Enriquecer las recetas con sus categorías
+    // Enriquecer recetas con categorías
     const enrichedRecipes = recipes.map((recipe) => ({
       ...recipe,
       categories: recipeToCategories[recipe.id] || [],
+      user_profiles: null, // Simplificar por ahora
     }))
 
-    // Calcular el conteo de recetas por categoría
+    // Calcular conteos de categorías
     const categories: CategoryWithCount[] = categoriesData.map((category) => {
       const recipeCount = enrichedRecipes.filter((recipe) =>
         recipe.categories.some((cat: any) => cat.id === category.id),
@@ -152,9 +153,10 @@ const getRecipesAndCategories = async () => {
       }
     })
 
-    console.log("Data loaded successfully:", {
+    console.log("Data processing completed:", {
       recipesCount: enrichedRecipes.length,
       categoriesCount: categories.length,
+      hasRelations: recipeCategories.length > 0,
     })
 
     return {
@@ -163,28 +165,13 @@ const getRecipesAndCategories = async () => {
       totalRecipesCount: enrichedRecipes.length,
     }
   } catch (error) {
-    console.error("Error in getRecipesAndCategories:", error)
+    console.error("Critical error in getRecipesAndCategories:", error)
 
-    // En caso de error, intentar cargar al menos las recetas básicas
-    try {
-      const { data: basicRecipes } = await supabase
-        .from("recipes")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(20) // Limitar para evitar rate limiting
-
-      return {
-        recipes: (basicRecipes || []).map((recipe) => ({ ...recipe, categories: [] })),
-        categories: [],
-        totalRecipesCount: basicRecipes?.length || 0,
-      }
-    } catch (fallbackError) {
-      console.error("Fallback also failed:", fallbackError)
-      return {
-        recipes: [],
-        categories: [],
-        totalRecipesCount: 0,
-      }
+    // Fallback extremo: devolver estructura mínima
+    return {
+      recipes: [],
+      categories: [],
+      totalRecipesCount: 0,
     }
   }
 }
@@ -196,7 +183,6 @@ interface RecipesPageProps {
 const Recipes = async ({ searchParams }: RecipesPageProps) => {
   const { recipes, categories, totalRecipesCount } = await getRecipesAndCategories()
 
-  // Verificar si hay filtros activos
   const hasActiveFilters = !!(searchParams.search || searchParams.categories || searchParams.my)
   const showOnlyMyRecipes = searchParams.my === "true"
 
@@ -213,31 +199,30 @@ const Recipes = async ({ searchParams }: RecipesPageProps) => {
         </Link>
       </div>
 
-      {/* Mostrar mensaje si hay problemas con los datos */}
+      {/* Estado de carga/error */}
       {recipes.length === 0 ? (
         <div className="text-center py-10">
-          <p className="text-muted-foreground mb-4">
-            {categories.length === 0
-              ? "Hubo un problema cargando los datos. Por favor, intenta recargar la página."
-              : "No hay recetas disponibles en el sistema."}
-          </p>
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold mb-2">Cargando recetas...</h2>
+            <p className="text-muted-foreground">
+              Si esto tarda mucho, puede haber problemas temporales con el servidor.
+            </p>
+          </div>
           <div className="flex gap-2 justify-center">
             <Link href="/recipes" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
-              Recargar
+              🔄 Reintentar
             </Link>
             <Link href="/recipes/add" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
-              Añadir Receta
+              ➕ Añadir Receta
             </Link>
           </div>
         </div>
       ) : (
         <>
-          {/* Mostrar advertencia si no se pudieron cargar las categorías */}
-          {categories.length === 0 && recipes.length > 0 && (
+          {/* Advertencia si hay problemas parciales */}
+          {categories.length === 0 && (
             <div className="mb-4 p-4 bg-yellow-100 border border-yellow-400 rounded-lg">
-              <p className="text-yellow-800">
-                ⚠️ Las categorías no se pudieron cargar completamente. Los filtros pueden no funcionar correctamente.
-              </p>
+              <p className="text-yellow-800">⚠️ Modo simplificado: Las categorías no están disponibles temporalmente.</p>
             </div>
           )}
 
@@ -246,7 +231,7 @@ const Recipes = async ({ searchParams }: RecipesPageProps) => {
             <RecipeSearch categories={categories} />
           </div>
 
-          {/* Resultados filtrados */}
+          {/* Resultados */}
           <RecipesClientFilter
             recipes={recipes}
             showOnlyMyRecipes={showOnlyMyRecipes}
