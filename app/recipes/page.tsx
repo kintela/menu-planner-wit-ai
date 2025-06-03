@@ -52,8 +52,22 @@ const getRecipesAndCategories = async () => {
 
   // Calcular el conteo de recetas por categoría
   const recipes = (allRecipes as any) || []
+
+  // Debug: log para ver la estructura de las recetas
+  console.log("Sample recipe structure:", recipes[0])
+
   const categories: CategoryWithCount[] = (categoriesData || []).map((category: any) => {
-    const recipeCount = recipes.filter((recipe: any) => recipe.categories?.id === category.id).length
+    // Contar recetas que tienen esta categoría
+    const recipeCount = recipes.filter((recipe: any) => {
+      // Verificar si la receta tiene categoría y si coincide con la categoría actual
+      const hasCategory = recipe.categories && recipe.categories.id === category.id
+      if (hasCategory) {
+        console.log(`Recipe "${recipe.name}" belongs to category "${category.name}"`)
+      }
+      return hasCategory
+    }).length
+
+    console.log(`Category "${category.name}" has ${recipeCount} recipes`)
 
     return {
       id: category.id,
@@ -62,6 +76,8 @@ const getRecipesAndCategories = async () => {
       recipeCount,
     }
   })
+
+  console.log("Categories with counts:", categories)
 
   return {
     recipes,
