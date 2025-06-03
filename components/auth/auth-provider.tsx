@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { createContext, useContext, useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
@@ -23,11 +22,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      setUser(user)
-      setLoading(false)
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser()
+
+        if (error) {
+          console.warn("Error getting user:", error)
+        }
+
+        setUser(user)
+      } catch (error) {
+        console.warn("Unexpected error getting user:", error)
+        setUser(null)
+      } finally {
+        setLoading(false)
+      }
     }
 
     getUser()
@@ -35,11 +46,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
+      try {
+        setUser(session?.user ?? null)
+        setLoading(false)
+      } catch (error) {
+        console.warn("Error in auth state change:", error)
+        setUser(null)
+        setLoading(false)
+      }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      try {
+        subscription.unsubscribe()
+      } catch (error) {
+        console.warn("Error unsubscribing from auth changes:", error)
+      }
+    }
   }, [supabase])
 
   return <AuthContext.Provider value={{ user, loading }}>{children}</AuthContext.Provider>
