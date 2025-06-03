@@ -5,6 +5,7 @@ import { Star, AlertCircle } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { createClient } from "@/lib/supabase/client"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { safeQuery } from "@/lib/supabase/rate-limiter"
 
 interface StarRatingProps {
   recipeId: number
@@ -13,28 +14,6 @@ interface StarRatingProps {
 
 // Utility function to add delay
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-// Utility function to retry with exponential backoff
-const retryWithBackoff = async (fn: () => Promise<any>, maxRetries = 3, baseDelay = 1000) => {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await fn()
-    } catch (error: any) {
-      const isLastAttempt = i === maxRetries - 1
-      const isTooManyRequests =
-        error.message?.includes("Too Many R") || error.message?.includes("rate limit") || error.message?.includes("429")
-
-      if (isLastAttempt || !isTooManyRequests) {
-        throw error
-      }
-
-      // Exponential backoff with jitter
-      const delayMs = baseDelay * Math.pow(2, i) + Math.random() * 1000
-      console.log(`Rate limited, retrying in ${delayMs}ms (attempt ${i + 1}/${maxRetries})`)
-      await delay(delayMs)
-    }
-  }
-}
 
 export function StarRating({ recipeId, creatorId }: StarRatingProps) {
   const [userRating, setUserRating] = useState<number>(0)
@@ -50,7 +29,7 @@ export function StarRating({ recipeId, creatorId }: StarRatingProps) {
   // Determinar si el usuario es el creador de la receta
   const isCreator = user?.id === creatorId
 
-  // Load existing ratings with retry logic
+  // Load existing ratings with rate limiting protection
   const loadRatings = useCallback(async () => {
     if (!recipeId) return
 
@@ -59,24 +38,33 @@ export function StarRating({ recipeId, creatorId }: StarRatingProps) {
 
     try {
       // Add a small random delay to spread out requests
-      await delay(Math.random() * 500)
+      await delay(Math.random() * 300)
 
       // Get all ratings for this recipe to calculate average
-      const allRatingsResult = await retryWithBackoff(async () => {
-        const { data, error } = await supabase.from("recipe_ratings").select("rating").eq("recipe_id", recipeId)
+      try {
+        const result = await safeQuery(
+          async () => {
+            const { data, error } = await supabase.from("recipe_ratings").select("rating").eq("recipe_id", recipeId)
+            if (error) throw error
+            return { data, error: null }
+          },
+          { endpoint: "recipe_ratings", maxRetries: 3, baseDelay: 1000 },
+        )
 
-        if (error) throw error
-        return data
-      })
+        if (result.data && result.data.length > 0) {
+          const total = result.data.length
+          const sum = result.data.reduce((acc, curr) => acc + curr.rating, 0)
+          const average = sum / total
 
-      if (allRatingsResult && allRatingsResult.length > 0) {
-        const total = allRatingsResult.length
-        const sum = allRatingsResult.reduce((acc, curr) => acc + curr.rating, 0)
-        const average = sum / total
-
-        setAverageRating(Math.round(average * 10) / 10)
-        setTotalRatings(total)
-      } else {
+          setAverageRating(Math.round(average * 10) / 10)
+          setTotalRatings(total)
+        } else {
+          setAverageRating(0)
+          setTotalRatings(0)
+        }
+      } catch (error) {
+        console.warn("Error loading ratings:", error)
+        // Continue with defaults
         setAverageRating(0)
         setTotalRatings(0)
       }
@@ -84,20 +72,23 @@ export function StarRating({ recipeId, creatorId }: StarRatingProps) {
       // Get user's rating if logged in and not the creator
       if (user && !isCreator) {
         try {
-          const userRatingResult = await retryWithBackoff(async () => {
-            const { data, error } = await supabase
-              .from("recipe_ratings")
-              .select("rating")
-              .eq("recipe_id", recipeId)
-              .eq("user_id", user.id)
-              .maybeSingle()
+          const userRatingResult = await safeQuery(
+            async () => {
+              const { data, error } = await supabase
+                .from("recipe_ratings")
+                .select("rating")
+                .eq("recipe_id", recipeId)
+                .eq("user_id", user.id)
+                .maybeSingle()
 
-            if (error) throw error
-            return data
-          })
+              if (error) throw error
+              return { data, error: null }
+            },
+            { endpoint: "user_rating", maxRetries: 2, baseDelay: 800 },
+          )
 
-          if (userRatingResult) {
-            setUserRating(userRatingResult.rating)
+          if (userRatingResult.data) {
+            setUserRating(userRatingResult.data.rating)
           } else {
             setUserRating(0)
           }
@@ -129,53 +120,56 @@ export function StarRating({ recipeId, creatorId }: StarRatingProps) {
 
     try {
       // Check if user already has a rating for this recipe
-      const existingRating = await retryWithBackoff(async () => {
-        const { data, error } = await supabase
-          .from("recipe_ratings")
-          .select("id, rating")
-          .eq("recipe_id", recipeId)
-          .eq("user_id", user.id)
-          .maybeSingle()
-
-        if (error) throw error
-        return data
-      })
-
-      let result
-      if (existingRating) {
-        // Update existing rating
-        result = await retryWithBackoff(async () => {
-          const { error } = await supabase
+      const existingRating = await safeQuery(
+        async () => {
+          const { data, error } = await supabase
             .from("recipe_ratings")
-            .update({
-              rating: starValue,
-              updated_at: new Date().toISOString(),
-            })
+            .select("id, rating")
             .eq("recipe_id", recipeId)
             .eq("user_id", user.id)
+            .maybeSingle()
 
           if (error) throw error
-          return { error: null }
-        })
+          return { data, error: null }
+        },
+        { endpoint: "check_rating", maxRetries: 2, baseDelay: 800 },
+      )
+
+      if (existingRating.data) {
+        // Update existing rating
+        await safeQuery(
+          async () => {
+            const { error } = await supabase
+              .from("recipe_ratings")
+              .update({
+                rating: starValue,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("recipe_id", recipeId)
+              .eq("user_id", user.id)
+
+            if (error) throw error
+            return { error: null }
+          },
+          { endpoint: "update_rating", maxRetries: 2, baseDelay: 1000 },
+        )
       } else {
         // Insert new rating
-        result = await retryWithBackoff(async () => {
-          const { error } = await supabase.from("recipe_ratings").insert({
-            recipe_id: recipeId,
-            user_id: user.id,
-            rating: starValue,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
+        await safeQuery(
+          async () => {
+            const { error } = await supabase.from("recipe_ratings").insert({
+              recipe_id: recipeId,
+              user_id: user.id,
+              rating: starValue,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
 
-          if (error) throw error
-          return { error: null }
-        })
-      }
-
-      if (result.error) {
-        console.error("Error saving rating:", result.error)
-        return
+            if (error) throw error
+            return { error: null }
+          },
+          { endpoint: "insert_rating", maxRetries: 2, baseDelay: 1000 },
+        )
       }
 
       // Update local state immediately for better UX

@@ -4,6 +4,7 @@ import { RecipeSearch } from "@/components/recipe-search"
 import { RecipesClientFilter } from "@/components/recipes-client-filter"
 import Link from "next/link"
 import { Plus } from "lucide-react"
+import { safeQuery } from "@/lib/supabase/rate-limiter"
 
 interface CategoryWithCount {
   id: number
@@ -14,78 +15,66 @@ interface CategoryWithCount {
 // Función para esperar
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-// Función para hacer una consulta segura con manejo de rate limiting
-async function safeQuery(supabase: any, queryFn: () => any, description: string) {
-  try {
-    console.log(`Attempting ${description}...`)
-    const result = await queryFn()
-
-    if (result.error) {
-      console.error(`Error in ${description}:`, result.error)
-      return { data: null, error: result.error }
-    }
-
-    console.log(`✅ ${description} successful:`, result.data?.length || 0, "records")
-    return result
-  } catch (error: any) {
-    console.error(`❌ Exception in ${description}:`, error)
-
-    // Si es un error de rate limiting, devolver un error específico
-    if (error.message?.includes("Too Many") || error.message?.includes("SyntaxError")) {
-      return { data: null, error: { message: "Rate limited", code: "RATE_LIMITED" } }
-    }
-
-    return { data: null, error }
-  }
-}
-
 const getRecipesAndCategories = async () => {
   const supabase = createServerComponentClient({ cookies })
 
   try {
-    console.log("🚀 Starting ultra-conservative data fetch...")
+    console.log("🚀 Iniciando carga de datos con protección de rate limiting...")
 
-    // Intentar cargar solo las recetas más básicas
+    // Cargar recetas con protección de rate limiting
     let recipes: any[] = []
+    try {
+      const recipesData = await safeQuery(
+        () =>
+          supabase
+            .from("recipes")
+            .select("id, name, ingredients, preparation, image_url, user_id, created_at")
+            .order("created_at", { ascending: false })
+            .limit(20),
+        {
+          endpoint: "recipes",
+          maxRetries: 3,
+          baseDelay: 1500,
+        },
+      )
 
-    const recipesResult = await safeQuery(
-      supabase,
-      () =>
-        supabase
-          .from("recipes")
-          .select("id, name, ingredients, preparation, image_url, user_id, created_at")
-          .order("created_at", { ascending: false })
-          .limit(20), // Muy conservador
-      "basic recipes fetch",
-    )
+      if (recipesData.error) {
+        console.error("Error fetching recipes:", recipesData.error)
+        throw recipesData.error
+      }
 
-    if (recipesResult.data) {
-      recipes = recipesResult.data
-    } else if (recipesResult.error?.code === "RATE_LIMITED") {
-      console.warn("⚠️ Rate limited on recipes, using fallback")
-      // Fallback con datos mínimos
+      recipes = recipesData.data || []
+      console.log(`✅ Recetas cargadas: ${recipes.length}`)
+    } catch (error) {
+      console.error("❌ Error crítico en recetas:", error)
       recipes = []
     }
 
-    // Solo intentar categorías si las recetas funcionaron
+    // Esperar antes de la siguiente consulta
+    await delay(1000)
+
+    // Cargar categorías con protección de rate limiting
     let categoriesData: any[] = []
     if (recipes.length > 0) {
-      // Esperar más tiempo para evitar rate limiting
-      await delay(1000)
+      try {
+        const categoriesResult = await safeQuery(() => supabase.from("categories").select("id, name").order("name"), {
+          endpoint: "categories",
+          maxRetries: 2,
+          baseDelay: 1000,
+        })
 
-      const categoriesResult = await safeQuery(
-        supabase,
-        () => supabase.from("categories").select("id, name").order("name").limit(10), // Muy conservador
-        "basic categories fetch",
-      )
+        if (categoriesResult.error) {
+          console.error("Error fetching categories:", categoriesResult.error)
+          throw categoriesResult.error
+        }
 
-      if (categoriesResult.data) {
-        categoriesData = categoriesResult.data
+        categoriesData = categoriesResult.data || []
+        console.log(`✅ Categorías cargadas: ${categoriesData.length}`)
+      } catch (error) {
+        console.error("❌ Error en categorías:", error)
+        categoriesData = []
       }
     }
-
-    // No intentar relaciones por ahora para evitar más rate limiting
-    console.log("📊 Skipping recipe-category relations to avoid rate limiting")
 
     // Procesar datos de forma simple
     const enrichedRecipes = recipes.map((recipe) => ({
@@ -100,10 +89,7 @@ const getRecipesAndCategories = async () => {
       recipeCount: 0, // Sin conteo por ahora
     }))
 
-    console.log("✅ Data processing completed:", {
-      recipesCount: enrichedRecipes.length,
-      categoriesCount: categories.length,
-    })
+    console.log("✅ Procesamiento de datos completado")
 
     return {
       recipes: enrichedRecipes,
@@ -111,7 +97,7 @@ const getRecipesAndCategories = async () => {
       totalRecipesCount: enrichedRecipes.length,
     }
   } catch (error) {
-    console.error("💥 Critical error in getRecipesAndCategories:", error)
+    console.error("💥 Error crítico general:", error)
 
     // Fallback con datos estáticos mínimos
     return {
@@ -150,7 +136,7 @@ const Recipes = async ({ searchParams }: RecipesPageProps) => {
         </Link>
       </div>
 
-      {/* Mensaje de estado */}
+      {/* Estado de carga/error */}
       {recipes.length === 0 ? (
         <div className="text-center py-10">
           <div className="mb-6">
