@@ -24,8 +24,6 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
   const searchParams = useSearchParams()
   const isInitializedRef = useRef(false)
   const searchTimeoutRef = useRef<NodeJS.Timeout>()
-  const isUserActionRef = useRef(false)
-  const lastUrlUpdateRef = useRef("")
 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategories, setSelectedCategories] = useState<number[]>([])
@@ -46,17 +44,30 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
       setSelectedCategories(urlCategories)
       setSearchTerm(searchParam || "")
       isInitializedRef.current = true
-
-      // Guardar la URL inicial
-      const queryString = searchParams.toString()
-      lastUrlUpdateRef.current = `/recipes${queryString ? `?${queryString}` : ""}`
     }
-  }, [searchParams]) // Dependencia en searchParams para inicialización correcta
+  }, [searchParams])
 
-  // Función para actualizar la URL
-  const updateUrl = useCallback(
+  // Verificar si hay categorías en la URL pero ninguna seleccionada
+  useEffect(() => {
+    if (isInitializedRef.current) {
+      const categoriesParam = searchParams.get("categories")
+      if (categoriesParam && selectedCategories.length === 0) {
+        // Forzar limpieza de URL
+        router.replace("/recipes")
+      }
+    }
+  }, [searchParams, selectedCategories, router])
+
+  // Función para aplicar filtros
+  const applyFilters = useCallback(
     (search: string, categories: number[]) => {
       try {
+        // Si no hay filtros, ir a la ruta base
+        if (!search && categories.length === 0) {
+          router.replace("/recipes")
+          return
+        }
+
         const params = new URLSearchParams()
 
         if (search.trim()) {
@@ -69,31 +80,29 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
 
         const queryString = params.toString()
         const newUrl = `/recipes${queryString ? `?${queryString}` : ""}`
-
-        // Siempre actualizar la URL, incluso si es la misma
-        lastUrlUpdateRef.current = newUrl
         router.replace(newUrl)
       } catch (error) {
-        console.error("Error updating URL:", error)
+        console.error("Error applying filters:", error)
+        router.replace("/recipes")
       }
     },
     [router],
   )
 
-  // Manejar cambios en el estado local y actualizar URL
+  // Aplicar filtros cuando cambian las categorías
   useEffect(() => {
-    if (isInitializedRef.current && isUserActionRef.current) {
+    if (isInitializedRef.current) {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current)
       }
 
-      // Si no hay filtros activos, actualizar inmediatamente
-      if (selectedCategories.length === 0 && !searchTerm.trim()) {
-        updateUrl(searchTerm, selectedCategories)
+      // Si no hay filtros, actualizar inmediatamente
+      if (selectedCategories.length === 0 && !searchTerm) {
+        router.replace("/recipes")
       } else {
         // Para otros casos, usar debounce
         searchTimeoutRef.current = setTimeout(() => {
-          updateUrl(searchTerm, selectedCategories)
+          applyFilters(searchTerm, selectedCategories)
         }, 100)
       }
 
@@ -103,11 +112,9 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
         }
       }
     }
-  }, [searchTerm, selectedCategories, updateUrl])
+  }, [selectedCategories, searchTerm, applyFilters, router])
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
-    isUserActionRef.current = true
-
     let newSelectedCategories: number[]
     if (checked) {
       newSelectedCategories = [...selectedCategories, categoryId]
@@ -117,20 +124,23 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
 
     setSelectedCategories(newSelectedCategories)
 
-    // No es necesario llamar a updateUrl aquí, el useEffect se encargará
+    // Si se desmarcó la última categoría, limpiar URL inmediatamente
+    if (newSelectedCategories.length === 0 && !searchTerm) {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+      router.replace("/recipes")
+    }
   }
 
   const handleSearchChange = (value: string) => {
-    isUserActionRef.current = true
     setSearchTerm(value)
   }
 
   const clearFilters = () => {
-    isUserActionRef.current = true
     setSearchTerm("")
     setSelectedCategories([])
     router.replace("/recipes")
-    lastUrlUpdateRef.current = "/recipes"
   }
 
   const resetPage = () => {
