@@ -24,7 +24,7 @@ export function DeleteRecipeButton({
   iconOnly = false,
 }: DeleteRecipeButtonProps) {
   const { toast } = useToast()
-  const { user } = useAuth() // Usar el mismo hook que usa StarRating
+  const { user } = useAuth()
   const [isDeleting, setIsDeleting] = useState(false)
   const [_, startTransition] = useTransition()
   const router = useRouter()
@@ -41,7 +41,7 @@ export function DeleteRecipeButton({
   })
 
   async function handleDelete() {
-    if (!canDelete) {
+    if (!canDelete || !user) {
       toast({
         title: "Error",
         description: "No tienes permisos para eliminar esta receta",
@@ -56,6 +56,10 @@ export function DeleteRecipeButton({
       // Primer intento de eliminación (verificará si está en menús)
       const response = await fetch(`/api/recipes/${recipeId}`, {
         method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": user.id || user.email || "",
+        },
       })
 
       const data = await response.json()
@@ -85,6 +89,10 @@ export function DeleteRecipeButton({
           // Eliminación forzada
           const forceResponse = await fetch(`/api/recipes/${recipeId}?force=true`, {
             method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+              "x-user-id": user.id || user.email || "",
+            },
           })
 
           const forceData = await forceResponse.json()
@@ -120,7 +128,7 @@ export function DeleteRecipeButton({
       console.error("Error deleting recipe:", error)
       toast({
         title: "Error eliminando la receta",
-        description: error?.message || "Hubo un problema eliminando la receta.",
+        description: error instanceof Error ? error.message : "Hubo un problema eliminando la receta.",
         variant: "destructive",
       })
     } finally {

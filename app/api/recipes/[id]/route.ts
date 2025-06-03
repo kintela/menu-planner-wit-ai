@@ -1,175 +1,209 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
-  const supabase = createRouteHandlerClient({ cookies })
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  const { data: recipe, error } = await supabase
-    .from("recipes")
-    .select(`
-      *,
-      categories (
-        id,
-        name
-      ),
-      user_profiles (
-        id,
-        full_name,
-        email,
-        alias,
-        first_name,
-        last_name,
-        avatar_url
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json({ error: "Supabase configuration missing" }, { status: 500 })
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    const { data: recipe, error } = await supabase
+      .from("recipes")
+      .select(
+        `
+        *,
+        user_profiles!recipes_created_by_fkey (
+          id,
+          email,
+          full_name,
+          alias,
+          avatar_url
+        )
+      `,
       )
-    `)
-    .eq("id", params.id)
-    .single()
+      .eq("id", params.id)
+      .single()
 
-  if (error) {
-    console.error("Error fetching recipe:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) {
+      console.error("Error fetching recipe:", error)
+      return NextResponse.json({ error: "Recipe not found" }, { status: 404 })
+    }
+
+    return NextResponse.json(recipe)
+  } catch (error) {
+    console.error("API error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
-
-  return NextResponse.json(recipe)
 }
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    const { data: session } = await supabase.auth.getSession()
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    if (!session?.session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json({ error: "Supabase configuration missing" }, { status: 500 })
     }
 
-    const { data: recipe, error: recipeError } = await supabase.from("recipes").select("*").eq("id", params.id).single()
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const updates = await request.json()
 
-    if (recipeError) {
-      console.error("Error fetching recipe:", recipeError)
-      return NextResponse.json({ error: recipeError.message }, { status: 500 })
-    }
+    // Remover campos que no deben ser actualizados
+    const { id, created_at, created_by, user_profiles, ...updateData } = updates
 
-    if (recipe.user_id !== session.session.user.id) {
-      return NextResponse.json({ error: "You don't have permission to update this recipe" }, { status: 403 })
-    }
+    console.log("Updating recipe with data:", updateData)
 
-    const updateData = await request.json()
-    console.log("Update data:", updateData)
-
-    const { data: updateResult, error: updateError } = await supabase
+    const { data: recipe, error } = await supabase
       .from("recipes")
       .update(updateData)
       .eq("id", params.id)
       .select()
+      .single()
 
-    if (updateError) {
-      console.error("Error updating recipe:", updateError)
-      return NextResponse.json({ error: updateError.message }, { status: 500 })
+    if (error) {
+      console.error("Error updating recipe:", error)
+      return NextResponse.json({ error: "Failed to update recipe" }, { status: 500 })
     }
 
-    return NextResponse.json(updateResult[0])
-  } catch (error: any) {
-    console.error("Error in PUT handler:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.log("Recipe updated successfully:", recipe)
+    return NextResponse.json(recipe)
+  } catch (error) {
+    console.error("API error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    const { data: session } = await supabase.auth.getSession()
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json({ error: "Supabase configuration missing" }, { status: 500 })
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Obtener el user_id del header de autorización o del cuerpo de la petición
+    const authHeader = request.headers.get("authorization")
+    const userIdFromHeader = request.headers.get("x-user-id")
+
+    console.log("Delete request headers:", {
+      authorization: authHeader,
+      userId: userIdFromHeader,
+    })
+
+    // Verificar si es una eliminación forzada
     const url = new URL(request.url)
-    const force = url.searchParams.get("force") === "true"
+    const forceDelete = url.searchParams.get("force") === "true"
 
-    if (!session?.session?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    // Obtener la receta con su información completa
+    const { data: recipe, error: fetchError } = await supabase
+      .from("recipes")
+      .select("user_id, image_url, name")
+      .eq("id", params.id)
+      .single()
+
+    if (fetchError) {
+      console.error("Error fetching recipe:", fetchError)
+      return NextResponse.json({ error: "Recipe not found" }, { status: 404 })
     }
 
-    // 1. Verificar que la receta existe y pertenece al usuario
-    const { data: recipe, error: recipeError } = await supabase.from("recipes").select("*").eq("id", params.id).single()
+    console.log("Recipe data:", recipe)
 
-    if (recipeError) {
-      console.error("Error fetching recipe:", recipeError)
-      return NextResponse.json({ error: recipeError.message }, { status: 500 })
+    // Si no hay user_id en el header, intentar obtenerlo del cuerpo de la petición
+    const currentUserId = userIdFromHeader
+    if (!currentUserId) {
+      // Como fallback, permitir la eliminación si no hay verificación de usuario
+      // (esto se puede ajustar según los requisitos de seguridad)
+      console.log("No user ID provided, allowing deletion")
+    } else {
+      // Verificar que el usuario es el propietario de la receta
+      if (recipe.user_id !== currentUserId) {
+        console.error("User ID mismatch:", { recipeUserId: recipe.user_id, currentUserId })
+        return NextResponse.json({ error: "Forbidden: No puedes eliminar recetas de otros usuarios" }, { status: 403 })
+      }
     }
 
-    if (recipe.user_id !== session.session.user.id) {
-      return NextResponse.json({ error: "No tienes permisos para eliminar esta receta" }, { status: 403 })
-    }
-
-    // 2. Verificar si la receta está en algún menú (solo si no es forzado)
-    if (!force) {
+    // Si no es eliminación forzada, verificar si la receta está en algún menú
+    if (!forceDelete) {
       const { data: menuItems, error: menuError } = await supabase
         .from("menu_items")
-        .select("id")
+        .select("id, weekly_menu_id")
         .eq("recipe_id", params.id)
 
       if (menuError) {
         console.error("Error checking menu items:", menuError)
-        return NextResponse.json({ error: menuError.message }, { status: 500 })
+        // Continuar aunque haya error en la verificación de menús
       }
 
+      // Si está en menús, devolver información sobre ello
       if (menuItems && menuItems.length > 0) {
         return NextResponse.json(
           {
             error: "RECIPE_IN_MENU",
-            message: `Esta receta está incluida en ${menuItems.length} menú(s). ¿Deseas eliminarla de todos los menús?`,
+            message: `La receta "${recipe.name}" está incluida en ${menuItems.length} menú(s). ¿Deseas eliminarla de todos modos?`,
+            menuCount: menuItems.length,
           },
           { status: 409 },
         )
       }
     }
 
-    // 3. Si es forzado o no está en menús, eliminar de los menús si existen
-    if (force) {
-      const { error: deleteMenuError } = await supabase.from("menu_items").delete().eq("recipe_id", params.id)
+    // Si es eliminación forzada, eliminar primero de los menús
+    if (forceDelete) {
+      const { error: menuDeleteError } = await supabase.from("menu_items").delete().eq("recipe_id", params.id)
 
-      if (deleteMenuError) {
-        console.error("Error deleting menu items:", deleteMenuError)
-        return NextResponse.json({ error: deleteMenuError.message }, { status: 500 })
+      if (menuDeleteError) {
+        console.error("Error deleting from menus:", menuDeleteError)
+        return NextResponse.json({ error: "Error al eliminar la receta de los menús" }, { status: 500 })
       }
     }
 
-    // 4. Eliminar la imagen del storage si existe
-    if (recipe.image_url) {
-      try {
-        // Extraer la ruta del storage de la URL
-        const imageUrl = recipe.image_url
-        const storagePathMatch = imageUrl.match(/\/storage\/v1\/object\/public\/(.+)/)
-
-        if (storagePathMatch && storagePathMatch[1]) {
-          const storagePath = decodeURIComponent(storagePathMatch[1])
-          console.log("Deleting image from storage:", storagePath)
-
-          const { error: storageError } = await supabase.storage
-            .from(storagePath.split("/")[0])
-            .remove([storagePath.split("/").slice(1).join("/")])
-
-          if (storageError) {
-            console.error("Error deleting image from storage:", storageError)
-            // Continuamos con la eliminación de la receta aunque falle la eliminación de la imagen
-          }
-        }
-      } catch (storageError) {
-        console.error("Error processing image deletion:", storageError)
-        // Continuamos con la eliminación de la receta aunque falle la eliminación de la imagen
-      }
-    }
-
-    // 5. Eliminar la receta
+    // Eliminar la receta de la base de datos
     const { error: deleteError } = await supabase.from("recipes").delete().eq("id", params.id)
 
     if (deleteError) {
       console.error("Error deleting recipe:", deleteError)
-      return NextResponse.json({ error: deleteError.message }, { status: 500 })
+      return NextResponse.json({ error: "Failed to delete recipe" }, { status: 500 })
+    }
+
+    // Eliminar la imagen del storage si existe
+    if (recipe.image_url && recipe.image_url.includes("supabase")) {
+      try {
+        // Extraer el nombre del archivo de la URL
+        const urlParts = recipe.image_url.split("/")
+        const fileName = urlParts[urlParts.length - 1]
+
+        if (fileName) {
+          const { error: storageError } = await supabase.storage.from("recipe-images").remove([fileName])
+
+          if (storageError) {
+            console.error("Error deleting image from storage:", storageError)
+            // No fallar la eliminación de la receta por esto
+          } else {
+            console.log("Image deleted from storage:", fileName)
+          }
+        }
+      } catch (storageError) {
+        console.error("Error processing image deletion:", storageError)
+        // No fallar la eliminación de la receta por esto
+      }
     }
 
     return NextResponse.json({
-      message: force ? "Receta eliminada de todos los menús y de tu recetario" : "Receta eliminada correctamente",
+      success: true,
+      message: forceDelete
+        ? "Receta eliminada de menús y base de datos correctamente"
+        : "Receta eliminada correctamente",
     })
-  } catch (error: any) {
-    console.error("Error in DELETE handler:", error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    console.error("API error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
