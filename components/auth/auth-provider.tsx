@@ -8,70 +8,85 @@ import type { User } from "@supabase/supabase-js"
 interface AuthContextType {
   user: User | null
   loading: boolean
+  error: Error | null
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  error: null,
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const [error, setError] = useState<Error | null>(null)
+  const [supabase] = useState(() => createClient())
 
   useEffect(() => {
-    const getUser = async () => {
+    // Función para inicializar la sesión
+    const initSession = async () => {
       try {
-        const {
-          data: { user },
-          error,
-        } = await supabase.auth.getUser()
+        // Primero intentamos recuperar la sesión existente
+        const { data: sessionData } = await supabase.auth.getSession()
 
-        if (error) {
-          console.warn("Error getting user:", error)
+        if (sessionData?.session) {
+          // Si hay sesión, obtenemos el usuario
+          const { data: userData, error: userError } = await supabase.auth.getUser()
+
+          if (userError) {
+            console.warn("Error al obtener usuario con sesión existente:", userError.message)
+            setError(userError)
+            setUser(null)
+          } else {
+            setUser(userData.user)
+            setError(null)
+          }
+        } else {
+          // No hay sesión activa
+          setUser(null)
         }
-
-        setUser(user)
-      } catch (error) {
-        console.warn("Unexpected error getting user:", error)
+      } catch (err) {
+        console.warn("Error al inicializar sesión:", err)
+        setError(err instanceof Error ? err : new Error(String(err)))
         setUser(null)
       } finally {
         setLoading(false)
       }
     }
 
-    getUser()
+    // Inicializar sesión
+    initSession()
 
+    // Configurar listener para cambios de autenticación
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      try {
-        setUser(session?.user ?? null)
-        setLoading(false)
-      } catch (error) {
-        console.warn("Error in auth state change:", error)
+      console.log("🔐 Cambio de estado de autenticación:", event)
+
+      if (session) {
+        setUser(session.user)
+        setError(null)
+      } else {
         setUser(null)
-        setLoading(false)
       }
+
+      setLoading(false)
     })
 
+    // Limpiar al desmontar
     return () => {
-      try {
-        subscription.unsubscribe()
-      } catch (error) {
-        console.warn("Error unsubscribing from auth changes:", error)
-      }
+      subscription.unsubscribe()
     }
   }, [supabase])
 
-  return <AuthContext.Provider value={{ user, loading }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, loading, error }}>{children}</AuthContext.Provider>
 }
 
 export const useAuth = () => {
   const context = useContext(AuthContext)
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
+    throw new Error("useAuth debe usarse dentro de un AuthProvider")
   }
   return context
 }

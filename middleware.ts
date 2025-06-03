@@ -8,8 +8,7 @@ export async function middleware(request: NextRequest) {
   console.log("🔍 DEBUG - Middleware ejecutándose:", {
     pathname,
     host: request.headers.get("host"),
-    userAgent: request.headers.get("user-agent"),
-    referer: request.headers.get("referer"),
+    userAgent: request.headers.get("user-agent")?.substring(0, 50),
   })
 
   // Rutas que NO requieren autenticación (lista blanca)
@@ -18,73 +17,78 @@ export async function middleware(request: NextRequest) {
     "/login",
     "/auth/callback",
     "/debug-auth",
-    "/api/debug-deployment", // Añadir ruta de debug
-    "/recipes", // Ahora es público - todos pueden ver recetas
-    "/history", // Permitir que la página maneje su propia autenticación
-    "/categories", // Permitir que la página maneje su propia autenticación
-    "/weekly-menu", // Permitir que la página maneje su propia autenticación
-    "/recipes/add", // Permitir que la página maneje su propia autenticación
-    "/recipes/new", // Permitir que la página maneje su propia autenticación
+    "/api/debug-deployment",
+    "/recipes",
+    "/history",
+    "/categories",
+    "/weekly-menu",
+    "/recipes/add",
+    "/recipes/new",
   ]
 
   // Permitir rutas de archivos estáticos y API
-  if (pathname.startsWith("/_next") || pathname.startsWith("/api") || pathname.includes("favicon.ico")) {
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api") ||
+    pathname.includes("favicon.ico") ||
+    pathname.includes(".js") ||
+    pathname.includes(".css") ||
+    pathname.includes(".json")
+  ) {
     return NextResponse.next()
   }
 
   // Permitir ver recetas individuales (público)
   if (pathname.match(/^\/recipes\/\d+$/)) {
-    console.log("✅ Permitiendo acceso público a receta individual")
     return NextResponse.next()
   }
 
   // Permitir editar recetas SIN AUTENTICACIÓN
   if (pathname.match(/^\/recipes\/\d+\/edit$/)) {
-    console.log("✅ Permitiendo acceso libre a editar receta")
     return NextResponse.next()
   }
 
   // Si es una ruta pública, permitir acceso
   if (publicPaths.includes(pathname)) {
-    console.log("✅ Ruta pública permitida")
     return NextResponse.next()
   }
 
-  // TEMPORAL: Si hay problemas con Supabase, permitir acceso
   try {
     // Para todas las demás rutas, verificar autenticación
-    let supabaseResponse = NextResponse.next({
-      request,
-    })
+    const response = NextResponse.next()
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          getAll() {
-            return request.cookies.getAll()
+          get(name) {
+            return request.cookies.get(name)?.value
           },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-            supabaseResponse = NextResponse.next({
-              request,
+          set(name, value, options) {
+            // Solo establecemos cookies en la respuesta
+            response.cookies.set({
+              name,
+              value,
+              ...options,
             })
-            cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
+          },
+          remove(name, options) {
+            response.cookies.delete({
+              name,
+              ...options,
+            })
           },
         },
       },
     )
 
     const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser()
-
-    console.log("👤 Usuario encontrado:", user ? `${user.email}` : "No autenticado")
+      data: { session },
+    } = await supabase.auth.getSession()
 
     // Si no hay usuario autenticado, redirigir a login
-    if (!user) {
+    if (!session) {
       console.log("🚫 Acceso denegado - Redirigiendo a login desde:", pathname)
       const redirectUrl = new URL("/login", request.url)
       redirectUrl.searchParams.set("redirect", pathname)
@@ -92,7 +96,7 @@ export async function middleware(request: NextRequest) {
     }
 
     console.log("✅ Usuario autenticado - Acceso permitido")
-    return supabaseResponse
+    return response
   } catch (error) {
     console.error("❌ Error en middleware:", error)
     // En caso de error, permitir acceso para evitar bloqueos
@@ -101,10 +105,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except static files
-     */
-    "/((?!_next/static|_next/image|favicon.ico).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 }

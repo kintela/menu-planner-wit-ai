@@ -1,71 +1,41 @@
 import { createBrowserClient } from "@supabase/ssr"
 
+let supabaseClient: ReturnType<typeof createBrowserClient> | null = null
+
 export function createClient() {
-  return createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-    cookies: {
-      get(name: string) {
-        if (typeof document === "undefined") return undefined
+  if (supabaseClient) return supabaseClient
 
-        try {
-          const value = document.cookie
-            .split("; ")
-            .find((row) => row.startsWith(`${name}=`))
-            ?.split("=")[1]
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-          return value ? decodeURIComponent(value) : undefined
-        } catch (error) {
-          console.warn(`Error reading cookie ${name}:`, error)
-          return undefined
-        }
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("❌ Faltan variables de entorno de Supabase")
+    throw new Error("Faltan variables de entorno de Supabase")
+  }
+
+  try {
+    supabaseClient = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        flowType: "pkce",
       },
-      set(name: string, value: string, options: any) {
-        if (typeof document === "undefined") return
-
-        try {
-          const cookieOptions = {
-            ...options,
-            sameSite: "lax",
-            secure: process.env.NODE_ENV === "production",
-          }
-
-          let cookieString = `${name}=${encodeURIComponent(value)}`
-
-          if (cookieOptions.maxAge) {
-            cookieString += `; Max-Age=${cookieOptions.maxAge}`
-          }
-          if (cookieOptions.path) {
-            cookieString += `; Path=${cookieOptions.path}`
-          }
-          if (cookieOptions.domain) {
-            cookieString += `; Domain=${cookieOptions.domain}`
-          }
-          if (cookieOptions.sameSite) {
-            cookieString += `; SameSite=${cookieOptions.sameSite}`
-          }
-          if (cookieOptions.secure) {
-            cookieString += `; Secure`
-          }
-
-          document.cookie = cookieString
-        } catch (error) {
-          console.warn(`Error setting cookie ${name}:`, error)
-        }
+      global: {
+        headers: {
+          "x-client-info": `menu-planner@1.0.0`,
+        },
       },
-      remove(name: string, options: any) {
-        if (typeof document === "undefined") return
+    })
 
-        try {
-          this.set(name, "", { ...options, maxAge: 0 })
-        } catch (error) {
-          console.warn(`Error removing cookie ${name}:`, error)
-        }
-      },
-    },
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      flowType: "pkce",
-    },
-  })
+    return supabaseClient
+  } catch (error) {
+    console.error("❌ Error al crear cliente Supabase:", error)
+    throw error
+  }
+}
+
+// Alias para compatibilidad con código existente
+export function getSupabaseClient() {
+  return createClient()
 }
