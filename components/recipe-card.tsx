@@ -35,7 +35,7 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
   console.log("Recipe ID:", recipe.id)
 
   // Verificar si el usuario actual es el propietario de la receta
-  const isOwner = user && recipe.user_id === user.id
+  const isOwner = user && (recipe.user_id === user.id || recipe.user_id === user.email)
   const canEdit = user && isOwner
 
   // Ahora solo usamos el campo calories
@@ -125,7 +125,6 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex-grow pt-0">
-
           {caloriesPerServing && (
             <div className="flex items-center gap-1 text-sm mb-2">
               <Flame className="h-4 w-4 text-orange-500" />

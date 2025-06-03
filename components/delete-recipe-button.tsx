@@ -29,7 +29,10 @@ export function DeleteRecipeButton({
   const [_, startTransition] = useTransition()
   const router = useRouter()
 
-  const canDelete = session?.user.id === recipeUserId
+  // Modificar la verificación de permisos para que funcione correctamente
+  // Cambiar esta línea:
+  // Por esta implementación más robusta:
+  const canDelete = session?.user?.id === recipeUserId || session?.user?.email === recipeUserId
 
   async function handleDelete() {
     if (!canDelete) {
