@@ -30,22 +30,35 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
 
   // Inicializar solo una vez al montar el componente
   useEffect(() => {
+    const categoriesParam = searchParams.get("categories")
+    const searchParam = searchParams.get("search")
+
+    const urlCategories = categoriesParam
+      ? categoriesParam
+          .split(",")
+          .map((id) => Number.parseInt(id.trim()))
+          .filter((id) => !isNaN(id))
+      : []
+
+    // Siempre sincronizar con la URL, incluso si ya está inicializado
+    setSelectedCategories(urlCategories)
+    setSearchTerm(searchParam || "")
+
     if (!isInitializedRef.current) {
-      const categoriesParam = searchParams.get("categories")
-      const searchParam = searchParams.get("search")
-
-      const initialCategories = categoriesParam
-        ? categoriesParam
-            .split(",")
-            .map((id) => Number.parseInt(id.trim()))
-            .filter((id) => !isNaN(id))
-        : []
-
-      setSelectedCategories(initialCategories)
-      setSearchTerm(searchParam || "")
       isInitializedRef.current = true
     }
   }, [searchParams])
+
+  // Añadir este nuevo useEffect después del existente:
+  useEffect(() => {
+    // Si no hay filtros activos pero la URL tiene parámetros, limpiar la URL
+    if (isInitializedRef.current && selectedCategories.length === 0 && !searchTerm) {
+      const hasParams = searchParams.get("categories") || searchParams.get("search")
+      if (hasParams) {
+        router.replace("/recipes")
+      }
+    }
+  }, [selectedCategories, searchTerm, searchParams, router])
 
   // Función para aplicar filtros
   const applyFilters = useCallback(
@@ -111,7 +124,11 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
       newSelectedCategories = selectedCategories.filter((id) => id !== categoryId)
     }
 
+    // Actualizar el estado inmediatamente
     setSelectedCategories(newSelectedCategories)
+
+    // Aplicar filtros inmediatamente sin esperar al useEffect
+    applyFilters(searchTerm, newSelectedCategories)
   }
 
   const clearFilters = () => {
