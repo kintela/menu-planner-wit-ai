@@ -56,8 +56,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     // Remover campos que no deben ser actualizados
     const { id, created_at, created_by, user_profiles, ...updateData } = updates
 
-    // Añadir timestamp de actualización
-    updateData.updated_at = new Date().toISOString()
+    // NO añadir updated_at ya que la columna no existe en la tabla
+    console.log("Updating recipe with data:", updateData)
 
     const { data: recipe, error } = await supabase
       .from("recipes")
@@ -71,6 +71,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       return NextResponse.json({ error: "Failed to update recipe" }, { status: 500 })
     }
 
+    console.log("Recipe updated successfully:", recipe)
     return NextResponse.json(recipe)
   } catch (error) {
     console.error("API error:", error)
