@@ -12,34 +12,13 @@ interface CategoryWithCount {
   recipeCount: number
 }
 
-const getRecipesAndCategories = async (searchParams: { [key: string]: string | string[] | undefined }) => {
+const getRecipesAndCategories = async () => {
   const supabase = createServerComponentClient({ cookies })
 
-  // Obtener todas las categorías con el conteo de recetas
-  const { data: categoriesData, error: categoriesError } = await supabase
-    .from("categories")
+  // Obtener todas las recetas sin filtros del servidor
+  const { data: allRecipes, error: recipesError } = await supabase
+    .from("recipes")
     .select(`
-      id,
-      name,
-      created_at,
-      recipes!inner(id)
-    `)
-    .order("name")
-
-  if (categoriesError) {
-    console.log("Error fetching categories:", categoriesError)
-  }
-
-  // Procesar categorías para obtener el conteo
-  const categories: CategoryWithCount[] = (categoriesData || []).map((category: any) => ({
-    id: category.id,
-    name: category.name,
-    created_at: category.created_at,
-    recipeCount: category.recipes?.length || 0,
-  }))
-
-  // Construir la consulta de recetas con filtros
-  let recipesQuery = supabase.from("recipes").select(`
       *,
       categories (
         id,
@@ -55,37 +34,39 @@ const getRecipesAndCategories = async (searchParams: { [key: string]: string | s
         avatar_url
       )
     `)
-
-  // Aplicar filtro de búsqueda por texto
-  const search = searchParams.search as string
-  if (search) {
-    recipesQuery = recipesQuery.or(`name.ilike.%${search}%,ingredients.ilike.%${search}%`)
-  }
-
-  // Aplicar filtro por categorías - corregir el campo de filtrado
-  const categoriesFilter = searchParams.categories as string
-  if (categoriesFilter) {
-    const categoryIds = categoriesFilter
-      .split(",")
-      .map((id) => Number.parseInt(id.trim()))
-      .filter((id) => !isNaN(id))
-    if (categoryIds.length > 0) {
-      // Cambiar de category_id a categories.id para usar la relación
-      recipesQuery = recipesQuery.in("categories.id", categoryIds)
-    }
-  }
-
-  const { data: allRecipes, error: recipesError } = await recipesQuery.order("created_at", { ascending: false })
+    .order("created_at", { ascending: false })
 
   if (recipesError) {
     console.log("Error fetching recipes:", recipesError)
-    console.log("Query details:", { search, categoriesFilter })
   }
 
+  // Obtener todas las categorías
+  const { data: categoriesData, error: categoriesError } = await supabase
+    .from("categories")
+    .select("id, name, created_at")
+    .order("name")
+
+  if (categoriesError) {
+    console.log("Error fetching categories:", categoriesError)
+  }
+
+  // Calcular el conteo de recetas por categoría
+  const recipes = (allRecipes as any) || []
+  const categories: CategoryWithCount[] = (categoriesData || []).map((category: any) => {
+    const recipeCount = recipes.filter((recipe: any) => recipe.categories?.id === category.id).length
+
+    return {
+      id: category.id,
+      name: category.name,
+      created_at: category.created_at,
+      recipeCount,
+    }
+  })
+
   return {
-    recipes: (allRecipes as any) || [],
+    recipes,
     categories,
-    totalRecipesCount: allRecipes?.length || 0,
+    totalRecipesCount: recipes.length,
   }
 }
 
@@ -94,7 +75,7 @@ interface RecipesPageProps {
 }
 
 const Recipes = async ({ searchParams }: RecipesPageProps) => {
-  const { recipes, categories, totalRecipesCount } = await getRecipesAndCategories(searchParams)
+  const { recipes, categories, totalRecipesCount } = await getRecipesAndCategories()
 
   // Verificar si hay filtros activos
   const hasActiveFilters = !!(searchParams.search || searchParams.categories || searchParams.my)
