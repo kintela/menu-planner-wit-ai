@@ -140,13 +140,41 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
       if (data.url) {
         setUploadedImageUrl(data.url)
-
         setImageUrl(data.url) // También actualizar imageUrl para consistencia
 
-        toast({
-          title: "Imagen subida y asociada",
-          description: "La imagen se ha subido y asociada a la receta correctamente.",
-        })
+        // Actualizar inmediatamente la URL de la imagen en la base de datos
+        try {
+          console.log("Actualizando URL de imagen en la base de datos:", data.url)
+
+          const updateResponse = await fetch(`/api/recipes/${recipe.id}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              image_url: data.url,
+            }),
+          })
+
+          if (!updateResponse.ok) {
+            throw new Error(`Error al actualizar la URL de la imagen: ${updateResponse.statusText}`)
+          }
+
+          const updateResult = await updateResponse.json()
+          console.log("Resultado de actualización de imagen:", updateResult)
+
+          toast({
+            title: "Imagen guardada",
+            description: "La imagen se ha subido y guardado en la base de datos correctamente.",
+          })
+        } catch (updateError) {
+          console.error("Error al actualizar la URL de la imagen:", updateError)
+          toast({
+            title: "Error al guardar la URL",
+            description: "La imagen se subió pero no se pudo guardar la URL en la base de datos.",
+            variant: "destructive",
+          })
+        }
       } else {
         throw new Error("No se recibió URL de la imagen")
       }
@@ -213,9 +241,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       imageUrl,
       uploadedImageUrl,
     })
-
-    console.log("Ingredientes del estado local:", ingredients)
-    console.log("Ingredientes finales:", finalIngredients)
 
     // Validación del nombre (único campo obligatorio)
     if (!name.trim()) {
@@ -290,11 +315,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         finalCalories = estimatedCalories
       }
 
-      console.log("Calorías finales:", finalCalories)
-
-      const supabase = getSupabaseClient()
-
-      // Actualizar la receta
+      // Actualizar la receta usando la API route
       const updateData = {
         name: name.trim(),
         ingredients: finalIngredients || "",
@@ -307,27 +328,30 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
       console.log("Datos que se van a actualizar en la BD:", updateData)
 
-      const { data: updateResult, error: updateError } = await supabase
-        .from("recipes")
-        .update(updateData)
-        .eq("id", recipe.id)
-        .select()
+      // Usar la API route para actualizar la receta
+      const updateResponse = await fetch(`/api/recipes/${recipe.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updateData),
+      })
 
-      console.log("Resultado de actualización:", updateResult)
-
-      if (updateError) {
-        console.error("Error al actualizar receta:", updateError)
-        throw new Error(`Error de base de datos: ${updateError.message}`)
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json()
+        throw new Error(`Error al actualizar receta: ${errorData.error || updateResponse.statusText}`)
       }
 
-      console.log("Receta actualizada exitosamente")
+      const updateResult = await updateResponse.json()
+      console.log("Resultado de actualización:", updateResult)
 
       // Actualizar las categorías seleccionadas
+      const supabase = getSupabaseClient()
+
       // Primero eliminar todas las categorías existentes
       await supabase.from("recipe_categories").delete().eq("recipe_id", recipe.id)
 
       // Luego insertar las nuevas categorías seleccionadas
-
       if (selectedCategories.length > 0) {
         const categoryRelations = selectedCategories.map((categoryId) => ({
           recipe_id: recipe.id,
