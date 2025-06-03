@@ -1,10 +1,41 @@
 import { createBrowserClient } from "@supabase/ssr"
 
+let supabaseClient: ReturnType<typeof createBrowserClient> | null = null
+
 export function createClient() {
-  return createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  if (supabaseClient) return supabaseClient
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("❌ Faltan variables de entorno de Supabase")
+    throw new Error("Faltan variables de entorno de Supabase")
+  }
+
+  try {
+    supabaseClient = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        flowType: "pkce",
+      },
+      global: {
+        headers: {
+          "x-client-info": `menu-planner@1.0.0`,
+        },
+      },
+    })
+
+    return supabaseClient
+  } catch (error) {
+    console.error("❌ Error al crear cliente Supabase:", error)
+    throw error
+  }
 }
 
-// Export alias for backward compatibility with existing components
+// Alias para compatibilidad con código existente
 export function getSupabaseClient() {
   return createClient()
 }

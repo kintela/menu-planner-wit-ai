@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Search, X } from "lucide-react"
+import { Search, X, RefreshCw } from "lucide-react"
 
 import type { Category } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -50,18 +50,24 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
   // Función para aplicar filtros
   const applyFilters = useCallback(
     (search: string, categories: number[]) => {
-      const params = new URLSearchParams()
+      try {
+        const params = new URLSearchParams()
 
-      if (search.trim()) {
-        params.set("search", search.trim())
+        if (search.trim()) {
+          params.set("search", search.trim())
+        }
+
+        if (categories.length > 0) {
+          params.set("categories", categories.join(","))
+        }
+
+        const newUrl = `/recipes${params.toString() ? `?${params.toString()}` : ""}`
+        router.push(newUrl)
+      } catch (error) {
+        console.error("Error applying filters:", error)
+        // En caso de error, ir a la página limpia
+        router.push("/recipes")
       }
-
-      if (categories.length > 0) {
-        params.set("categories", categories.join(","))
-      }
-
-      const newUrl = `/recipes?${params.toString()}`
-      router.push(newUrl)
     },
     [router],
   )
@@ -112,6 +118,10 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
     router.push("/recipes")
   }
 
+  const resetPage = () => {
+    window.location.href = "/recipes"
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
@@ -131,6 +141,9 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
             Limpiar
           </Button>
         )}
+        <Button type="button" variant="outline" onClick={resetPage} title="Recargar página">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
       </div>
 
       <div>
