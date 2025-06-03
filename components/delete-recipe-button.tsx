@@ -37,12 +37,6 @@ export function DeleteRecipeButton({
   // Usar la misma lógica que StarRating para verificar ownership
   const canDelete = user && (user.id === recipeUserId || user.email === recipeUserId)
 
-  // Función para formatear fechas de yyyy-mm-dd a dd/mm/yyyy
-  const formatDateToDDMMYYYY = (dateString: string): string => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("es-ES")
-  }
-
   // Función para verificar si la receta está en menús
   async function checkIfRecipeInMenu() {
     if (!user) return false
@@ -64,11 +58,9 @@ export function DeleteRecipeButton({
       if (response.ok) {
         if (data.inMenu) {
           // La receta está en menús
-          const menuList = data.menus.map((menu) => `Menú del ${formatDateToDDMMYYYY(menu.start_date)}`).join(", ")
-
           setMenuMessage(
             data.message ||
-              `Esta receta está incluida en ${data.menuCount} menú(s): ${menuList}. Debes quitarla de todos los menús antes de eliminarla.`,
+              `Esta receta está incluida en ${data.menuCount} menú(s). Debes quitarla de todos los menús antes de eliminarla.`,
           )
           return true
         }
