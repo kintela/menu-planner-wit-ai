@@ -1,43 +1,102 @@
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
-import { RecipeCard } from "@/components/recipe-card"
-import type { Recipe } from "@/types"
+import { RecipeSearch } from "@/components/recipe-search"
+import { RecipesClientFilter } from "@/components/recipes-client-filter"
 import Link from "next/link"
 import { Plus } from "lucide-react"
 
-const getRecipes = async (): Promise<Recipe[]> => {
-  const supabase = createServerComponentClient({ cookies })
-
-  // Cambiar la consulta actual por esta más específica
-  const { data: allRecipes, error: recipesError } = await supabase
-    .from("recipes")
-    .select(`
-    *,
-    categories (
-      id,
-      name
-    ),
-    user_profiles (
-      id,
-      full_name,
-      email,
-      alias,
-      first_name,
-      last_name,
-      avatar_url
-    )
-  `)
-    .order("created_at", { ascending: false })
-
-  if (recipesError) {
-    console.log(recipesError)
-  }
-
-  return (allRecipes as any) || []
+interface CategoryWithCount {
+  id: number
+  name: string
+  created_at: string
+  recipeCount: number
 }
 
-const Recipes = async () => {
-  const recipes = await getRecipes()
+const getRecipesAndCategories = async (searchParams: { [key: string]: string | string[] | undefined }) => {
+  const supabase = createServerComponentClient({ cookies })
+
+  // Obtener todas las categorías con el conteo de recetas
+  const { data: categoriesData, error: categoriesError } = await supabase
+    .from("categories")
+    .select(`
+      id,
+      name,
+      created_at,
+      recipes!inner(id)
+    `)
+    .order("name")
+
+  if (categoriesError) {
+    console.log("Error fetching categories:", categoriesError)
+  }
+
+  // Procesar categorías para obtener el conteo
+  const categories: CategoryWithCount[] = (categoriesData || []).map((category: any) => ({
+    id: category.id,
+    name: category.name,
+    created_at: category.created_at,
+    recipeCount: category.recipes?.length || 0,
+  }))
+
+  // Construir la consulta de recetas con filtros
+  let recipesQuery = supabase.from("recipes").select(`
+      *,
+      categories (
+        id,
+        name
+      ),
+      user_profiles (
+        id,
+        full_name,
+        email,
+        alias,
+        first_name,
+        last_name,
+        avatar_url
+      )
+    `)
+
+  // Aplicar filtro de búsqueda por texto
+  const search = searchParams.search as string
+  if (search) {
+    recipesQuery = recipesQuery.or(`name.ilike.%${search}%,ingredients.ilike.%${search}%`)
+  }
+
+  // Aplicar filtro por categorías
+  const categoriesFilter = searchParams.categories as string
+  if (categoriesFilter) {
+    const categoryIds = categoriesFilter
+      .split(",")
+      .map((id) => Number.parseInt(id.trim()))
+      .filter((id) => !isNaN(id))
+    if (categoryIds.length > 0) {
+      recipesQuery = recipesQuery.in("category_id", categoryIds)
+    }
+  }
+
+  const { data: allRecipes, error: recipesError } = await recipesQuery.order("created_at", { ascending: false })
+
+  if (recipesError) {
+    console.log("Error fetching recipes:", recipesError)
+  }
+
+  return {
+    recipes: (allRecipes as any) || [],
+    categories,
+    totalRecipesCount: allRecipes?.length || 0,
+  }
+}
+
+interface RecipesPageProps {
+  searchParams: { [key: string]: string | string[] | undefined }
+}
+
+const Recipes = async ({ searchParams }: RecipesPageProps) => {
+  const { recipes, categories, totalRecipesCount } = await getRecipesAndCategories(searchParams)
+
+  // Verificar si hay filtros activos
+  const hasActiveFilters = !!(searchParams.search || searchParams.categories || searchParams.my)
+  const showOnlyMyRecipes = searchParams.my === "true"
 
   return (
     <div className="container mx-auto py-10">
@@ -51,11 +110,20 @@ const Recipes = async () => {
           Añadir Receta
         </Link>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {recipes.map((recipe) => (
-          <RecipeCard key={recipe.id} recipe={recipe} />
-        ))}
+
+      {/* Filtros de búsqueda */}
+      <div className="mb-6">
+        <RecipeSearch categories={categories} />
       </div>
+
+      {/* Resultados filtrados */}
+      <RecipesClientFilter
+        recipes={recipes}
+        showOnlyMyRecipes={showOnlyMyRecipes}
+        hasActiveFilters={hasActiveFilters}
+        totalRecipesCount={totalRecipesCount}
+        searchParams={searchParams}
+      />
     </div>
   )
 }
