@@ -11,62 +11,120 @@ interface CategoryWithCount {
   recipeCount: number
 }
 
+// Función helper para retry con backoff exponencial
+async function retryWithBackoff<T>(fn: () => Promise<T>, maxRetries = 3, baseDelay = 1000): Promise<T> {
+  let lastError: Error
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error: any) {
+      lastError = error
+
+      // Si es el último intento, lanzar el error
+      if (attempt === maxRetries) {
+        throw error
+      }
+
+      // Si es un error de rate limiting, esperar antes de reintentar
+      if (error.message?.includes("Too Many") || error.status === 429) {
+        const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 1000
+        console.log(`Rate limit hit, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`)
+        await new Promise((resolve) => setTimeout(resolve, delay))
+      } else {
+        // Para otros errores, no reintentar
+        throw error
+      }
+    }
+  }
+
+  throw lastError!
+}
+
 const getRecipesAndCategories = async () => {
   const supabase = createServerComponentClient({ cookies })
 
   try {
-    // Obtener todas las recetas
-    const { data: allRecipes, error: recipesError } = await supabase
-      .from("recipes")
-      .select(`
-        *,
-        user_profiles (
-          id,
-          full_name,
-          email,
-          alias,
-          first_name,
-          last_name,
-          avatar_url
-        )
-      `)
-      .order("created_at", { ascending: false })
+    console.log("Starting data fetch...")
 
-    if (recipesError) {
-      console.error("Error fetching recipes:", recipesError)
-      throw new Error("Failed to fetch recipes")
+    // Obtener recetas con retry
+    const recipes = await retryWithBackoff(async () => {
+      const { data: allRecipes, error: recipesError } = await supabase
+        .from("recipes")
+        .select(`
+          *,
+          user_profiles (
+            id,
+            full_name,
+            email,
+            alias,
+            first_name,
+            last_name,
+            avatar_url
+          )
+        `)
+        .order("created_at", { ascending: false })
+
+      if (recipesError) {
+        console.error("Error fetching recipes:", recipesError)
+        throw new Error(`Failed to fetch recipes: ${recipesError.message}`)
+      }
+
+      return (allRecipes as any) || []
+    })
+
+    console.log(`Fetched ${recipes.length} recipes`)
+
+    // Pequeño delay para evitar rate limiting
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    // Obtener categorías con retry
+    const categoriesData = await retryWithBackoff(async () => {
+      const { data, error } = await supabase.from("categories").select("id, name").order("name")
+
+      if (error) {
+        console.error("Error fetching categories:", error)
+        throw new Error(`Failed to fetch categories: ${error.message}`)
+      }
+
+      return data || []
+    })
+
+    console.log(`Fetched ${categoriesData.length} categories`)
+
+    // Otro pequeño delay
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    // Obtener relaciones receta-categoría con retry
+    let recipeCategories: any[] = []
+    try {
+      recipeCategories = await retryWithBackoff(async () => {
+        const { data, error } = await supabase.from("recipe_categories").select(`
+            recipe_id,
+            category_id,
+            categories (
+              id,
+              name
+            )
+          `)
+
+        if (error) {
+          console.error("Error fetching recipe categories:", error)
+          throw new Error(`Failed to fetch recipe categories: ${error.message}`)
+        }
+
+        return data || []
+      })
+    } catch (error) {
+      console.warn("Failed to fetch recipe categories, continuing without them:", error)
+      // Continuar sin las relaciones de categorías
     }
 
-    // Obtener todas las categorías
-    const { data: categoriesData, error: categoriesError } = await supabase
-      .from("categories")
-      .select("id, name")
-      .order("name")
-
-    if (categoriesError) {
-      console.error("Error fetching categories:", categoriesError)
-      throw new Error("Failed to fetch categories")
-    }
-
-    // Obtener las relaciones receta-categoría
-    const { data: recipeCategories, error: rcError } = await supabase.from("recipe_categories").select(`
-        recipe_id,
-        category_id,
-        categories (
-          id,
-          name
-        )
-      `)
-
-    if (rcError) {
-      console.error("Error fetching recipe categories:", rcError)
-    }
-
-    const recipes = (allRecipes as any) || []
+    console.log(`Fetched ${recipeCategories.length} recipe-category relations`)
 
     // Crear un mapa de recetas a categorías
     const recipeToCategories: { [key: number]: any[] } = {}
-    recipeCategories?.forEach((rc) => {
+    recipeCategories.forEach((rc) => {
       if (!recipeToCategories[rc.recipe_id]) {
         recipeToCategories[rc.recipe_id] = []
       }
@@ -82,7 +140,7 @@ const getRecipesAndCategories = async () => {
     }))
 
     // Calcular el conteo de recetas por categoría
-    const categories: CategoryWithCount[] = (categoriesData || []).map((category) => {
+    const categories: CategoryWithCount[] = categoriesData.map((category) => {
       const recipeCount = enrichedRecipes.filter((recipe) =>
         recipe.categories.some((cat: any) => cat.id === category.id),
       ).length
@@ -97,13 +155,6 @@ const getRecipesAndCategories = async () => {
     console.log("Data loaded successfully:", {
       recipesCount: enrichedRecipes.length,
       categoriesCount: categories.length,
-      sampleRecipe: enrichedRecipes[0]
-        ? {
-            id: enrichedRecipes[0].id,
-            name: enrichedRecipes[0].name,
-            categoriesCount: enrichedRecipes[0].categories.length,
-          }
-        : null,
     })
 
     return {
@@ -113,11 +164,27 @@ const getRecipesAndCategories = async () => {
     }
   } catch (error) {
     console.error("Error in getRecipesAndCategories:", error)
-    // En caso de error, devolver datos vacíos pero válidos
-    return {
-      recipes: [],
-      categories: [],
-      totalRecipesCount: 0,
+
+    // En caso de error, intentar cargar al menos las recetas básicas
+    try {
+      const { data: basicRecipes } = await supabase
+        .from("recipes")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(20) // Limitar para evitar rate limiting
+
+      return {
+        recipes: (basicRecipes || []).map((recipe) => ({ ...recipe, categories: [] })),
+        categories: [],
+        totalRecipesCount: basicRecipes?.length || 0,
+      }
+    } catch (fallbackError) {
+      console.error("Fallback also failed:", fallbackError)
+      return {
+        recipes: [],
+        categories: [],
+        totalRecipesCount: 0,
+      }
     }
   }
 }
@@ -146,11 +213,13 @@ const Recipes = async ({ searchParams }: RecipesPageProps) => {
         </Link>
       </div>
 
-      {/* Mostrar mensaje de error si no hay datos */}
-      {recipes.length === 0 && categories.length === 0 ? (
+      {/* Mostrar mensaje si hay problemas con los datos */}
+      {recipes.length === 0 ? (
         <div className="text-center py-10">
           <p className="text-muted-foreground mb-4">
-            Hubo un problema cargando los datos. Por favor, intenta recargar la página.
+            {categories.length === 0
+              ? "Hubo un problema cargando los datos. Por favor, intenta recargar la página."
+              : "No hay recetas disponibles en el sistema."}
           </p>
           <div className="flex gap-2 justify-center">
             <Link href="/recipes" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
@@ -163,6 +232,15 @@ const Recipes = async ({ searchParams }: RecipesPageProps) => {
         </div>
       ) : (
         <>
+          {/* Mostrar advertencia si no se pudieron cargar las categorías */}
+          {categories.length === 0 && recipes.length > 0 && (
+            <div className="mb-4 p-4 bg-yellow-100 border border-yellow-400 rounded-lg">
+              <p className="text-yellow-800">
+                ⚠️ Las categorías no se pudieron cargar completamente. Los filtros pueden no funcionar correctamente.
+              </p>
+            </div>
+          )}
+
           {/* Filtros de búsqueda */}
           <div className="mb-6">
             <RecipeSearch categories={categories} />
