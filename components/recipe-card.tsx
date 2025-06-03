@@ -30,13 +30,20 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
   const router = useRouter()
   const { user } = useAuth()
 
-  // Debug: Log the recipe object to see its structure
-  console.log("Recipe object:", recipe)
-  console.log("Recipe ID:", recipe.id)
+  // Debug logging más detallado
+  console.log("RecipeCard Debug:", {
+    recipeId: recipe.id,
+    recipeName: recipe.name,
+    recipeUserId: recipe.user_id,
+    currentUser: user,
+    userAuth: user,
+  })
 
   // Verificar si el usuario actual es el propietario de la receta
-  const isOwner = user && (recipe.user_id === user.id || recipe.user_id === user.email)
+  const isOwner = user && (recipe.user_id === user.id || recipe.user_id === user.email || recipe.user_id === user.sub)
   const canEdit = user && isOwner
+
+  console.log("Recipe ownership:", { isOwner, canEdit })
 
   // Ahora solo usamos el campo calories
   const caloriesPerServing = recipe.calories ? getCaloriesPerServing(recipe.calories) : null
