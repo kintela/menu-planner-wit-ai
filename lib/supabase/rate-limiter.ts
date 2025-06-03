@@ -60,45 +60,73 @@ export function calculateBackoff(attempt: number, baseDelay = 1000): number {
  * Wrapper para consultas de Supabase con manejo de rate limiting
  */
 export async function safeQuery<T>(
-  queryFn: () => Promise<T>,
+  queryFn: () => Promise<{ data: T | null; error: any }>,
   options: {
     endpoint: string
     maxRetries?: number
     baseDelay?: number
   },
-): Promise<T> {
-  const { endpoint, maxRetries = 3, baseDelay = 1000 } = options
+): Promise<{ data: T | null; error: any }> {
+  const { endpoint, maxRetries = 3, baseDelay = 500 } = options
+  let retries = 0
+  let lastError: any = null
 
-  // Comprobar rate limiting local
-  if (shouldRateLimit(endpoint)) {
-    console.log(`🛑 Rate limiting local para ${endpoint}`)
-    await new Promise((resolve) => setTimeout(resolve, baseDelay))
-  }
-
-  // Intentar la consulta con retries
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+  while (retries <= maxRetries) {
     try {
-      return await queryFn()
-    } catch (error: any) {
-      // Comprobar si es el último intento
-      const isLastAttempt = attempt === maxRetries - 1
-
-      // Comprobar si es error de rate limiting
-      const isRateLimited =
-        error?.message?.includes("Too Many") || error?.message?.includes("429") || error?.status === 429
-
-      if (isLastAttempt || !isRateLimited) {
-        throw error
+      // Añadir un pequeño retraso aleatorio para evitar colisiones
+      if (retries > 0) {
+        const delay = baseDelay * Math.pow(2, retries - 1) + Math.random() * 200
+        console.log(`⏱️ Reintento ${retries}/${maxRetries} para ${endpoint} después de ${delay.toFixed(0)}ms`)
+        await new Promise((resolve) => setTimeout(resolve, delay))
       }
 
-      // Calcular tiempo de espera
-      const delayMs = calculateBackoff(attempt, baseDelay)
-      console.log(`⏱️ Rate limited en ${endpoint}, reintentando en ${delayMs}ms (intento ${attempt + 1}/${maxRetries})`)
+      // Ejecutar la consulta
+      const result = await queryFn()
 
-      // Esperar antes de reintentar
-      await new Promise((resolve) => setTimeout(resolve, delayMs))
+      // Si hay un error específico de rate limiting, manejarlo
+      if (result.error) {
+        const errorMessage = result.error.message || String(result.error)
+
+        // Detectar errores de rate limiting
+        if (
+          errorMessage.includes("Too Many Requests") ||
+          errorMessage.includes("429") ||
+          errorMessage.includes("rate limit")
+        ) {
+          console.warn(`⚠️ Rate limit alcanzado en ${endpoint} (intento ${retries + 1}/${maxRetries + 1})`)
+          lastError = result.error
+          retries++
+          continue
+        }
+
+        // Otros errores, simplemente devolver el resultado
+        return result
+      }
+
+      // Éxito
+      return result
+    } catch (error: any) {
+      console.error(`❌ Error en consulta ${endpoint} (intento ${retries + 1}/${maxRetries + 1}):`, error)
+
+      // Detectar errores de rate limiting en excepciones
+      const errorMessage = error.message || String(error)
+      if (
+        errorMessage.includes("Too Many Requests") ||
+        errorMessage.includes("429") ||
+        errorMessage.includes("rate limit")
+      ) {
+        console.warn(`⚠️ Rate limit alcanzado en ${endpoint} (intento ${retries + 1}/${maxRetries + 1})`)
+        lastError = error
+        retries++
+        continue
+      }
+
+      // Para otros errores, devolver un objeto de resultado con el error
+      return { data: null, error }
     }
   }
 
-  throw new Error(`Máximo de reintentos (${maxRetries}) alcanzado para ${endpoint}`)
+  // Si llegamos aquí, se agotaron los reintentos
+  console.error(`❌ Se agotaron los reintentos para ${endpoint}`)
+  return { data: null, error: lastError || new Error(`Se agotaron los reintentos para ${endpoint}`) }
 }

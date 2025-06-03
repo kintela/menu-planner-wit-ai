@@ -26,24 +26,28 @@ const getRecipesAndCategories = async () => {
       console.log("📋 Intentando cargar recetas completas...")
       const recipesData = await safeQuery(
         async () => {
-          const result = await supabase
-            .from("recipes")
-            .select(`
-              *,
-              user_profiles (
-                id,
-                full_name,
-                email,
-                alias,
-                first_name,
-                last_name,
-                avatar_url
-              )
-            `)
-            .order("created_at", { ascending: false })
+          try {
+            const result = await supabase
+              .from("recipes")
+              .select(`
+                *,
+                user_profiles (
+                  id,
+                  full_name,
+                  email,
+                  alias,
+                  first_name,
+                  last_name,
+                  avatar_url
+                )
+              `)
+              .order("created_at", { ascending: false })
 
-          if (result.error) throw result.error
-          return result
+            return result
+          } catch (error) {
+            console.error("Error interno en consulta de recetas:", error)
+            return { data: null, error }
+          }
         },
         {
           endpoint: "recipes-full",
@@ -52,24 +56,32 @@ const getRecipesAndCategories = async () => {
         },
       )
 
+      if (recipesData.error) {
+        throw recipesData.error
+      }
+
       recipes = recipesData.data || []
       hasFullRecipeData = true
       console.log(`✅ Recetas completas cargadas: ${recipes.length}`)
     } catch (error) {
-      console.warn("⚠️ Fallback a recetas básicas debido a rate limiting")
+      console.warn("⚠️ Fallback a recetas básicas debido a rate limiting o error:", error)
 
       // Fallback: cargar solo datos básicos de recetas
       try {
         const basicRecipesData = await safeQuery(
           async () => {
-            const result = await supabase
-              .from("recipes")
-              .select("id, name, ingredients, preparation, image_url, user_id, created_at")
-              .order("created_at", { ascending: false })
-              .limit(50)
+            try {
+              const result = await supabase
+                .from("recipes")
+                .select("id, name, ingredients, preparation, image_url, user_id, created_at")
+                .order("created_at", { ascending: false })
+                .limit(50)
 
-            if (result.error) throw result.error
-            return result
+              return result
+            } catch (error) {
+              console.error("Error interno en consulta de recetas básicas:", error)
+              return { data: null, error }
+            }
           },
           {
             endpoint: "recipes-basic",
@@ -77,6 +89,10 @@ const getRecipesAndCategories = async () => {
             baseDelay: 2000,
           },
         )
+
+        if (basicRecipesData.error) {
+          throw basicRecipesData.error
+        }
 
         recipes = (basicRecipesData.data || []).map((recipe) => ({
           ...recipe,
@@ -99,10 +115,13 @@ const getRecipesAndCategories = async () => {
       console.log("📂 Intentando cargar categorías...")
       const categoriesResult = await safeQuery(
         async () => {
-          const result = await supabase.from("categories").select("id, name").order("name")
-
-          if (result.error) throw result.error
-          return result
+          try {
+            const result = await supabase.from("categories").select("id, name").order("name")
+            return result
+          } catch (error) {
+            console.error("Error interno en consulta de categorías:", error)
+            return { data: null, error }
+          }
         },
         {
           endpoint: "categories",
@@ -111,11 +130,15 @@ const getRecipesAndCategories = async () => {
         },
       )
 
+      if (categoriesResult.error) {
+        throw categoriesResult.error
+      }
+
       categoriesData = categoriesResult.data || []
       hasCategoriesData = true
       console.log(`✅ Categorías cargadas: ${categoriesData.length}`)
     } catch (error) {
-      console.warn("⚠️ Error cargando categorías, usando fallback estático")
+      console.warn("⚠️ Error cargando categorías, usando fallback estático:", error)
       categoriesData = [
         { id: 1, name: "Desayuno" },
         { id: 2, name: "Almuerzo" },
@@ -136,17 +159,20 @@ const getRecipesAndCategories = async () => {
         console.log("🔗 Intentando cargar relaciones receta-categoría...")
         const relationsResult = await safeQuery(
           async () => {
-            const result = await supabase.from("recipe_categories").select(`
-                recipe_id,
-                category_id,
-                categories (
-                  id,
-                  name
-                )
-              `)
-
-            if (result.error) throw result.error
-            return result
+            try {
+              const result = await supabase.from("recipe_categories").select(`
+                  recipe_id,
+                  category_id,
+                  categories (
+                    id,
+                    name
+                  )
+                `)
+              return result
+            } catch (error) {
+              console.error("Error interno en consulta de relaciones:", error)
+              return { data: null, error }
+            }
           },
           {
             endpoint: "recipe-categories",
@@ -155,11 +181,15 @@ const getRecipesAndCategories = async () => {
           },
         )
 
+        if (relationsResult.error) {
+          throw relationsResult.error
+        }
+
         recipeCategories = relationsResult.data || []
         hasRelationsData = true
         console.log(`✅ Relaciones cargadas: ${recipeCategories.length}`)
       } catch (error) {
-        console.warn("⚠️ Error cargando relaciones, continuando sin ellas")
+        console.warn("⚠️ Error cargando relaciones, continuando sin ellas:", error)
         recipeCategories = []
       }
     } else {
