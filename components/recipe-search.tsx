@@ -70,11 +70,9 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
         const queryString = params.toString()
         const newUrl = `/recipes${queryString ? `?${queryString}` : ""}`
 
-        // Solo actualizar si la URL ha cambiado
-        if (newUrl !== lastUrlUpdateRef.current) {
-          lastUrlUpdateRef.current = newUrl
-          router.replace(newUrl)
-        }
+        // Siempre actualizar la URL, incluso si es la misma
+        lastUrlUpdateRef.current = newUrl
+        router.replace(newUrl)
       } catch (error) {
         console.error("Error updating URL:", error)
       }
@@ -89,9 +87,15 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
         clearTimeout(searchTimeoutRef.current)
       }
 
-      searchTimeoutRef.current = setTimeout(() => {
+      // Si no hay filtros activos, actualizar inmediatamente
+      if (selectedCategories.length === 0 && !searchTerm.trim()) {
         updateUrl(searchTerm, selectedCategories)
-      }, 100)
+      } else {
+        // Para otros casos, usar debounce
+        searchTimeoutRef.current = setTimeout(() => {
+          updateUrl(searchTerm, selectedCategories)
+        }, 100)
+      }
 
       return () => {
         if (searchTimeoutRef.current) {
