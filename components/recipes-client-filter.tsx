@@ -14,7 +14,7 @@ interface Recipe {
   user_id: string
   ingredients?: string
   preparation?: string
-  categories?: Array<{ id: number; name: string; created_at: string }>
+  categories?: Array<{ id: number; name: string }>
   creator?: { full_name?: string; email?: string } | null
   [key: string]: any
 }
@@ -42,31 +42,62 @@ export function RecipesClientFilter({
   const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>(recipes)
 
   useEffect(() => {
-    if (showOnlyMyRecipes && user?.id) {
-      // Filtrar recetas del usuario actual
-      const myRecipes = recipes.filter((recipe) => recipe.user_id === user.id)
-      setFilteredRecipes(myRecipes)
-    } else {
-      // Mostrar todas las recetas
-      setFilteredRecipes(recipes)
+    let filtered = [...recipes]
+
+    // Filtrar por texto de búsqueda
+    const searchText = searchParams.search?.toLowerCase()
+    if (searchText) {
+      filtered = filtered.filter((recipe) => {
+        const nameMatch = recipe.name?.toLowerCase().includes(searchText)
+        const ingredientsMatch = recipe.ingredients?.toLowerCase().includes(searchText)
+        return nameMatch || ingredientsMatch
+      })
     }
-  }, [recipes, showOnlyMyRecipes, user?.id])
+
+    // Filtrar por categorías seleccionadas
+    const selectedCategories = searchParams.categories
+    if (selectedCategories) {
+      const categoryIds = selectedCategories
+        .split(",")
+        .map((id) => Number.parseInt(id.trim()))
+        .filter((id) => !isNaN(id))
+
+      if (categoryIds.length > 0) {
+        filtered = filtered.filter((recipe) => {
+          // Verificar si la receta tiene alguna de las categorías seleccionadas
+          const recipeCategories = recipe.categories || []
+          return recipeCategories.some((category) => categoryIds.includes(category.id))
+        })
+      }
+    }
+
+    // Filtrar por "mis recetas"
+    if (showOnlyMyRecipes && user?.id) {
+      filtered = filtered.filter((recipe) => {
+        return recipe.user_id === user.id || recipe.user_id === user.email
+      })
+    }
+
+    console.log("Filtering results:", {
+      originalCount: recipes.length,
+      searchText,
+      selectedCategories,
+      showOnlyMyRecipes,
+      filteredCount: filtered.length,
+    })
+
+    setFilteredRecipes(filtered)
+  }, [recipes, searchParams.search, searchParams.categories, showOnlyMyRecipes, user?.id, user?.email])
 
   return (
     <div className="mt-6">
       {/* Información de estadísticas */}
       <div className="flex items-center gap-4 mb-4">
         <Badge variant="outline" className="text-sm">
-          {hasActiveFilters ? (
-            <>Mostrando {filteredRecipes.length} recetas</>
-          ) : (
-            <>
-              {showOnlyMyRecipes ? "Mis recetas" : "Total"}: {filteredRecipes.length} recetas
-              {showOnlyMyRecipes && totalRecipesCount && <> (de {totalRecipesCount} en total)</>}
-            </>
-          )}
+          Mostrando {filteredRecipes.length} recetas
+          {!hasActiveFilters && !showOnlyMyRecipes && <> de {totalRecipesCount} en total</>}
         </Badge>
-        {hasActiveFilters && (
+        {(hasActiveFilters || showOnlyMyRecipes) && (
           <Button asChild variant="ghost" size="sm">
             <Link href="/recipes">Limpiar filtros</Link>
           </Button>
@@ -79,6 +110,9 @@ export function RecipesClientFilter({
           <h3 className="font-medium mb-2">Filtros aplicados:</h3>
           <div className="flex flex-wrap gap-2">
             {searchParams.search && <Badge variant="secondary">Búsqueda: "{searchParams.search}"</Badge>}
+            {searchParams.categories && (
+              <Badge variant="secondary">Categorías: {searchParams.categories.split(",").length} seleccionada(s)</Badge>
+            )}
             {showOnlyMyRecipes && <Badge variant="secondary">Solo mis recetas</Badge>}
           </div>
           <p className="text-sm text-muted-foreground mt-2">{filteredRecipes.length} receta(s) encontrada(s)</p>
@@ -92,14 +126,12 @@ export function RecipesClientFilter({
         ) : (
           <div className="col-span-full text-center py-10">
             <p className="text-muted-foreground">
-              {hasActiveFilters
+              {hasActiveFilters || showOnlyMyRecipes
                 ? "No se encontraron recetas con los criterios seleccionados."
-                : showOnlyMyRecipes
-                  ? "No has añadido ninguna receta todavía."
-                  : "No hay recetas disponibles en el sistema."}
+                : "No hay recetas disponibles en el sistema."}
             </p>
             <div className="flex gap-2 justify-center mt-4">
-              {hasActiveFilters && (
+              {(hasActiveFilters || showOnlyMyRecipes) && (
                 <Button asChild variant="outline">
                   <Link href="/recipes">Ver todas las recetas</Link>
                 </Button>
