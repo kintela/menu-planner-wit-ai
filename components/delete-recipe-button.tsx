@@ -6,7 +6,7 @@ import { Trash2, Loader2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
-import { useSession } from "next-auth/react"
+import { useAuth } from "@/components/auth/auth-provider"
 
 interface DeleteRecipeButtonProps {
   recipeId: string
@@ -24,28 +24,21 @@ export function DeleteRecipeButton({
   iconOnly = false,
 }: DeleteRecipeButtonProps) {
   const { toast } = useToast()
-  const { data: session } = useSession()
+  const { user } = useAuth() // Usar el mismo hook que usa StarRating
   const [isDeleting, setIsDeleting] = useState(false)
   const [_, startTransition] = useTransition()
   const router = useRouter()
 
-  // Debug logging para entender el problema
+  // Usar la misma lógica que StarRating para verificar ownership
+  const canDelete = user && (user.id === recipeUserId || user.email === recipeUserId)
+
   console.log("DeleteRecipeButton Debug:", {
     recipeId,
     recipeUserId,
     recipeName,
-    sessionUserId: session?.user?.id,
-    sessionUserEmail: session?.user?.email,
-    sessionUser: session?.user,
+    user,
+    canDelete,
   })
-
-  // Verificación más robusta de permisos
-  const canDelete = Boolean(
-    session?.user &&
-      (session.user.id === recipeUserId || session.user.email === recipeUserId || session.user.sub === recipeUserId),
-  )
-
-  console.log("Can delete:", canDelete)
 
   async function handleDelete() {
     if (!canDelete) {

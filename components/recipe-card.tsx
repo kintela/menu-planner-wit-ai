@@ -30,20 +30,18 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
   const router = useRouter()
   const { user } = useAuth()
 
-  // Debug logging más detallado
+  // Usar la misma lógica que StarRating para verificar ownership
+  const isOwner = user && (user.id === recipe.user_id || user.email === recipe.user_id)
+  const canEdit = user && isOwner
+
   console.log("RecipeCard Debug:", {
     recipeId: recipe.id,
     recipeName: recipe.name,
     recipeUserId: recipe.user_id,
     currentUser: user,
-    userAuth: user,
+    isOwner,
+    canEdit,
   })
-
-  // Verificar si el usuario actual es el propietario de la receta
-  const isOwner = user && (recipe.user_id === user.id || recipe.user_id === user.email || recipe.user_id === user.sub)
-  const canEdit = user && isOwner
-
-  console.log("Recipe ownership:", { isOwner, canEdit })
 
   // Ahora solo usamos el campo calories
   const caloriesPerServing = recipe.calories ? getCaloriesPerServing(recipe.calories) : null
@@ -51,9 +49,6 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
 
   // Obtener la información del creador (puede venir de creator o user_profiles)
   const creatorInfo = recipe.creator || recipe.user_profiles || null
-
-  // Debug temporal para ver los datos del creador
-  console.log("Creator info for recipe:", recipe.name, creatorInfo)
 
   // Función para manejar la eliminación de la receta
   const handleDelete = () => {
