@@ -138,12 +138,29 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
   }
 
   const clearFilters = () => {
+    // Limpiar timeouts pendientes
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    // Limpiar estado local inmediatamente
     setSearchTerm("")
     setSelectedCategories([])
+
+    // Navegar a la URL limpia inmediatamente
     router.replace("/recipes")
+
+    // Forzar re-renderizado para asegurar que los checkboxes se desmarquen
+    setTimeout(() => {
+      setSelectedCategories([])
+      setSearchTerm("")
+    }, 50)
   }
 
   const resetPage = () => {
+    // Limpiar todo y recargar la página completamente
+    setSearchTerm("")
+    setSelectedCategories([])
     window.location.href = "/recipes"
   }
 
