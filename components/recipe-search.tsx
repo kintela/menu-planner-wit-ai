@@ -61,7 +61,9 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
           params.set("categories", categories.join(","))
         }
 
-        const newUrl = `/recipes${params.toString() ? `?${params.toString()}` : ""}`
+        // Si no hay parámetros, navegar a la ruta base sin query params
+        const queryString = params.toString()
+        const newUrl = `/recipes${queryString ? `?${queryString}` : ""}`
         router.push(newUrl)
       } catch (error) {
         console.error("Error applying filters:", error)
