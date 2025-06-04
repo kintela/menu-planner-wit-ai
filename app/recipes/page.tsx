@@ -13,7 +13,7 @@ interface CategoryWithCount {
   recipeCount: number
 }
 
-const getRecipesAndCategories = async () => {
+export const getRecipesAndCategories = async () => {
   const supabase = createServerComponentClient({ cookies })
 
   try {
@@ -27,7 +27,6 @@ const getRecipesAndCategories = async () => {
       console.log("📋 Intentando cargar recetas completas...")
       const recipesData = await safeQuery(
         async () => {
-
           try {
             const result = await supabase
               .from("recipes")
@@ -50,7 +49,6 @@ const getRecipesAndCategories = async () => {
             console.error("Error interno en consulta de recetas:", error)
             return { data: null, error }
           }
-
         },
         {
           endpoint: "recipes-full",
@@ -59,25 +57,20 @@ const getRecipesAndCategories = async () => {
         },
       )
 
-
       if (recipesData.error) {
         throw recipesData.error
       }
-
 
       recipes = recipesData.data || []
       hasFullRecipeData = true
       console.log(`✅ Recetas completas cargadas: ${recipes.length}`)
     } catch (error) {
-
       console.warn("⚠️ Fallback a recetas básicas debido a rate limiting o error:", error)
-
 
       // Fallback: cargar solo datos básicos de recetas
       try {
         const basicRecipesData = await safeQuery(
           async () => {
-
             try {
               const result = await supabase
                 .from("recipes")
@@ -90,7 +83,6 @@ const getRecipesAndCategories = async () => {
               console.error("Error interno en consulta de recetas básicas:", error)
               return { data: null, error }
             }
-
           },
           {
             endpoint: "recipes-basic",
@@ -99,11 +91,9 @@ const getRecipesAndCategories = async () => {
           },
         )
 
-
         if (basicRecipesData.error) {
           throw basicRecipesData.error
         }
-
 
         recipes = (basicRecipesData.data || []).map((recipe) => ({
           ...recipe,
@@ -126,7 +116,6 @@ const getRecipesAndCategories = async () => {
       console.log("📂 Intentando cargar categorías...")
       const categoriesResult = await safeQuery(
         async () => {
-
           try {
             const result = await supabase.from("categories").select("id, name").order("name")
             return result
@@ -134,7 +123,6 @@ const getRecipesAndCategories = async () => {
             console.error("Error interno en consulta de categorías:", error)
             return { data: null, error }
           }
-
         },
         {
           endpoint: "categories",
@@ -143,17 +131,14 @@ const getRecipesAndCategories = async () => {
         },
       )
 
-
       if (categoriesResult.error) {
         throw categoriesResult.error
       }
-
 
       categoriesData = categoriesResult.data || []
       hasCategoriesData = true
       console.log(`✅ Categorías cargadas: ${categoriesData.length}`)
     } catch (error) {
-
       console.warn("⚠️ Error cargando categorías, usando fallback estático:", error)
 
       categoriesData = [
@@ -176,7 +161,6 @@ const getRecipesAndCategories = async () => {
         console.log("🔗 Intentando cargar relaciones receta-categoría...")
         const relationsResult = await safeQuery(
           async () => {
-
             try {
               const result = await supabase.from("recipe_categories").select(`
                   recipe_id,
@@ -191,7 +175,6 @@ const getRecipesAndCategories = async () => {
               console.error("Error interno en consulta de relaciones:", error)
               return { data: null, error }
             }
-
           },
           {
             endpoint: "recipe-categories",
@@ -200,17 +183,14 @@ const getRecipesAndCategories = async () => {
           },
         )
 
-
         if (relationsResult.error) {
           throw relationsResult.error
         }
-
 
         recipeCategories = relationsResult.data || []
         hasRelationsData = true
         console.log(`✅ Relaciones cargadas: ${recipeCategories.length}`)
       } catch (error) {
-
         console.warn("⚠️ Error cargando relaciones, continuando sin ellas:", error)
 
         recipeCategories = []
@@ -286,13 +266,48 @@ const getRecipesAndCategories = async () => {
   }
 }
 
+export const getRecipeById = async (id: number) => {
+  const supabase = createServerComponentClient({ cookies })
+
+  try {
+    console.log(`🔍 Obteniendo receta con ID: ${id}`)
+
+    const { data: recipe, error } = await supabase
+      .from("recipes")
+      .select(`
+        *,
+        user_profiles (
+          id,
+          full_name,
+          email,
+          alias,
+          first_name,
+          last_name,
+          avatar_url
+        )
+      `)
+      .eq("id", id)
+      .single()
+
+    if (error) {
+      console.error("Error obteniendo receta:", error)
+      return { recipe: null, error: error.message }
+    }
+
+    console.log("✅ Receta obtenida exitosamente")
+    return { recipe, error: null }
+  } catch (error) {
+    console.error("❌ Error crítico obteniendo receta:", error)
+    return { recipe: null, error: "Error interno del servidor" }
+  }
+}
+
 interface RecipesPageProps {
   searchParams: { [key: string]: string | string[] | undefined }
 }
 
 const Recipes = async ({ searchParams }: RecipesPageProps) => {
   const { recipes, categories, totalRecipesCount, dataQuality } = await getRecipesAndCategories()
-
 
   const showOnlyMyRecipes = searchParams.my === "true"
 
@@ -351,14 +366,12 @@ const Recipes = async ({ searchParams }: RecipesPageProps) => {
           </div>
         </div>
       ) : (
-
         <RecipesPageClient
           recipes={recipes}
           categories={categories}
           totalRecipesCount={totalRecipesCount}
           showOnlyMyRecipes={showOnlyMyRecipes}
         />
-
       )}
     </div>
   )
