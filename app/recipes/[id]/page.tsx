@@ -38,7 +38,16 @@ async function getRecipe(id: string): Promise<Recipe | null> {
 }
 
 export default async function RecipePage({ params }: { params: { id: string } }) {
-  return <RecipeClientPage params={params} />
+  // Validación básica del ID en el servidor
+  const numericId = Number.parseInt(params.id, 10)
+  if (isNaN(numericId) || numericId <= 0) {
+    return <RecipeClientPage params={params} recipe={null} error="invalid_id" />
+  }
+
+  // Obtener la receta en el servidor
+  const recipe = await getRecipe(params.id)
+
+  return <RecipeClientPage params={params} recipe={recipe} error={null} />
 }
 
 export async function generateMetadata({ params }: { params: { id: string } }) {

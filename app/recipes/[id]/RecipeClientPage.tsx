@@ -1,6 +1,5 @@
 "use client"
 import { useState } from "react"
-import { createServerClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft } from "lucide-react"
@@ -22,26 +21,10 @@ interface Recipe {
   user_id: string | null
 }
 
-async function getRecipe(id: string): Promise<Recipe | null> {
-  try {
-    console.log("🔍 DEBUG - getRecipe iniciado para ID:", id)
-
-    const supabase = createServerClient()
-
-    // Consulta muy simple sin transformaciones complejas
-    const { data: recipe, error } = await supabase.from("recipes").select("*").eq("id", id).single()
-
-    if (error || !recipe) {
-      console.error("❌ Error o receta no encontrada:", error?.message || "Sin datos")
-      return null
-    }
-
-    console.log("✅ Receta encontrada:", recipe.name)
-    return recipe
-  } catch (error) {
-    console.error("❌ Error crítico:", error)
-    return null
-  }
+interface RecipeClientPageProps {
+  params: { id: string }
+  recipe: Recipe | null
+  error: string | null
 }
 
 // Función simplificada para procesar texto
@@ -56,14 +39,13 @@ function processText(text: string | null | undefined): string[] {
   return []
 }
 
-export default function RecipeClientPage({ params }: { params: { id: string } }) {
+export default function RecipeClientPage({ params, recipe, error }: RecipeClientPageProps) {
   const [showVideo, setShowVideo] = useState(false)
 
-  console.log("🔍 DEBUG - RecipePage iniciado con ID:", params.id)
+  console.log("🔍 DEBUG - RecipeClientPage iniciado con ID:", params.id)
 
-  // Validación básica del ID
-  const numericId = Number.parseInt(params.id, 10)
-  if (isNaN(numericId) || numericId <= 0) {
+  // Manejar errores
+  if (error === "invalid_id") {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center">
@@ -75,44 +57,6 @@ export default function RecipeClientPage({ params }: { params: { id: string } })
       </div>
     )
   }
-
-  try {
-    const recipePromise = getRecipe(params.id)
-
-    return (
-      <RecipeContent recipePromise={recipePromise} params={params} showVideo={showVideo} setShowVideo={setShowVideo} />
-    )
-  } catch (error) {
-    console.error("❌ Error crítico en RecipePage:", error)
-
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="text-center">
-          <h1 className="text-xl font-bold mb-4 text-red-600">Error al cargar la receta</h1>
-          <p className="text-gray-600 mb-4">Ha ocurrido un error inesperado.</p>
-          <div className="space-y-2">
-            <Button asChild className="w-full">
-              <Link href="/recipes">Ver todas las recetas</Link>
-            </Button>
-            <Button asChild variant="outline" className="w-full">
-              <Link href="/">Ir al inicio</Link>
-            </Button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-}
-
-interface RecipeContentProps {
-  recipePromise: Promise<Recipe | null>
-  params: { id: string }
-  showVideo: boolean
-  setShowVideo: (show: boolean) => void
-}
-
-async function RecipeContent({ recipePromise, params, showVideo, setShowVideo }: RecipeContentProps) {
-  const recipe = await recipePromise
 
   if (!recipe) {
     return (
