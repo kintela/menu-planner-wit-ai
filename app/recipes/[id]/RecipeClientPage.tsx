@@ -2,10 +2,9 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, User } from "lucide-react"
 import { RecipeImage } from "@/components/recipe-image"
 import { VideoEmbed } from "@/components/video-embed"
-import { RecipeOwnerInfo } from "@/components/recipe-owner-info"
 
 interface Recipe {
   id: number
@@ -21,9 +20,18 @@ interface Recipe {
   user_id: string | null
 }
 
+interface UserProfile {
+  id: string
+  email: string
+  full_name: string | null
+  alias: string | null
+  avatar_url: string | null
+}
+
 interface RecipeClientPageProps {
   params: { id: string }
   recipe: Recipe | null
+  user: UserProfile | null
   error: string | null
 }
 
@@ -39,10 +47,39 @@ function processText(text: string | null | undefined): string[] {
   return []
 }
 
-export default function RecipeClientPage({ params, recipe, error }: RecipeClientPageProps) {
+// Componente para mostrar información del usuario
+function UserInfo({ user }: { user: UserProfile | null }) {
+  if (!user) return null
+
+  const displayName = user.alias || user.full_name || user.email
+
+  return (
+    <div className="flex items-center gap-2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+      {user.avatar_url ? (
+        <img
+          src={user.avatar_url || "/placeholder.svg"}
+          alt={displayName}
+          className="w-6 h-6 rounded-full object-cover"
+        />
+      ) : (
+        <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center">
+          <User className="w-4 h-4 text-gray-600" />
+        </div>
+      )}
+      <span className="truncate max-w-32">{displayName}</span>
+    </div>
+  )
+}
+
+export default function RecipeClientPage({ params, recipe, user, error }: RecipeClientPageProps) {
   const [showVideo, setShowVideo] = useState(false)
 
-  console.log("🔍 DEBUG - RecipeClientPage iniciado con ID:", params.id)
+  console.log("🔍 DEBUG - RecipeClientPage iniciado con:", {
+    id: params.id,
+    hasRecipe: !!recipe,
+    hasUser: !!user,
+    error,
+  })
 
   // Manejar errores
   if (error === "invalid_id") {
@@ -50,6 +87,7 @@ export default function RecipeClientPage({ params, recipe, error }: RecipeClient
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center">
           <h1 className="text-xl font-bold mb-4">ID inválido</h1>
+          <p className="text-gray-600 mb-4">El ID de la receta no es válido.</p>
           <Button asChild>
             <Link href="/recipes">Volver a recetas</Link>
           </Button>
@@ -58,7 +96,7 @@ export default function RecipeClientPage({ params, recipe, error }: RecipeClient
     )
   }
 
-  if (!recipe) {
+  if (error === "not_found" || !recipe) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center">
@@ -138,7 +176,7 @@ export default function RecipeClientPage({ params, recipe, error }: RecipeClient
 
           {/* User info - esquina inferior derecha */}
           <div className="absolute bottom-2 right-2">
-            <RecipeOwnerInfo userId={recipe.user_id || ""} showPrefix={false} />
+            <UserInfo user={user} />
           </div>
         </div>
 
