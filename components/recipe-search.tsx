@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Search, RefreshCw, X } from "lucide-react"
+import { Search, RefreshCw } from "lucide-react"
 
 import type { Category } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -103,46 +103,6 @@ export function RecipeSearch({ categories, onClearFilters }: RecipeSearchProps) 
     setSearchTerm(value)
   }
 
-  // NUEVA FUNCIÓN DE LIMPIEZA MEJORADA
-  const clearFilters = useCallback(() => {
-    console.log("🧹 Iniciando limpieza de filtros...")
-
-    // Limpiar timeouts
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
-
-    // Resetear todos los estados
-    setSearchTerm("")
-    setSelectedCategories([])
-    setIsInitialized(false)
-
-    // Limpiar el input físicamente
-    if (searchInputRef.current) {
-      searchInputRef.current.value = ""
-    }
-
-    // Limpiar todos los checkboxes físicamente
-    const checkboxes = document.querySelectorAll('input[type="checkbox"]')
-    checkboxes.forEach((checkbox) => {
-      if (checkbox instanceof HTMLInputElement) {
-        checkbox.checked = false
-      }
-    })
-
-    // Forzar re-render
-    setKey((prev) => prev + 1)
-
-    // Navegar a /recipes limpio
-    router.replace("/recipes")
-
-    // Reinicializar después de un momento
-    setTimeout(() => {
-      setIsInitialized(true)
-      console.log("✅ Limpieza completada")
-    }, 100)
-  }, [router])
-
   const hasActiveFilters = searchTerm || selectedCategories.length > 0
 
   return (
@@ -191,21 +151,6 @@ export function RecipeSearch({ categories, onClearFilters }: RecipeSearchProps) 
           )}
         </div>
       </div>
-
-      {/* BOTÓN LIMPIAR MEJORADO */}
-      {hasActiveFilters && (
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            onClick={clearFilters}
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md shadow-md transition-colors flex items-center gap-2"
-            data-testid="clear-filters-button"
-          >
-            <X className="h-4 w-4" />
-            Limpiar filtros
-          </Button>
-        </div>
-      )}
 
       {/* Mostrar filtros activos */}
       {hasActiveFilters && (
