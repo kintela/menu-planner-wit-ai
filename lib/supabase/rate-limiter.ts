@@ -13,6 +13,7 @@ const ENDPOINT_LIMITS: Record<string, number> = {
   default: 10, // 10 solicitudes por ventana por defecto
   recipes: 5, // 5 solicitudes por ventana para recetas
   auth: 3, // 3 solicitudes por ventana para auth
+  user_rating: 2, // Reducir límite para calificaciones de usuario
 }
 
 /**
@@ -85,7 +86,10 @@ export async function safeQuery<T>(
 
       // Si hay un error específico de rate limiting, manejarlo
       if (result.error) {
-        const errorMessage = result.error.message || String(result.error)
+        const errorMessage =
+          typeof result.error === "object" && result.error !== null
+            ? result.error.message || JSON.stringify(result.error)
+            : String(result.error)
 
         // Detectar errores de rate limiting
         if (
@@ -108,16 +112,22 @@ export async function safeQuery<T>(
     } catch (error: any) {
       console.error(`❌ Error en consulta ${endpoint} (intento ${retries + 1}/${maxRetries + 1}):`, error)
 
+      // Mejorar manejo de errores para respuestas no-JSON
+      const errorMessage = error?.message || String(error)
+
       // Detectar errores de rate limiting en excepciones
-      const errorMessage = error.message || String(error)
       if (
         errorMessage.includes("Too Many Requests") ||
         errorMessage.includes("429") ||
-        errorMessage.includes("rate limit")
+        errorMessage.includes("rate limit") ||
+        errorMessage.includes("is not valid JSON") // Añadir detección de errores de parsing JSON
       ) {
-        console.warn(`⚠️ Rate limit alcanzado en ${endpoint} (intento ${retries + 1}/${maxRetries + 1})`)
+        console.warn(`⚠️ Rate limit o error de parsing en ${endpoint} (intento ${retries + 1}/${maxRetries + 1})`)
         lastError = error
         retries++
+
+        // Esperar más tiempo para errores de rate limiting
+        await new Promise((resolve) => setTimeout(resolve, calculateBackoff(retries, baseDelay * 2)))
         continue
       }
 
