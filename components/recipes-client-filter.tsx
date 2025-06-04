@@ -5,7 +5,7 @@ import { RecipeCard } from "@/components/recipe-card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { PlusCircle } from "lucide-react"
+import { PlusCircle, X } from "lucide-react"
 import { useEffect, useState } from "react"
 
 interface Recipe {
@@ -22,21 +22,19 @@ interface Recipe {
 interface RecipesClientFilterProps {
   recipes: Recipe[]
   showOnlyMyRecipes: boolean
-  hasActiveFilters: boolean
   totalRecipesCount: number
-  searchParams: {
-    search?: string
-    categories?: string
-    my?: string
-  }
+  searchTerm: string
+  selectedCategories: number[]
+  onClearFilters: () => void
 }
 
 export function RecipesClientFilter({
   recipes,
   showOnlyMyRecipes,
-  hasActiveFilters,
   totalRecipesCount,
-  searchParams,
+  searchTerm,
+  selectedCategories,
+  onClearFilters,
 }: RecipesClientFilterProps) {
   const { user } = useAuth()
   const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>(recipes)
@@ -46,8 +44,10 @@ export function RecipesClientFilter({
     let filtered = [...recipes]
 
     // Filtrar por texto de búsqueda
-    const searchText = searchParams.search?.toLowerCase()
-    if (searchText) {
+
+    if (searchTerm) {
+      const searchText = searchTerm.toLowerCase()
+
       filtered = filtered.filter((recipe) => {
         const nameMatch = recipe.name?.toLowerCase().includes(searchText)
         const ingredientsMatch = recipe.ingredients?.toLowerCase().includes(searchText)
@@ -57,20 +57,14 @@ export function RecipesClientFilter({
     }
 
     // Filtrar por categorías seleccionadas
-    const selectedCategories = searchParams.categories
-    if (selectedCategories) {
-      const categoryIds = selectedCategories
-        .split(",")
-        .map((id) => Number.parseInt(id.trim()))
-        .filter((id) => !isNaN(id))
 
-      if (categoryIds.length > 0) {
-        filtered = filtered.filter((recipe) => {
-          // Verificar si la receta tiene alguna de las categorías seleccionadas
-          const recipeCategories = recipe.categories || []
-          return recipeCategories.some((category) => categoryIds.includes(category.id))
-        })
-      }
+    if (selectedCategories.length > 0) {
+      filtered = filtered.filter((recipe) => {
+        // Verificar si la receta tiene alguna de las categorías seleccionadas
+        const recipeCategories = recipe.categories || []
+        return recipeCategories.some((category) => selectedCategories.includes(category.id))
+      })
+
     }
 
     // Filtrar por "mis recetas"
@@ -82,14 +76,20 @@ export function RecipesClientFilter({
 
     console.log("Filtering results:", {
       originalCount: recipes.length,
-      searchText,
+
+      searchTerm,
+
       selectedCategories,
       showOnlyMyRecipes,
       filteredCount: filtered.length,
     })
 
     setFilteredRecipes(filtered)
-  }, [recipes, searchParams.search, searchParams.categories, showOnlyMyRecipes, user?.id, user?.email])
+
+  }, [recipes, searchTerm, selectedCategories, showOnlyMyRecipes, user?.id, user?.email])
+
+  const hasActiveFilters = searchTerm || selectedCategories.length > 0
+
 
   return (
     <div className="mt-6">
@@ -100,8 +100,15 @@ export function RecipesClientFilter({
           {!hasActiveFilters && !showOnlyMyRecipes && <> de {totalRecipesCount} en total</>}
         </Badge>
         {(hasActiveFilters || showOnlyMyRecipes) && (
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/recipes">Limpiar filtros</Link>
+
+          <Button
+            onClick={onClearFilters}
+            className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 text-sm rounded-md shadow-md transition-colors flex items-center gap-1"
+            data-testid="clear-all-filters-button"
+          >
+            <X className="h-3 w-3" />
+            Limpiar filtros
+
           </Button>
         )}
       </div>
@@ -111,9 +118,11 @@ export function RecipesClientFilter({
         <div className="mb-4 p-4 bg-muted/50 rounded-lg">
           <h3 className="font-medium mb-2">Filtros aplicados:</h3>
           <div className="flex flex-wrap gap-2">
-            {searchParams.search && <Badge variant="secondary">Búsqueda: "{searchParams.search}"</Badge>}
-            {searchParams.categories && (
-              <Badge variant="secondary">Categorías: {searchParams.categories.split(",").length} seleccionada(s)</Badge>
+
+            {searchTerm && <Badge variant="secondary">Búsqueda: "{searchTerm}"</Badge>}
+            {selectedCategories.length > 0 && (
+              <Badge variant="secondary">Categorías: {selectedCategories.length} seleccionada(s)</Badge>
+
             )}
             {showOnlyMyRecipes && <Badge variant="secondary">Solo mis recetas</Badge>}
           </div>
@@ -134,8 +143,10 @@ export function RecipesClientFilter({
             </p>
             <div className="flex gap-2 justify-center mt-4">
               {(hasActiveFilters || showOnlyMyRecipes) && (
-                <Button asChild variant="outline">
-                  <Link href="/recipes">Ver todas las recetas</Link>
+
+                <Button onClick={onClearFilters} variant="outline">
+                  Ver todas las recetas
+
                 </Button>
               )}
               <Button asChild>

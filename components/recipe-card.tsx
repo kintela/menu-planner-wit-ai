@@ -34,14 +34,7 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
   const isOwner = user && (user.id === recipe.user_id || user.email === recipe.user_id)
   const canEdit = user && isOwner
 
-  console.log("RecipeCard Debug:", {
-    recipeId: recipe.id,
-    recipeName: recipe.name,
-    recipeUserId: recipe.user_id,
-    currentUser: user,
-    isOwner,
-    canEdit,
-  })
+
 
   // Ahora solo usamos el campo calories
   const caloriesPerServing = recipe.calories ? getCaloriesPerServing(recipe.calories) : null

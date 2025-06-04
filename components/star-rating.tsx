@@ -23,6 +23,9 @@ export function StarRating({ recipeId, creatorId }: StarRatingProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
+
+  const [retryCount, setRetryCount] = useState(0)
+
   const { user } = useAuth()
   const supabase = createClient()
 
@@ -38,15 +41,24 @@ export function StarRating({ recipeId, creatorId }: StarRatingProps) {
 
     try {
       // Add a small random delay to spread out requests
-      await delay(Math.random() * 300)
+
+      await delay(Math.random() * 300 + retryCount * 500)
+
 
       // Get all ratings for this recipe to calculate average
       try {
         const result = await safeQuery(
           async () => {
-            const { data, error } = await supabase.from("recipe_ratings").select("rating").eq("recipe_id", recipeId)
-            if (error) throw error
-            return { data, error: null }
+
+            try {
+              const { data, error } = await supabase.from("recipe_ratings").select("rating").eq("recipe_id", recipeId)
+              if (error) throw error
+              return { data, error: null }
+            } catch (innerError) {
+              console.error("Inner error in ratings query:", innerError)
+              return { data: null, error: innerError }
+            }
+
           },
           { endpoint: "recipe_ratings", maxRetries: 3, baseDelay: 1000 },
         )
@@ -74,15 +86,22 @@ export function StarRating({ recipeId, creatorId }: StarRatingProps) {
         try {
           const userRatingResult = await safeQuery(
             async () => {
-              const { data, error } = await supabase
-                .from("recipe_ratings")
-                .select("rating")
-                .eq("recipe_id", recipeId)
-                .eq("user_id", user.id)
-                .maybeSingle()
 
-              if (error) throw error
-              return { data, error: null }
+              try {
+                const { data, error } = await supabase
+                  .from("recipe_ratings")
+                  .select("rating")
+                  .eq("recipe_id", recipeId)
+                  .eq("user_id", user.id)
+                  .maybeSingle()
+
+                if (error) throw error
+                return { data, error: null }
+              } catch (innerError) {
+                console.error("Inner error in user rating query:", innerError)
+                return { data: null, error: innerError }
+              }
+
             },
             { endpoint: "user_rating", maxRetries: 2, baseDelay: 800 },
           )
@@ -107,7 +126,9 @@ export function StarRating({ recipeId, creatorId }: StarRatingProps) {
     } finally {
       setIsLoading(false)
     }
-  }, [recipeId, user, supabase, isCreator])
+
+  }, [recipeId, user, supabase, isCreator, retryCount])
+
 
   useEffect(() => {
     loadRatings()
@@ -122,15 +143,22 @@ export function StarRating({ recipeId, creatorId }: StarRatingProps) {
       // Check if user already has a rating for this recipe
       const existingRating = await safeQuery(
         async () => {
-          const { data, error } = await supabase
-            .from("recipe_ratings")
-            .select("id, rating")
-            .eq("recipe_id", recipeId)
-            .eq("user_id", user.id)
-            .maybeSingle()
 
-          if (error) throw error
-          return { data, error: null }
+          try {
+            const { data, error } = await supabase
+              .from("recipe_ratings")
+              .select("id, rating")
+              .eq("recipe_id", recipeId)
+              .eq("user_id", user.id)
+              .maybeSingle()
+
+            if (error) throw error
+            return { data, error: null }
+          } catch (innerError) {
+            console.error("Inner error in check rating query:", innerError)
+            return { data: null, error: innerError }
+          }
+
         },
         { endpoint: "check_rating", maxRetries: 2, baseDelay: 800 },
       )
@@ -139,17 +167,24 @@ export function StarRating({ recipeId, creatorId }: StarRatingProps) {
         // Update existing rating
         await safeQuery(
           async () => {
-            const { error } = await supabase
-              .from("recipe_ratings")
-              .update({
-                rating: starValue,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("recipe_id", recipeId)
-              .eq("user_id", user.id)
 
-            if (error) throw error
-            return { error: null }
+            try {
+              const { error } = await supabase
+                .from("recipe_ratings")
+                .update({
+                  rating: starValue,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("recipe_id", recipeId)
+                .eq("user_id", user.id)
+
+              if (error) throw error
+              return { error: null }
+            } catch (innerError) {
+              console.error("Inner error in update rating query:", innerError)
+              return { error: innerError }
+            }
+
           },
           { endpoint: "update_rating", maxRetries: 2, baseDelay: 1000 },
         )
@@ -157,16 +192,23 @@ export function StarRating({ recipeId, creatorId }: StarRatingProps) {
         // Insert new rating
         await safeQuery(
           async () => {
-            const { error } = await supabase.from("recipe_ratings").insert({
-              recipe_id: recipeId,
-              user_id: user.id,
-              rating: starValue,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            })
 
-            if (error) throw error
-            return { error: null }
+            try {
+              const { error } = await supabase.from("recipe_ratings").insert({
+                recipe_id: recipeId,
+                user_id: user.id,
+                rating: starValue,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+
+              if (error) throw error
+              return { error: null }
+            } catch (innerError) {
+              console.error("Inner error in insert rating query:", innerError)
+              return { error: innerError }
+            }
+
           },
           { endpoint: "insert_rating", maxRetries: 2, baseDelay: 1000 },
         )
@@ -184,6 +226,11 @@ export function StarRating({ recipeId, creatorId }: StarRatingProps) {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleRetry = () => {
+    setRetryCount((prev) => prev + 1)
+    loadRatings()
   }
 
   const displayRating = hoveredStar || userRating || 0
@@ -232,7 +279,9 @@ export function StarRating({ recipeId, creatorId }: StarRatingProps) {
 
       <div className="text-xs text-center text-muted-foreground">
         {hasError ? (
-          <button onClick={loadRatings} className="text-blue-500 hover:text-blue-700 underline">
+
+          <button onClick={handleRetry} className="text-blue-500 hover:text-blue-700 underline">
+
             Error - Reintentar
           </button>
         ) : !user ? (
