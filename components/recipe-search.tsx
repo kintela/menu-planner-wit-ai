@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Search, RefreshCw } from "lucide-react"
 
 import type { Category } from "@/lib/types"
@@ -16,38 +16,44 @@ interface CategoryWithCount extends Category {
 
 interface RecipeSearchProps {
   categories: CategoryWithCount[]
+  searchTerm: string
+  selectedCategories: number[]
   onFiltersChange: (searchTerm: string, selectedCategories: number[]) => void
   onClearFilters: () => void
 }
 
-export function RecipeSearch({ categories, onFiltersChange, onClearFilters }: RecipeSearchProps) {
+export function RecipeSearch({
+  categories,
+  searchTerm,
+  selectedCategories,
+  onFiltersChange,
+  onClearFilters,
+}: RecipeSearchProps) {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [key, setKey] = useState(0)
 
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedCategories, setSelectedCategories] = useState<number[]>([])
+  // Sincronizar el input con el estado del padre
+  useEffect(() => {
+    if (searchInputRef.current && searchInputRef.current.value !== searchTerm) {
+      searchInputRef.current.value = searchTerm
+    }
+  }, [searchTerm])
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
     const newCategories = checked
       ? [...selectedCategories, categoryId]
       : selectedCategories.filter((id) => id !== categoryId)
 
-    setSelectedCategories(newCategories)
     onFiltersChange(searchTerm, newCategories)
   }
 
   const handleSearchChange = (value: string) => {
-    setSearchTerm(value)
     onFiltersChange(value, selectedCategories)
   }
 
   // Función para limpiar filtros (solo estado local)
   const clearFilters = () => {
-    console.log("🧹 Limpiando filtros localmente...")
-
-    // Limpiar estado
-    setSearchTerm("")
-    setSelectedCategories([])
+    console.log("🧹 Limpiando filtros desde RecipeSearch...")
 
     // Limpiar input de búsqueda físicamente
     if (searchInputRef.current) {
@@ -77,7 +83,7 @@ export function RecipeSearch({ categories, onFiltersChange, onClearFilters }: Re
     onFiltersChange("", [])
     onClearFilters()
 
-    console.log("✅ Filtros limpiados")
+    console.log("✅ Filtros limpiados desde RecipeSearch")
   }
 
   // Exponer la función de limpieza globalmente

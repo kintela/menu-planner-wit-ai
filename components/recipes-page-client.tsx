@@ -38,6 +38,7 @@ export function RecipesPageClient({
   const [selectedCategories, setSelectedCategories] = useState<number[]>([])
 
   const handleFiltersChange = (newSearchTerm: string, newSelectedCategories: number[]) => {
+    console.log("📝 Actualizando filtros:", { newSearchTerm, newSelectedCategories })
     setSearchTerm(newSearchTerm)
     setSelectedCategories(newSelectedCategories)
   }
@@ -48,7 +49,7 @@ export function RecipesPageClient({
     setSearchTerm("")
     setSelectedCategories([])
 
-    // Forzar limpieza visual
+    // Forzar limpieza visual inmediata
     setTimeout(() => {
       const searchInputs = document.querySelectorAll('input[type="search"]')
       searchInputs.forEach((input) => {
@@ -63,10 +64,12 @@ export function RecipesPageClient({
           checkbox.checked = false
         }
       })
-    }, 50)
+    }, 10)
 
-    console.log("✅ Limpieza desde padre completada")
+    console.log("✅ Estado limpiado:", { searchTerm: "", selectedCategories: [] })
   }
+
+  console.log("🔍 Estado actual:", { searchTerm, selectedCategories })
 
   return (
     <>
@@ -74,6 +77,8 @@ export function RecipesPageClient({
       <div className="mb-6">
         <RecipeSearch
           categories={categories}
+          searchTerm={searchTerm}
+          selectedCategories={selectedCategories}
           onFiltersChange={handleFiltersChange}
           onClearFilters={handleClearFilters}
         />
