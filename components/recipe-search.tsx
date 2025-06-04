@@ -24,14 +24,14 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
   const searchParams = useSearchParams()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const searchTimeoutRef = useRef<NodeJS.Timeout>()
+  const isInitializedRef = useRef(false)
 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategories, setSelectedCategories] = useState<number[]>([])
-  const [isClearing, setIsClearing] = useState(false)
 
-  // Inicializar desde URL
+  // Inicializar desde URL solo una vez al montar
   useEffect(() => {
-    if (!isClearing) {
+    if (!isInitializedRef.current) {
       const categoriesParam = searchParams.get("categories")
       const searchParam = searchParams.get("search")
 
@@ -44,14 +44,13 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
 
       setSelectedCategories(urlCategories)
       setSearchTerm(searchParam || "")
+      isInitializedRef.current = true
     }
-  }, [searchParams, isClearing])
+  }, []) // Solo se ejecuta una vez al montar
 
-  // Función para aplicar filtros
+  // Función para aplicar filtros (solo se llama manualmente)
   const applyFilters = useCallback(
     (search: string, categories: number[]) => {
-      if (isClearing) return
-
       try {
         if (!search && categories.length === 0) {
           router.replace("/recipes")
@@ -76,12 +75,12 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
         router.replace("/recipes")
       }
     },
-    [router, isClearing],
+    [router],
   )
 
-  // Aplicar filtros con debounce
+  // Aplicar filtros con debounce solo para búsqueda de texto
   useEffect(() => {
-    if (!isClearing) {
+    if (isInitializedRef.current) {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current)
       }
@@ -96,11 +95,9 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
         }
       }
     }
-  }, [searchTerm, selectedCategories, applyFilters, isClearing])
+  }, [searchTerm]) // Solo cuando cambia el término de búsqueda
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
-    if (isClearing) return
-
     let newSelectedCategories: number[]
     if (checked) {
       newSelectedCategories = [...selectedCategories, categoryId]
@@ -109,16 +106,20 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
     }
 
     setSelectedCategories(newSelectedCategories)
+
+    // Aplicar filtros inmediatamente para categorías
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+    applyFilters(searchTerm, newSelectedCategories)
   }
 
   const handleSearchChange = (value: string) => {
-    if (isClearing) return
     setSearchTerm(value)
+    // El useEffect se encarga de aplicar los filtros con debounce
   }
 
-  const clearFilters = async () => {
-    setIsClearing(true)
-
+  const clearFilters = () => {
     // Limpiar timeouts
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
@@ -133,23 +134,8 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
     setSearchTerm("")
     setSelectedCategories([])
 
-    // Navegar inmediatamente
+    // Navegar a URL limpia
     router.replace("/recipes")
-
-    // Esperar un poco y volver a limpiar para asegurar
-    setTimeout(() => {
-      setSearchTerm("")
-      setSelectedCategories([])
-      if (searchInputRef.current) {
-        searchInputRef.current.value = ""
-      }
-      router.replace("/recipes")
-    }, 100)
-
-    // Finalizar el proceso de limpieza
-    setTimeout(() => {
-      setIsClearing(false)
-    }, 200)
   }
 
   const resetPage = () => {
@@ -176,15 +162,9 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
           />
         </div>
         {hasActiveFilters && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={clearFilters}
-            disabled={isClearing}
-            data-testid="clear-filters-button"
-          >
+          <Button type="button" variant="outline" onClick={clearFilters} data-testid="clear-filters-button">
             <X className="mr-2 h-4 w-4" />
-            {isClearing ? "Limpiando..." : "Limpiar"}
+            Limpiar
           </Button>
         )}
         <Button type="button" variant="outline" onClick={resetPage} title="Recargar página">
@@ -202,7 +182,6 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
                   id={`category-${category.id}`}
                   checked={selectedCategories.includes(category.id)}
                   onCheckedChange={(checked) => handleCategoryChange(category.id, checked as boolean)}
-                  disabled={isClearing}
                   data-testid={`category-checkbox-${category.id}`}
                 />
                 <Label htmlFor={`category-${category.id}`} className="cursor-pointer flex items-center">
@@ -220,7 +199,7 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
       </div>
 
       {/* Mostrar filtros activos */}
-      {hasActiveFilters && !isClearing && (
+      {hasActiveFilters && (
         <div className="flex flex-wrap gap-2 items-center" data-testid="active-filters">
           <span className="text-sm text-muted-foreground">Filtros activos:</span>
           {searchTerm && (
