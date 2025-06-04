@@ -13,7 +13,9 @@ const ENDPOINT_LIMITS: Record<string, number> = {
   default: 10, // 10 solicitudes por ventana por defecto
   recipes: 5, // 5 solicitudes por ventana para recetas
   auth: 3, // 3 solicitudes por ventana para auth
+
   user_rating: 2, // Reducir límite para calificaciones de usuario
+
 }
 
 /**
@@ -61,12 +63,15 @@ export function calculateBackoff(attempt: number, baseDelay = 1000): number {
  * Wrapper para consultas de Supabase con manejo de rate limiting
  */
 export async function safeQuery<T>(
+
   queryFn: () => Promise<{ data: T | null; error: any }>,
+
   options: {
     endpoint: string
     maxRetries?: number
     baseDelay?: number
   },
+
 ): Promise<{ data: T | null; error: any }> {
   const { endpoint, maxRetries = 3, baseDelay = 500 } = options
   let retries = 0
@@ -139,4 +144,5 @@ export async function safeQuery<T>(
   // Si llegamos aquí, se agotaron los reintentos
   console.error(`❌ Se agotaron los reintentos para ${endpoint}`)
   return { data: null, error: lastError || new Error(`Se agotaron los reintentos para ${endpoint}`) }
+
 }

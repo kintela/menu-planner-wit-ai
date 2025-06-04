@@ -1,7 +1,9 @@
 "use client"
 
+
 import { useState, useRef, useEffect } from "react"
 import { Search, RefreshCw } from "lucide-react"
+
 
 import type { Category } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -39,6 +41,7 @@ export function RecipeSearch({
     }
   }, [searchTerm])
 
+
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
     const newCategories = checked
       ? [...selectedCategories, categoryId]
@@ -54,6 +57,7 @@ export function RecipeSearch({
   // Función para limpiar filtros (solo estado local)
   const clearFilters = () => {
     console.log("🧹 Limpiando filtros desde RecipeSearch...")
+
 
     // Limpiar input de búsqueda físicamente
     if (searchInputRef.current) {
@@ -91,7 +95,9 @@ export function RecipeSearch({
     window.clearRecipeFilters = clearFilters
   }
 
+
   const hasActiveFilters = searchTerm || selectedCategories.length > 0
+
 
   return (
     <div key={key} className="space-y-4">
@@ -109,7 +115,9 @@ export function RecipeSearch({
           />
         </div>
 
+
         <Button type="button" variant="outline" onClick={() => window.location.reload()} title="Recargar página">
+
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>

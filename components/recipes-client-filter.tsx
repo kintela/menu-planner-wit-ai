@@ -44,8 +44,10 @@ export function RecipesClientFilter({
     let filtered = [...recipes]
 
     // Filtrar por texto de búsqueda
+
     if (searchTerm) {
       const searchText = searchTerm.toLowerCase()
+
       filtered = filtered.filter((recipe) => {
         const nameMatch = recipe.name?.toLowerCase().includes(searchText)
         const ingredientsMatch = recipe.ingredients?.toLowerCase().includes(searchText)
@@ -55,12 +57,14 @@ export function RecipesClientFilter({
     }
 
     // Filtrar por categorías seleccionadas
+
     if (selectedCategories.length > 0) {
       filtered = filtered.filter((recipe) => {
         // Verificar si la receta tiene alguna de las categorías seleccionadas
         const recipeCategories = recipe.categories || []
         return recipeCategories.some((category) => selectedCategories.includes(category.id))
       })
+
     }
 
     // Filtrar por "mis recetas"
@@ -72,16 +76,20 @@ export function RecipesClientFilter({
 
     console.log("Filtering results:", {
       originalCount: recipes.length,
+
       searchTerm,
+
       selectedCategories,
       showOnlyMyRecipes,
       filteredCount: filtered.length,
     })
 
     setFilteredRecipes(filtered)
+
   }, [recipes, searchTerm, selectedCategories, showOnlyMyRecipes, user?.id, user?.email])
 
   const hasActiveFilters = searchTerm || selectedCategories.length > 0
+
 
   return (
     <div className="mt-6">
@@ -92,6 +100,7 @@ export function RecipesClientFilter({
           {!hasActiveFilters && !showOnlyMyRecipes && <> de {totalRecipesCount} en total</>}
         </Badge>
         {(hasActiveFilters || showOnlyMyRecipes) && (
+
           <Button
             onClick={onClearFilters}
             className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 text-sm rounded-md shadow-md transition-colors flex items-center gap-1"
@@ -99,6 +108,7 @@ export function RecipesClientFilter({
           >
             <X className="h-3 w-3" />
             Limpiar filtros
+
           </Button>
         )}
       </div>
@@ -108,9 +118,11 @@ export function RecipesClientFilter({
         <div className="mb-4 p-4 bg-muted/50 rounded-lg">
           <h3 className="font-medium mb-2">Filtros aplicados:</h3>
           <div className="flex flex-wrap gap-2">
+
             {searchTerm && <Badge variant="secondary">Búsqueda: "{searchTerm}"</Badge>}
             {selectedCategories.length > 0 && (
               <Badge variant="secondary">Categorías: {selectedCategories.length} seleccionada(s)</Badge>
+
             )}
             {showOnlyMyRecipes && <Badge variant="secondary">Solo mis recetas</Badge>}
           </div>
@@ -131,8 +143,10 @@ export function RecipesClientFilter({
             </p>
             <div className="flex gap-2 justify-center mt-4">
               {(hasActiveFilters || showOnlyMyRecipes) && (
+
                 <Button onClick={onClearFilters} variant="outline">
                   Ver todas las recetas
+
                 </Button>
               )}
               <Button asChild>
