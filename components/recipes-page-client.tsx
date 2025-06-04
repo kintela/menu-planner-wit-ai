@@ -43,8 +43,29 @@ export function RecipesPageClient({
   }
 
   const handleClearFilters = () => {
+    console.log("🧹 Limpiando desde componente padre...")
+
     setSearchTerm("")
     setSelectedCategories([])
+
+    // Forzar limpieza visual
+    setTimeout(() => {
+      const searchInputs = document.querySelectorAll('input[type="search"]')
+      searchInputs.forEach((input) => {
+        if (input instanceof HTMLInputElement) {
+          input.value = ""
+        }
+      })
+
+      const checkboxes = document.querySelectorAll('input[type="checkbox"]')
+      checkboxes.forEach((checkbox) => {
+        if (checkbox instanceof HTMLInputElement && checkbox.checked) {
+          checkbox.checked = false
+        }
+      })
+    }, 50)
+
+    console.log("✅ Limpieza desde padre completada")
   }
 
   return (

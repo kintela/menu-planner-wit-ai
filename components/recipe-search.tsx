@@ -45,14 +45,35 @@ export function RecipeSearch({ categories, onFiltersChange, onClearFilters }: Re
   const clearFilters = () => {
     console.log("🧹 Limpiando filtros localmente...")
 
+    // Limpiar estado
     setSearchTerm("")
     setSelectedCategories([])
 
+    // Limpiar input de búsqueda físicamente
     if (searchInputRef.current) {
       searchInputRef.current.value = ""
     }
 
+    // Limpiar todos los inputs de búsqueda
+    const searchInputs = document.querySelectorAll('input[type="search"]')
+    searchInputs.forEach((input) => {
+      if (input instanceof HTMLInputElement) {
+        input.value = ""
+      }
+    })
+
+    // Limpiar checkboxes
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]')
+    checkboxes.forEach((checkbox) => {
+      if (checkbox instanceof HTMLInputElement && checkbox.checked) {
+        checkbox.checked = false
+      }
+    })
+
+    // Forzar re-render
     setKey((prev) => prev + 1)
+
+    // Notificar al componente padre
     onFiltersChange("", [])
     onClearFilters()
 
