@@ -30,13 +30,11 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
   const router = useRouter()
   const { user } = useAuth()
 
-  // Debug: Log the recipe object to see its structure
-  console.log("Recipe object:", recipe)
-  console.log("Recipe ID:", recipe.id)
-
-  // Verificar si el usuario actual es el propietario de la receta
-  const isOwner = user && recipe.user_id === user.id
+  // Usar la misma lógica que StarRating para verificar ownership
+  const isOwner = user && (user.id === recipe.user_id || user.email === recipe.user_id)
   const canEdit = user && isOwner
+
+
 
   // Ahora solo usamos el campo calories
   const caloriesPerServing = recipe.calories ? getCaloriesPerServing(recipe.calories) : null
@@ -44,9 +42,6 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
 
   // Obtener la información del creador (puede venir de creator o user_profiles)
   const creatorInfo = recipe.creator || recipe.user_profiles || null
-
-  // Debug temporal para ver los datos del creador
-  console.log("Creator info for recipe:", recipe.name, creatorInfo)
 
   // Función para manejar la eliminación de la receta
   const handleDelete = () => {
@@ -125,7 +120,6 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex-grow pt-0">
-
           {caloriesPerServing && (
             <div className="flex items-center gap-1 text-sm mb-2">
               <Flame className="h-4 w-4 text-orange-500" />
