@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Search, X, RefreshCw } from "lucide-react"
+import { Search, RefreshCw } from "lucide-react"
 
 import type { Category } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -17,9 +17,10 @@ interface CategoryWithCount extends Category {
 
 interface RecipeSearchProps {
   categories: CategoryWithCount[]
+  onClearFilters?: () => void // Nueva prop para manejar la limpieza desde el componente padre
 }
 
-export function RecipeSearch({ categories }: RecipeSearchProps) {
+export function RecipeSearch({ categories, onClearFilters }: RecipeSearchProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -102,8 +103,8 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
     setSearchTerm(value)
   }
 
-  // Función de limpieza
-  const clearFilters = () => {
+  // Exponer función de limpieza para uso externo
+  const clearFilters = useCallback(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
     }
@@ -122,7 +123,15 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
     setTimeout(() => {
       setIsInitialized(true)
     }, 100)
-  }
+  }, [router])
+
+  // Llamar a la función externa si se proporciona
+  useEffect(() => {
+    if (onClearFilters) {
+      // Exponer la función de limpieza al componente padre
+      window.clearRecipeFilters = clearFilters
+    }
+  }, [clearFilters, onClearFilters])
 
   const resetPage = () => {
     try {
@@ -200,21 +209,6 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
               </span>
             ) : null
           })}
-        </div>
-      )}
-
-      {/* Botón Limpiar - Solo visible cuando hay filtros activos */}
-      {hasActiveFilters && (
-        <div className="flex justify-center">
-          <Button
-            type="button"
-            onClick={clearFilters}
-            data-testid="clear-filters-button"
-            className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-200"
-          >
-            <X className="mr-2 h-4 w-4" />
-            Limpiar filtros
-          </Button>
         </div>
       )}
     </div>
