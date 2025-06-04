@@ -193,8 +193,8 @@ async function RecipeContent({ recipePromise, params, showVideo, setShowVideo }:
           )}
 
           {/* User info - esquina inferior derecha */}
-          <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
-            <RecipeOwnerInfo userId={recipe.user_id || ""} className="text-white" />
+          <div className="absolute bottom-2 right-2">
+            <RecipeOwnerInfo userId={recipe.user_id || ""} />
           </div>
         </div>
 
