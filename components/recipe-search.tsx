@@ -1,50 +1,118 @@
 "use client"
 
-import type React from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Search, RefreshCw, X } from "lucide-react"
 
-import { useState, useCallback, useRef } from "react"
-import { useRouter } from "next/navigation"
+import type { Category } from "@/lib/types"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
+
+interface CategoryWithCount extends Category {
+  recipeCount: number
+}
 
 interface RecipeSearchProps {
-  onSearch: (searchText: string, selectedCategories: string[]) => void
-  categories: string[]
-  onClearFilters: () => void
+  categories: CategoryWithCount[]
+  onClearFilters?: () => void
 }
 
 export function RecipeSearch({ categories, onClearFilters }: RecipeSearchProps) {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const router = useRouter()
-  const [key, setKey] = useState(0)
-  const [isInitialized, setIsInitialized] = useState(false)
+  const searchParams = useSearchParams()
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchTimeoutRef = useRef<NodeJS.Timeout>()
+  const [key, setKey] = useState(0)
 
-  const hasActiveFilters = searchTerm !== "" || selectedCategories.length > 0
+  const [searchTerm, setSearchTerm] = useState("")
+  const [selectedCategories, setSelectedCategories] = useState<number[]>([])
+  const [isInitialized, setIsInitialized] = useState(false)
 
-  const handleSearchTextChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newSearchTerm = event.target.value
-    setSearchTerm(newSearchTerm)
-    // onSearch(event.target.value, selectedCategories)
-  }
+  // Inicializar desde URL
+  useEffect(() => {
+    if (!isInitialized) {
+      const categoriesParam = searchParams.get("categories")
+      const searchParam = searchParams.get("search")
 
-  const handleCategoryChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const category = event.target.value
-    if (event.target.checked) {
-      setSelectedCategories([...selectedCategories, category])
-    } else {
-      setSelectedCategories(selectedCategories.filter((c) => c !== category))
+      const urlCategories = categoriesParam
+        ? categoriesParam
+            .split(",")
+            .map((id) => Number.parseInt(id.trim()))
+            .filter((id) => !isNaN(id))
+        : []
+
+      setSelectedCategories(urlCategories)
+      setSearchTerm(searchParam || "")
+      setIsInitialized(true)
     }
-    // onSearch(searchText, selectedCategories)
+  }, [searchParams, isInitialized])
+
+  // Función para actualizar URL
+  const updateURL = useCallback(
+    (search: string, categories: number[]) => {
+      if (!search && categories.length === 0) {
+        router.replace("/recipes")
+        return
+      }
+
+      const params = new URLSearchParams()
+      if (search.trim()) params.set("search", search.trim())
+      if (categories.length > 0) params.set("categories", categories.join(","))
+
+      router.replace(`/recipes?${params.toString()}`)
+    },
+    [router],
+  )
+
+  // Manejar cambios en búsqueda
+  useEffect(() => {
+    if (isInitialized) {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+
+      searchTimeoutRef.current = setTimeout(() => {
+        updateURL(searchTerm, selectedCategories)
+      }, 300)
+
+      return () => {
+        if (searchTimeoutRef.current) {
+          clearTimeout(searchTimeoutRef.current)
+        }
+      }
+    }
+  }, [searchTerm, isInitialized, updateURL, selectedCategories])
+
+  const handleCategoryChange = (categoryId: number, checked: boolean) => {
+    const newCategories = checked
+      ? [...selectedCategories, categoryId]
+      : selectedCategories.filter((id) => id !== categoryId)
+
+    setSelectedCategories(newCategories)
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+    updateURL(searchTerm, newCategories)
   }
 
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value)
+  }
+
+  // NUEVA FUNCIÓN DE LIMPIEZA MEJORADA
   const clearFilters = useCallback(() => {
+    console.log("🧹 Iniciando limpieza de filtros...")
+
+    // Limpiar timeouts
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
     }
 
-    // Limpiar estados
+    // Resetear todos los estados
     setSearchTerm("")
     setSelectedCategories([])
     setIsInitialized(false)
@@ -53,6 +121,14 @@ export function RecipeSearch({ categories, onClearFilters }: RecipeSearchProps) 
     if (searchInputRef.current) {
       searchInputRef.current.value = ""
     }
+
+    // Limpiar todos los checkboxes físicamente
+    const checkboxes = document.querySelectorAll('input[type="checkbox"]')
+    checkboxes.forEach((checkbox) => {
+      if (checkbox instanceof HTMLInputElement) {
+        checkbox.checked = false
+      }
+    })
 
     // Forzar re-render
     setKey((prev) => prev + 1)
@@ -63,46 +139,89 @@ export function RecipeSearch({ categories, onClearFilters }: RecipeSearchProps) 
     // Reinicializar después de un momento
     setTimeout(() => {
       setIsInitialized(true)
+      console.log("✅ Limpieza completada")
     }, 100)
   }, [router])
 
-  return (
-    <div className="p-4">
-      <input
-        type="text"
-        placeholder="Search recipes..."
-        value={searchTerm}
-        onChange={handleSearchTextChange}
-        className="w-full p-2 border rounded-md mb-4"
-        ref={searchInputRef}
-      />
+  const hasActiveFilters = searchTerm || selectedCategories.length > 0
 
-      <div className="mb-4">
-        <p className="font-semibold">Categories:</p>
-        {categories.map((category) => (
-          <label key={category} className="block">
-            <input
-              type="checkbox"
-              value={category}
-              checked={selectedCategories.includes(category)}
-              onChange={handleCategoryChange}
-              className="mr-2"
-            />
-            {category}
-          </label>
-        ))}
+  return (
+    <div key={key} className="space-y-4">
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            ref={searchInputRef}
+            type="search"
+            placeholder="Buscar por nombre o ingrediente..."
+            className="pl-8"
+            value={searchTerm}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            data-testid="search-input"
+          />
+        </div>
+
+        <Button type="button" variant="outline" onClick={() => window.location.reload()} title="Recargar página">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
       </div>
 
+      <div>
+        <h3 className="text-sm font-medium mb-2">Filtrar por categoría:</h3>
+        <div className="flex flex-wrap gap-4">
+          {categories && categories.length > 0 ? (
+            categories.map((category) => (
+              <div key={category.id} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`category-${category.id}`}
+                  checked={selectedCategories.includes(category.id)}
+                  onCheckedChange={(checked) => handleCategoryChange(category.id, checked as boolean)}
+                  data-testid={`category-checkbox-${category.id}`}
+                />
+                <Label htmlFor={`category-${category.id}`} className="cursor-pointer flex items-center">
+                  {category.name}
+                  <Badge variant="outline" className="ml-2 text-xs">
+                    {category.recipeCount}
+                  </Badge>
+                </Label>
+              </div>
+            ))
+          ) : (
+            <p className="text-muted-foreground">No hay categorías disponibles.</p>
+          )}
+        </div>
+      </div>
+
+      {/* BOTÓN LIMPIAR MEJORADO */}
       {hasActiveFilters && (
-        <div className="flex justify-end mt-2">
+        <div className="flex justify-end">
           <Button
             type="button"
             onClick={clearFilters}
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md shadow-md transition-colors"
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md shadow-md transition-colors flex items-center gap-2"
             data-testid="clear-filters-button"
           >
+            <X className="h-4 w-4" />
             Limpiar filtros
           </Button>
+        </div>
+      )}
+
+      {/* Mostrar filtros activos */}
+      {hasActiveFilters && (
+        <div className="flex flex-wrap gap-2 items-center" data-testid="active-filters">
+          <span className="text-sm text-muted-foreground">Filtros activos:</span>
+          {searchTerm && (
+            <span className="bg-primary/10 text-primary px-2 py-1 rounded-md text-sm">Búsqueda: "{searchTerm}"</span>
+          )}
+          {selectedCategories.map((categoryId) => {
+            const category = categories.find((cat) => cat.id === categoryId)
+            return category ? (
+              <span key={categoryId} className="bg-secondary text-secondary-foreground px-2 py-1 rounded-md text-sm">
+                {category.name}
+              </span>
+            ) : null
+          })}
         </div>
       )}
     </div>
