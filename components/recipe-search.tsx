@@ -24,7 +24,7 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
   const searchParams = useSearchParams()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const searchTimeoutRef = useRef<NodeJS.Timeout>()
-  const [key, setKey] = useState(0) // Para forzar re-render completo
+  const [key, setKey] = useState(0)
 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategories, setSelectedCategories] = useState<number[]>([])
@@ -102,37 +102,29 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
     setSearchTerm(value)
   }
 
-  // NUEVA ESTRATEGIA: Reinicializar completamente el componente
+  // Función de limpieza
   const clearFilters = () => {
-    // Limpiar timeouts
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
     }
 
-    // Resetear completamente el estado
     setSearchTerm("")
     setSelectedCategories([])
     setIsInitialized(false)
 
-    // Limpiar input DOM directamente
     if (searchInputRef.current) {
       searchInputRef.current.value = ""
     }
 
-    // Forzar re-render completo del componente
     setKey((prev) => prev + 1)
-
-    // Navegar inmediatamente
     router.replace("/recipes")
 
-    // Reinicializar después de un momento
     setTimeout(() => {
       setIsInitialized(true)
     }, 100)
   }
 
   const resetPage = () => {
-    // Intentar múltiples métodos de recarga
     try {
       window.location.href = "/recipes"
     } catch {
@@ -161,13 +153,6 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
             data-testid="search-input"
           />
         </div>
-
-        {hasActiveFilters && (
-          <Button type="button" variant="destructive" onClick={clearFilters} data-testid="clear-filters-button">
-            <X className="mr-2 h-4 w-4" />
-            Limpiar
-          </Button>
-        )}
 
         <Button type="button" variant="outline" onClick={resetPage} title="Recargar página">
           <RefreshCw className="h-4 w-4" />
@@ -215,6 +200,21 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
               </span>
             ) : null
           })}
+        </div>
+      )}
+
+      {/* Botón Limpiar - Solo visible cuando hay filtros activos */}
+      {hasActiveFilters && (
+        <div className="flex justify-center">
+          <Button
+            type="button"
+            onClick={clearFilters}
+            data-testid="clear-filters-button"
+            className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-200"
+          >
+            <X className="mr-2 h-4 w-4" />
+            Limpiar filtros
+          </Button>
         </div>
       )}
     </div>
