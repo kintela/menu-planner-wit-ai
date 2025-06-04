@@ -14,36 +14,86 @@ interface Recipe {
   user_id: string | null
 }
 
-async function getRecipe(id: string): Promise<Recipe | null> {
+interface UserProfile {
+  id: string
+  email: string
+  full_name: string | null
+  alias: string | null
+  avatar_url: string | null
+}
+
+async function getRecipeWithUser(id: string): Promise<{ recipe: Recipe | null; user: UserProfile | null }> {
   try {
-    console.log("🔍 DEBUG - getRecipe iniciado para ID:", id)
+    console.log("🔍 DEBUG - getRecipeWithUser iniciado para ID:", id)
 
     const { createServerClient } = await import("@/lib/supabase/server")
     const supabase = createServerClient()
 
-    // Consulta muy simple sin transformaciones complejas
-    const { data: recipe, error } = await supabase.from("recipes").select("*").eq("id", id).single()
+    // Obtener la receta
+    const { data: recipe, error: recipeError } = await supabase.from("recipes").select("*").eq("id", id).single()
 
-    if (error || !recipe) {
-      console.error("❌ Error o receta no encontrada:", error?.message || "Sin datos")
-      return null
+    if (recipeError || !recipe) {
+      console.error("❌ Error o receta no encontrada:", recipeError?.message || "Sin datos")
+      return { recipe: null, user: null }
     }
 
     console.log("✅ Receta encontrada:", recipe.name)
-    return recipe
+
+    // Obtener información del usuario si existe
+    let user: UserProfile | null = null
+    if (recipe.user_id) {
+      const { data: userData, error: userError } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, alias, avatar_url")
+        .eq("id", recipe.user_id)
+        .single()
+
+      if (!userError && userData) {
+        user = userData
+        console.log("✅ Usuario encontrado:", userData.alias || userData.full_name || userData.email)
+      } else {
+        console.log("⚠️ Usuario no encontrado para user_id:", recipe.user_id)
+      }
+    }
+
+    return { recipe, user }
   } catch (error) {
     console.error("❌ Error crítico:", error)
-    return null
+    return { recipe: null, user: null }
   }
 }
 
 export default async function RecipePage({ params }: { params: { id: string } }) {
-  return <RecipeClientPage params={params} />
+  console.log("🔍 DEBUG - RecipePage servidor iniciado con ID:", params.id)
+
+  // Validación básica del ID en el servidor
+  const numericId = Number.parseInt(params.id, 10)
+  if (isNaN(numericId) || numericId <= 0) {
+    console.log("❌ ID inválido:", params.id)
+    return <RecipeClientPage params={params} recipe={null} user={null} error="invalid_id" />
+  }
+
+  // Obtener la receta y usuario en el servidor
+  const { recipe, user } = await getRecipeWithUser(params.id)
+
+  if (!recipe) {
+    console.log("❌ Receta no encontrada para ID:", params.id)
+    return <RecipeClientPage params={params} recipe={null} user={null} error="not_found" />
+  }
+
+  console.log(
+    "✅ Pasando datos al cliente - Receta:",
+    recipe.name,
+    "Usuario:",
+    user?.alias || user?.full_name || "Sin usuario",
+  )
+
+  return <RecipeClientPage params={params} recipe={recipe} user={user} error={null} />
 }
 
 export async function generateMetadata({ params }: { params: { id: string } }) {
   try {
-    const recipe = await getRecipe(params.id)
+    const { recipe } = await getRecipeWithUser(params.id)
     return {
       title: recipe?.name || "Receta",
       description: `Receta: ${recipe?.name || "Ver detalles de la receta"}`,
