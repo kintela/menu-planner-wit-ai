@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Search, X, RefreshCw } from "lucide-react"
 
@@ -22,7 +22,9 @@ interface RecipeSearchProps {
 export function RecipeSearch({ categories }: RecipeSearchProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const searchTimeoutRef = useRef<NodeJS.Timeout>()
+  const [key, setKey] = useState(0) // Para forzar re-render completo
 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategories, setSelectedCategories] = useState<number[]>([])
@@ -48,18 +50,21 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
   }, [searchParams, isInitialized])
 
   // Función para actualizar URL
-  const updateURL = (search: string, categories: number[]) => {
-    if (!search && categories.length === 0) {
-      router.replace("/recipes")
-      return
-    }
+  const updateURL = useCallback(
+    (search: string, categories: number[]) => {
+      if (!search && categories.length === 0) {
+        router.replace("/recipes")
+        return
+      }
 
-    const params = new URLSearchParams()
-    if (search.trim()) params.set("search", search.trim())
-    if (categories.length > 0) params.set("categories", categories.join(","))
+      const params = new URLSearchParams()
+      if (search.trim()) params.set("search", search.trim())
+      if (categories.length > 0) params.set("categories", categories.join(","))
 
-    router.replace(`/recipes?${params.toString()}`)
-  }
+      router.replace(`/recipes?${params.toString()}`)
+    },
+    [router],
+  )
 
   // Manejar cambios en búsqueda
   useEffect(() => {
@@ -78,7 +83,7 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
         }
       }
     }
-  }, [searchTerm, isInitialized])
+  }, [searchTerm, isInitialized, updateURL, selectedCategories])
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
     const newCategories = checked
@@ -97,29 +102,57 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
     setSearchTerm(value)
   }
 
-  // SOLUCIÓN DEFINITIVA: Recarga completa de página
+  // NUEVA ESTRATEGIA: Reinicializar completamente el componente
   const clearFilters = () => {
-    // Limpiar timeouts para evitar actualizaciones pendientes
+    // Limpiar timeouts
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
     }
 
-    // Recarga completa - esto siempre funciona
-    window.location.href = "/recipes"
+    // Resetear completamente el estado
+    setSearchTerm("")
+    setSelectedCategories([])
+    setIsInitialized(false)
+
+    // Limpiar input DOM directamente
+    if (searchInputRef.current) {
+      searchInputRef.current.value = ""
+    }
+
+    // Forzar re-render completo del componente
+    setKey((prev) => prev + 1)
+
+    // Navegar inmediatamente
+    router.replace("/recipes")
+
+    // Reinicializar después de un momento
+    setTimeout(() => {
+      setIsInitialized(true)
+    }, 100)
   }
 
   const resetPage = () => {
-    window.location.href = "/recipes"
+    // Intentar múltiples métodos de recarga
+    try {
+      window.location.href = "/recipes"
+    } catch {
+      try {
+        window.location.replace("/recipes")
+      } catch {
+        router.push("/recipes")
+      }
+    }
   }
 
   const hasActiveFilters = searchTerm || selectedCategories.length > 0
 
   return (
-    <div className="space-y-4">
+    <div key={key} className="space-y-4">
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
+            ref={searchInputRef}
             type="search"
             placeholder="Buscar por nombre o ingrediente..."
             className="pl-8"
@@ -130,7 +163,7 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
         </div>
 
         {hasActiveFilters && (
-          <Button type="button" variant="outline" onClick={clearFilters} data-testid="clear-filters-button">
+          <Button type="button" variant="destructive" onClick={clearFilters} data-testid="clear-filters-button">
             <X className="mr-2 h-4 w-4" />
             Limpiar
           </Button>
