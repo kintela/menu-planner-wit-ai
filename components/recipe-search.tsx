@@ -24,14 +24,23 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
   const searchParams = useSearchParams()
   const isInitializedRef = useRef(false)
   const searchTimeoutRef = useRef<NodeJS.Timeout>()
+  const isClearingRef = useRef(false)
 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategories, setSelectedCategories] = useState<number[]>([])
-  const [forceRender, setForceRender] = useState(0)
+
+  // Función para limpiar completamente el estado
+  const resetAllState = useCallback(() => {
+    setSearchTerm("")
+    setSelectedCategories([])
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+  }, [])
 
   // Inicializar desde URL solo una vez
   useEffect(() => {
-    if (!isInitializedRef.current) {
+    if (!isInitializedRef.current && !isClearingRef.current) {
       const categoriesParam = searchParams.get("categories")
       const searchParam = searchParams.get("search")
 
@@ -48,20 +57,11 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
     }
   }, [searchParams])
 
-  // Verificar si hay categorías en la URL pero ninguna seleccionada
-  useEffect(() => {
-    if (isInitializedRef.current) {
-      const categoriesParam = searchParams.get("categories")
-      if (categoriesParam && selectedCategories.length === 0) {
-        // Forzar limpieza de URL
-        router.replace("/recipes")
-      }
-    }
-  }, [searchParams, selectedCategories, router])
-
   // Función para aplicar filtros
   const applyFilters = useCallback(
     (search: string, categories: number[]) => {
+      if (isClearingRef.current) return
+
       try {
         // Si no hay filtros, ir a la ruta base
         if (!search && categories.length === 0) {
@@ -92,7 +92,7 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
 
   // Aplicar filtros cuando cambian las categorías
   useEffect(() => {
-    if (isInitializedRef.current) {
+    if (isInitializedRef.current && !isClearingRef.current) {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current)
       }
@@ -113,9 +113,11 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
         }
       }
     }
-  }, [selectedCategories, searchTerm, applyFilters, router, forceRender])
+  }, [selectedCategories, searchTerm, applyFilters, router])
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
+    if (isClearingRef.current) return
+
     let newSelectedCategories: number[]
     if (checked) {
       newSelectedCategories = [...selectedCategories, categoryId]
@@ -135,18 +137,53 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
   }
 
   const handleSearchChange = (value: string) => {
+    if (isClearingRef.current) return
     setSearchTerm(value)
   }
 
   const clearFilters = () => {
-    // SOLUCIÓN RADICAL: Usar window.location para forzar una recarga completa
-    // Esto garantiza que todo el estado se resetee completamente
-    window.location.href = "/recipes"
+    // Marcar que estamos limpiando
+    isClearingRef.current = true
+
+    // Limpiar timeouts pendientes
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    // Resetear todo el estado inmediatamente
+    resetAllState()
+
+    // Navegar a la URL limpia
+    router.replace("/recipes")
+
+    // Forzar múltiples actualizaciones para asegurar que se aplique
+    setTimeout(() => {
+      setSearchTerm("")
+      setSelectedCategories([])
+    }, 10)
+
+    setTimeout(() => {
+      setSearchTerm("")
+      setSelectedCategories([])
+      router.replace("/recipes")
+    }, 50)
+
+    setTimeout(() => {
+      setSearchTerm("")
+      setSelectedCategories([])
+      router.replace("/recipes")
+      isClearingRef.current = false
+    }, 100)
   }
 
   const resetPage = () => {
-    // Limpiar todo y recargar la página completamente
-    window.location.href = "/recipes"
+    // Resetear todo y forzar navegación
+    isClearingRef.current = true
+    resetAllState()
+    router.replace("/recipes")
+    setTimeout(() => {
+      window.location.href = "/recipes"
+    }, 100)
   }
 
   return (
@@ -167,8 +204,8 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
             type="button"
             variant="outline"
             onClick={clearFilters}
-            id="clear-filters-button" // ID para pruebas
-            data-testid="clear-filters-button" // Para pruebas
+            id="clear-filters-button"
+            data-testid="clear-filters-button"
           >
             <X className="mr-2 h-4 w-4" />
             Limpiar
@@ -189,7 +226,7 @@ export function RecipeSearch({ categories }: RecipeSearchProps) {
                   id={`category-${category.id}`}
                   checked={selectedCategories.includes(category.id)}
                   onCheckedChange={(checked) => handleCategoryChange(category.id, checked as boolean)}
-                  data-testid={`category-checkbox-${category.id}`} // Para pruebas
+                  data-testid={`category-checkbox-${category.id}`}
                 />
                 <Label htmlFor={`category-${category.id}`} className="cursor-pointer flex items-center">
                   {category.name}
