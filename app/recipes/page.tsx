@@ -1,11 +1,9 @@
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
-import { RecipeSearch } from "@/components/recipe-search"
-import { RecipesClientFilter } from "@/components/recipes-client-filter"
+import { RecipesPageClient } from "@/components/recipes-page-client"
 import Link from "next/link"
 import { Plus } from "lucide-react"
 import { safeQuery } from "@/lib/supabase/rate-limiter"
-import { redirect } from "next/navigation"
 
 interface CategoryWithCount {
   id: number
@@ -269,19 +267,8 @@ interface RecipesPageProps {
 }
 
 const Recipes = async ({ searchParams }: RecipesPageProps) => {
-  // Limpiar la URL si hay parámetros pero no hay filtros activos
-  if (
-    searchParams.categories === "" ||
-    searchParams.categories === "0" ||
-    searchParams.categories === "undefined" ||
-    (searchParams.categories && !searchParams.categories.toString().match(/^\d+(,\d+)*$/))
-  ) {
-    redirect("/recipes")
-  }
-
   const { recipes, categories, totalRecipesCount, dataQuality } = await getRecipesAndCategories()
 
-  const hasActiveFilters = !!(searchParams.search || searchParams.categories || searchParams.my)
   const showOnlyMyRecipes = searchParams.my === "true"
 
   return (
@@ -339,21 +326,12 @@ const Recipes = async ({ searchParams }: RecipesPageProps) => {
           </div>
         </div>
       ) : (
-        <>
-          {/* Filtros de búsqueda */}
-          <div className="mb-6">
-            <RecipeSearch categories={categories} />
-          </div>
-
-          {/* Resultados filtrados */}
-          <RecipesClientFilter
-            recipes={recipes}
-            showOnlyMyRecipes={showOnlyMyRecipes}
-            hasActiveFilters={hasActiveFilters}
-            totalRecipesCount={totalRecipesCount}
-            searchParams={searchParams}
-          />
-        </>
+        <RecipesPageClient
+          recipes={recipes}
+          categories={categories}
+          totalRecipesCount={totalRecipesCount}
+          showOnlyMyRecipes={showOnlyMyRecipes}
+        />
       )}
     </div>
   )

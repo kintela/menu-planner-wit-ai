@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { PlusCircle, X } from "lucide-react"
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 
 interface Recipe {
   id: number
@@ -23,33 +22,30 @@ interface Recipe {
 interface RecipesClientFilterProps {
   recipes: Recipe[]
   showOnlyMyRecipes: boolean
-  hasActiveFilters: boolean
   totalRecipesCount: number
-  searchParams: {
-    search?: string
-    categories?: string
-    my?: string
-  }
+  searchTerm: string
+  selectedCategories: number[]
+  onClearFilters: () => void
 }
 
 export function RecipesClientFilter({
   recipes,
   showOnlyMyRecipes,
-  hasActiveFilters,
   totalRecipesCount,
-  searchParams,
+  searchTerm,
+  selectedCategories,
+  onClearFilters,
 }: RecipesClientFilterProps) {
   const { user } = useAuth()
   const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>(recipes)
-  const router = useRouter()
 
   useEffect(() => {
     // Aplicar todos los filtros secuencialmente sobre el conjunto completo de recetas
     let filtered = [...recipes]
 
     // Filtrar por texto de búsqueda
-    const searchText = searchParams.search?.toLowerCase()
-    if (searchText) {
+    if (searchTerm) {
+      const searchText = searchTerm.toLowerCase()
       filtered = filtered.filter((recipe) => {
         const nameMatch = recipe.name?.toLowerCase().includes(searchText)
         const ingredientsMatch = recipe.ingredients?.toLowerCase().includes(searchText)
@@ -59,20 +55,12 @@ export function RecipesClientFilter({
     }
 
     // Filtrar por categorías seleccionadas
-    const selectedCategories = searchParams.categories
-    if (selectedCategories) {
-      const categoryIds = selectedCategories
-        .split(",")
-        .map((id) => Number.parseInt(id.trim()))
-        .filter((id) => !isNaN(id))
-
-      if (categoryIds.length > 0) {
-        filtered = filtered.filter((recipe) => {
-          // Verificar si la receta tiene alguna de las categorías seleccionadas
-          const recipeCategories = recipe.categories || []
-          return recipeCategories.some((category) => categoryIds.includes(category.id))
-        })
-      }
+    if (selectedCategories.length > 0) {
+      filtered = filtered.filter((recipe) => {
+        // Verificar si la receta tiene alguna de las categorías seleccionadas
+        const recipeCategories = recipe.categories || []
+        return recipeCategories.some((category) => selectedCategories.includes(category.id))
+      })
     }
 
     // Filtrar por "mis recetas"
@@ -84,52 +72,16 @@ export function RecipesClientFilter({
 
     console.log("Filtering results:", {
       originalCount: recipes.length,
-      searchText,
+      searchTerm,
       selectedCategories,
       showOnlyMyRecipes,
       filteredCount: filtered.length,
     })
 
     setFilteredRecipes(filtered)
-  }, [recipes, searchParams.search, searchParams.categories, showOnlyMyRecipes, user?.id, user?.email])
+  }, [recipes, searchTerm, selectedCategories, showOnlyMyRecipes, user?.id, user?.email])
 
-  // Función mejorada para limpiar todos los filtros
-  const clearAllFilters = () => {
-    console.log("🧹 Limpiando todos los filtros...")
-
-    // Limpiar el campo de búsqueda físicamente
-    const searchInput = document.querySelector('input[type="search"]') as HTMLInputElement
-    if (searchInput) {
-      searchInput.value = ""
-      searchInput.dispatchEvent(new Event("input", { bubbles: true }))
-    }
-
-    // Desmarcar todos los checkboxes físicamente
-    const checkboxes = document.querySelectorAll('input[type="checkbox"]')
-    checkboxes.forEach((checkbox) => {
-      if (checkbox instanceof HTMLInputElement && checkbox.checked) {
-        checkbox.checked = false
-        checkbox.dispatchEvent(new Event("change", { bubbles: true }))
-      }
-    })
-
-    // Limpiar la función global si existe
-    if (typeof window !== "undefined" && window.clearRecipeFilters) {
-      window.clearRecipeFilters()
-    }
-
-    // Navegar a /recipes limpio
-    router.replace("/recipes")
-
-    // Forzar recarga como último recurso
-    setTimeout(() => {
-      if (window.location.pathname !== "/recipes" || window.location.search) {
-        window.location.href = "/recipes"
-      }
-    }, 500)
-
-    console.log("✅ Limpieza completada")
-  }
+  const hasActiveFilters = searchTerm || selectedCategories.length > 0
 
   return (
     <div className="mt-6">
@@ -141,7 +93,7 @@ export function RecipesClientFilter({
         </Badge>
         {(hasActiveFilters || showOnlyMyRecipes) && (
           <Button
-            onClick={clearAllFilters}
+            onClick={onClearFilters}
             className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 text-sm rounded-md shadow-md transition-colors flex items-center gap-1"
             data-testid="clear-all-filters-button"
           >
@@ -156,9 +108,9 @@ export function RecipesClientFilter({
         <div className="mb-4 p-4 bg-muted/50 rounded-lg">
           <h3 className="font-medium mb-2">Filtros aplicados:</h3>
           <div className="flex flex-wrap gap-2">
-            {searchParams.search && <Badge variant="secondary">Búsqueda: "{searchParams.search}"</Badge>}
-            {searchParams.categories && (
-              <Badge variant="secondary">Categorías: {searchParams.categories.split(",").length} seleccionada(s)</Badge>
+            {searchTerm && <Badge variant="secondary">Búsqueda: "{searchTerm}"</Badge>}
+            {selectedCategories.length > 0 && (
+              <Badge variant="secondary">Categorías: {selectedCategories.length} seleccionada(s)</Badge>
             )}
             {showOnlyMyRecipes && <Badge variant="secondary">Solo mis recetas</Badge>}
           </div>
@@ -179,8 +131,8 @@ export function RecipesClientFilter({
             </p>
             <div className="flex gap-2 justify-center mt-4">
               {(hasActiveFilters || showOnlyMyRecipes) && (
-                <Button asChild variant="outline">
-                  <Link href="/recipes">Ver todas las recetas</Link>
+                <Button onClick={onClearFilters} variant="outline">
+                  Ver todas las recetas
                 </Button>
               )}
               <Button asChild>

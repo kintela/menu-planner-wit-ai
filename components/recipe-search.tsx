@@ -1,7 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState, useRef } from "react"
 import { Search, RefreshCw } from "lucide-react"
 
 import type { Category } from "@/lib/types"
@@ -17,74 +16,16 @@ interface CategoryWithCount extends Category {
 
 interface RecipeSearchProps {
   categories: CategoryWithCount[]
-  onClearFilters?: () => void
+  onFiltersChange: (searchTerm: string, selectedCategories: number[]) => void
+  onClearFilters: () => void
 }
 
-export function RecipeSearch({ categories, onClearFilters }: RecipeSearchProps) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+export function RecipeSearch({ categories, onFiltersChange, onClearFilters }: RecipeSearchProps) {
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const searchTimeoutRef = useRef<NodeJS.Timeout>()
   const [key, setKey] = useState(0)
 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategories, setSelectedCategories] = useState<number[]>([])
-  const [isInitialized, setIsInitialized] = useState(false)
-
-  // Inicializar desde URL
-  useEffect(() => {
-    if (!isInitialized) {
-      const categoriesParam = searchParams.get("categories")
-      const searchParam = searchParams.get("search")
-
-      const urlCategories = categoriesParam
-        ? categoriesParam
-            .split(",")
-            .map((id) => Number.parseInt(id.trim()))
-            .filter((id) => !isNaN(id))
-        : []
-
-      setSelectedCategories(urlCategories)
-      setSearchTerm(searchParam || "")
-      setIsInitialized(true)
-    }
-  }, [searchParams, isInitialized])
-
-  // Función para actualizar URL
-  const updateURL = useCallback(
-    (search: string, categories: number[]) => {
-      if (!search && categories.length === 0) {
-        router.replace("/recipes")
-        return
-      }
-
-      const params = new URLSearchParams()
-      if (search.trim()) params.set("search", search.trim())
-      if (categories.length > 0) params.set("categories", categories.join(","))
-
-      router.replace(`/recipes?${params.toString()}`)
-    },
-    [router],
-  )
-
-  // Manejar cambios en búsqueda
-  useEffect(() => {
-    if (isInitialized) {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
-
-      searchTimeoutRef.current = setTimeout(() => {
-        updateURL(searchTerm, selectedCategories)
-      }, 300)
-
-      return () => {
-        if (searchTimeoutRef.current) {
-          clearTimeout(searchTimeoutRef.current)
-        }
-      }
-    }
-  }, [searchTerm, isInitialized, updateURL, selectedCategories])
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
     const newCategories = checked
@@ -92,15 +33,35 @@ export function RecipeSearch({ categories, onClearFilters }: RecipeSearchProps) 
       : selectedCategories.filter((id) => id !== categoryId)
 
     setSelectedCategories(newCategories)
-
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
-    updateURL(searchTerm, newCategories)
+    onFiltersChange(searchTerm, newCategories)
   }
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value)
+    onFiltersChange(value, selectedCategories)
+  }
+
+  // Función para limpiar filtros (solo estado local)
+  const clearFilters = () => {
+    console.log("🧹 Limpiando filtros localmente...")
+
+    setSearchTerm("")
+    setSelectedCategories([])
+
+    if (searchInputRef.current) {
+      searchInputRef.current.value = ""
+    }
+
+    setKey((prev) => prev + 1)
+    onFiltersChange("", [])
+    onClearFilters()
+
+    console.log("✅ Filtros limpiados")
+  }
+
+  // Exponer la función de limpieza globalmente
+  if (typeof window !== "undefined") {
+    window.clearRecipeFilters = clearFilters
   }
 
   const hasActiveFilters = searchTerm || selectedCategories.length > 0
