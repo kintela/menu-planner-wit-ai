@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import OpenAI from "openai"
 
 export async function POST(request: Request) {
   console.log("=== Iniciando generación de sugerencias ===")
@@ -28,19 +27,6 @@ export async function POST(request: Request) {
     if (!process.env.OPENAI_API_KEY) {
       console.error("OPENAI_API_KEY no configurada")
       return NextResponse.json({ error: "Configuración de IA no disponible" }, { status: 500 })
-    }
-
-    console.log("Inicializando cliente OpenAI...")
-    let openai
-    try {
-      openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-        // Forzar que se ejecute en servidor
-        dangerouslyAllowBrowser: false,
-      })
-    } catch (error) {
-      console.error("Error al inicializar OpenAI:", error)
-      return NextResponse.json({ error: "Error de configuración de IA" }, { status: 500 })
     }
 
     // Verificar configuración de Supabase (opcional para obtener recetas existentes)
@@ -102,29 +88,47 @@ Responde ÚNICAMENTE con este JSON (sin texto adicional):
 
 IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
 
-    console.log("Enviando petición a OpenAI...")
+    console.log("Enviando petición a OpenAI usando fetch...")
 
-    let completion
+    // Usar fetch directo en lugar del SDK de OpenAI
+    let openaiResponse
     try {
-      completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content: "Eres un chef que responde SOLO con JSON válido. No uses markdown ni texto adicional.",
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: 1200,
+      openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-3.5-turbo",
+          messages: [
+            {
+              role: "system",
+              content: "Eres un chef que responde SOLO con JSON válido. No uses markdown ni texto adicional.",
+            },
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          temperature: 0.7,
+          max_tokens: 1200,
+        }),
       })
     } catch (error) {
       console.error("Error en la llamada a OpenAI:", error)
+      return NextResponse.json(
+        {
+          error: "Error al comunicarse con la IA. Inténtalo de nuevo.",
+        },
+        { status: 500 },
+      )
+    }
 
-      if (error.message?.includes("rate limit")) {
+    if (!openaiResponse.ok) {
+      console.error("Error en respuesta de OpenAI:", openaiResponse.status, openaiResponse.statusText)
+
+      if (openaiResponse.status === 429) {
         return NextResponse.json(
           {
             error: "Límite de uso de IA alcanzado. Inténtalo en unos minutos.",
@@ -133,12 +137,12 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
         )
       }
 
-      if (error.message?.includes("timeout")) {
+      if (openaiResponse.status === 401) {
         return NextResponse.json(
           {
-            error: "La IA tardó demasiado en responder. Inténtalo de nuevo.",
+            error: "Error de autenticación con la IA.",
           },
-          { status: 408 },
+          { status: 500 },
         )
       }
 
@@ -150,7 +154,20 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
       )
     }
 
-    const response = completion.choices[0]?.message?.content
+    let openaiData
+    try {
+      openaiData = await openaiResponse.json()
+    } catch (error) {
+      console.error("Error al parsear respuesta de OpenAI:", error)
+      return NextResponse.json(
+        {
+          error: "Error al procesar respuesta de la IA.",
+        },
+        { status: 500 },
+      )
+    }
+
+    const response = openaiData.choices?.[0]?.message?.content
     console.log("Respuesta de OpenAI recibida, longitud:", response?.length || 0)
 
     if (!response) {
