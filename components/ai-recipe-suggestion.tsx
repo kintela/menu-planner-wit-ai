@@ -2,7 +2,7 @@
 
 import { DialogTrigger } from "@/components/ui/dialog"
 import { useState, useEffect } from "react"
-import { Sparkles, Loader2, Plus, Check, AlertCircle } from "lucide-react"
+import { Sparkles, Loader2, Plus, Check, AlertCircle, RefreshCw } from "lucide-react"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { Recipe } from "@/lib/types"
@@ -42,6 +42,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   const [usageLimitReached, setUsageLimitReached] = useState<boolean>(false)
   const [lastError, setLastError] = useState<string>("")
+  const [retryCount, setRetryCount] = useState(0)
 
   const checkUserLimits = async () => {
     if (!user) return
@@ -71,7 +72,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     }
   }
 
-  const generateSuggestions = async () => {
+  const generateSuggestions = async (isRetry = false) => {
     if (!searchQuery.trim()) {
       toast({
         title: "Búsqueda requerida",
@@ -95,27 +96,33 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     setSavedRecipes(new Set())
     setLastError("")
 
+    if (!isRetry) {
+      setRetryCount(0)
+    }
+
     try {
-      // Incrementar contador de uso
+      // Incrementar contador de uso solo si no es retry
       const supabase = getSupabaseClient()
       let newUsage = dailyUsage
 
-      try {
-        const { data: usageResult } = await supabase.rpc("increment_ai_usage", { p_user_id: user?.id })
-        newUsage = usageResult || dailyUsage + 1
-        setDailyUsage(newUsage)
-      } catch (usageError) {
-        console.warn("Error incrementing usage:", usageError)
+      if (!isRetry) {
+        try {
+          const { data: usageResult } = await supabase.rpc("increment_ai_usage", { p_user_id: user?.id })
+          newUsage = usageResult || dailyUsage + 1
+          setDailyUsage(newUsage)
+        } catch (usageError) {
+          console.warn("Error incrementing usage:", usageError)
+        }
+
+        if (!isAdmin && newUsage >= 2) {
+          setUsageLimitReached(true)
+        }
       }
 
-      if (!isAdmin && newUsage >= 2) {
-        setUsageLimitReached(true)
-      }
-
-      console.log("Enviando petición a la API...")
+      console.log("🚀 Enviando petición a la API...", { isRetry, retryCount })
 
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 60000) // Aumentar timeout a 60 segundos
+      const timeoutId = setTimeout(() => controller.abort(), 70000) // 70 segundos timeout
 
       const response = await fetch("/api/generate-recipe-suggestions", {
         method: "POST",
@@ -133,16 +140,19 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       clearTimeout(timeoutId)
 
-      console.log("Respuesta recibida, status:", response.status)
+      console.log("📡 Respuesta recibida, status:", response.status)
 
       if (!response.ok) {
         let errorMessage = `Error ${response.status}`
+        let errorCode = "UNKNOWN_ERROR"
 
         try {
           const errorData = await response.json()
           errorMessage = errorData.error || errorMessage
+          errorCode = errorData.code || errorCode
+
           if (errorData.details) {
-            errorMessage += ` - ${errorData.details}`
+            console.error("Error details:", errorData.details)
           }
         } catch {
           const errorText = await response.text()
@@ -151,18 +161,29 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           }
         }
 
+        // Manejar errores específicos
+        if (response.status === 503 || errorCode === "OPENAI_CONNECTION_FAILED") {
+          throw new Error("El servicio de IA está temporalmente no disponible. Inténtalo en unos minutos.")
+        }
+
         throw new Error(errorMessage)
       }
 
       const data = await response.json()
-      console.log("Datos parseados:", data)
+      console.log("✅ Datos parseados:", {
+        recipesCount: data.recipes?.length,
+        duration: data.duration,
+        fallback: data.fallback,
+      })
 
       if (data.recipes && Array.isArray(data.recipes) && data.recipes.length > 0) {
         setSuggestions(data.recipes)
 
         toast({
-          title: "¡Sugerencias generadas!",
-          description: `Se generaron ${data.recipes.length} recetas para ti.`,
+          title: data.fallback ? "¡Sugerencia generada!" : "¡Sugerencias generadas!",
+          description: data.fallback
+            ? "Se generó una receta básica. Inténtalo con una búsqueda más específica."
+            : `Se generaron ${data.recipes.length} recetas para ti.`,
         })
 
         if (!isAdmin && newUsage >= 2) {
@@ -176,9 +197,9 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
         throw new Error("No se pudieron generar recetas. Inténtalo con una búsqueda diferente.")
       }
     } catch (error) {
-      console.error("Error generating suggestions:", error)
+      console.error("❌ Error generating suggestions:", error)
 
-      let errorMessage = "No se pudieron generar sugerencias. Inténtalo de nuevo."
+      let errorMessage = "No se pudieron generar sugerencias."
 
       if (error.name === "AbortError") {
         errorMessage = "La petición tardó demasiado. Inténtalo de nuevo."
@@ -188,14 +209,29 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       setLastError(errorMessage)
 
+      // Mostrar opción de retry para ciertos errores
+      const canRetry =
+        retryCount < 2 &&
+        (error.name === "AbortError" ||
+          errorMessage.includes("temporalmente no disponible") ||
+          errorMessage.includes("Failed to fetch"))
+
       toast({
         title: "Error al generar sugerencias",
-        description: errorMessage,
+        description: canRetry ? `${errorMessage} (Intento ${retryCount + 1}/3)` : errorMessage,
         variant: "destructive",
       })
+
+      if (canRetry) {
+        setRetryCount((prev) => prev + 1)
+      }
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  const retryGeneration = () => {
+    generateSuggestions(true)
   }
 
   const saveRecipeToCollection = async (suggestion: GeneratedRecipe, index: number) => {
@@ -329,6 +365,8 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     return null
   }
 
+  const canRetry = retryCount < 2 && lastError && !isGenerating
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
@@ -365,7 +403,15 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
             {lastError && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-sm">{lastError}</AlertDescription>
+                <AlertDescription className="text-sm">
+                  {lastError}
+                  {canRetry && (
+                    <Button variant="outline" size="sm" onClick={retryGeneration} className="ml-2 h-6 px-2 text-xs">
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Reintentar ({retryCount + 1}/3)
+                    </Button>
+                  )}
+                </AlertDescription>
               </Alert>
             )}
 
@@ -387,7 +433,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                   className="flex-1 text-sm"
                 />
                 <Button
-                  onClick={generateSuggestions}
+                  onClick={() => generateSuggestions()}
                   disabled={isGenerating || !searchQuery.trim() || (!isAdmin && usageLimitReached)}
                   className="w-full sm:w-auto whitespace-nowrap"
                   size="sm"
@@ -413,7 +459,10 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
               <div className="text-center py-6">
                 <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin mx-auto mb-3 text-purple-500" />
                 <p className="text-sm text-muted-foreground">Generando 3 sugerencias personalizadas...</p>
-                <p className="text-xs text-muted-foreground mt-1">Esto puede tardar hasta 60 segundos</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Esto puede tardar hasta 60 segundos
+                  {retryCount > 0 && ` (Intento ${retryCount + 1}/3)`}
+                </p>
               </div>
             )}
 

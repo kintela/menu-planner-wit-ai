@@ -4,53 +4,126 @@ import { createClient } from "@supabase/supabase-js"
 // Configuración específica para producción
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-export const maxDuration = 60 // 60 segundos máximo
+export const maxDuration = 60
+
+// Función helper para hacer retry de requests
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2): Promise<Response> {
+  let lastError: Error
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Intento ${attempt}/${maxRetries} de llamada a OpenAI`)
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 segundos por intento
+
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      if (response.ok) {
+        console.log(`Éxito en intento ${attempt}`)
+        return response
+      }
+
+      // Si es un error 4xx, no reintentar
+      if (response.status >= 400 && response.status < 500) {
+        console.log(`Error ${response.status}, no reintentando`)
+        return response
+      }
+
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      console.error(`Intento ${attempt} falló:`, lastError.message)
+
+      if (attempt < maxRetries) {
+        const delay = attempt * 2000 // 2s, 4s
+        console.log(`Esperando ${delay}ms antes del siguiente intento...`)
+        await new Promise((resolve) => setTimeout(resolve, delay))
+      }
+    }
+  }
+
+  throw lastError!
+}
 
 export async function POST(request: Request) {
-  console.log("=== Iniciando generación de sugerencias ===")
+  const startTime = Date.now()
+  console.log("=== Iniciando generación de sugerencias ===", new Date().toISOString())
 
   try {
+    // Verificar configuración crítica primero
+    if (!process.env.OPENAI_API_KEY) {
+      console.error("❌ OPENAI_API_KEY no configurada")
+      return NextResponse.json(
+        {
+          error: "Configuración de IA no disponible",
+          code: "MISSING_API_KEY",
+        },
+        { status: 500 },
+      )
+    }
+
+    console.log("✅ OpenAI API Key configurada, longitud:", process.env.OPENAI_API_KEY.length)
+
     // Verificar que tenemos el cuerpo de la petición
     let body
     try {
       body = await request.json()
-      console.log("Cuerpo de la petición recibido:", body)
+      console.log("✅ Cuerpo de la petición recibido:", {
+        searchQuery: body.searchQuery?.substring(0, 50) + "...",
+        mealType: body.mealType,
+        dishOrder: body.dishOrder,
+        dayName: body.dayName,
+      })
     } catch (error) {
-      console.error("Error al parsear el cuerpo de la petición:", error)
-      return NextResponse.json({ error: "Formato de petición inválido" }, { status: 400 })
+      console.error("❌ Error al parsear el cuerpo de la petición:", error)
+      return NextResponse.json(
+        {
+          error: "Formato de petición inválido",
+          code: "INVALID_REQUEST_BODY",
+        },
+        { status: 400 },
+      )
     }
 
     const { searchQuery, mealType, dishOrder, dayName } = body
 
     // Validar parámetros requeridos
     if (!searchQuery || typeof searchQuery !== "string" || !searchQuery.trim()) {
-      console.error("searchQuery faltante o inválido:", searchQuery)
-      return NextResponse.json({ error: "La búsqueda es requerida" }, { status: 400 })
+      console.error("❌ searchQuery faltante o inválido:", searchQuery)
+      return NextResponse.json(
+        {
+          error: "La búsqueda es requerida",
+          code: "MISSING_SEARCH_QUERY",
+        },
+        { status: 400 },
+      )
     }
 
-    // Verificar configuración de OpenAI
-    if (!process.env.OPENAI_API_KEY) {
-      console.error("OPENAI_API_KEY no configurada")
-      return NextResponse.json({ error: "Configuración de IA no disponible" }, { status: 500 })
-    }
-
-    // Verificar configuración de Supabase (opcional para obtener recetas existentes)
+    // Obtener recetas existentes (opcional)
+    let existingTitles = ""
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    let existingTitles = ""
     if (supabaseUrl && supabaseServiceKey) {
       try {
-        console.log("Obteniendo recetas existentes...")
+        console.log("🔍 Obteniendo recetas existentes...")
         const supabase = createClient(supabaseUrl, supabaseServiceKey)
-        const { data: existingRecipes } = await supabase.from("recipes").select("name").limit(30)
+        const { data: existingRecipes, error } = await supabase.from("recipes").select("name").limit(30)
 
-        if (existingRecipes && existingRecipes.length > 0) {
+        if (error) {
+          console.warn("⚠️ Error al obtener recetas existentes:", error.message)
+        } else if (existingRecipes && existingRecipes.length > 0) {
           existingTitles = existingRecipes.map((r) => r.name).join(", ")
-          console.log(`Encontradas ${existingRecipes.length} recetas existentes`)
+          console.log(`✅ Encontradas ${existingRecipes.length} recetas existentes`)
         }
       } catch (error) {
-        console.warn("Error al obtener recetas existentes (continuando sin ellas):", error)
+        console.warn("⚠️ Error al conectar con Supabase (continuando sin recetas existentes):", error)
       }
     }
 
@@ -93,71 +166,69 @@ Responde ÚNICAMENTE con este JSON (sin texto adicional):
 
 IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
 
-    console.log("Enviando petición a OpenAI usando fetch...")
+    console.log("🚀 Enviando petición a OpenAI...")
 
-    // Usar fetch directo con mejor manejo de errores
-    let openaiResponse
-    try {
-      const fetchOptions = {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "User-Agent": "MenuPlanner/1.0",
-        },
-        body: JSON.stringify({
-          model: "gpt-3.5-turbo",
-          messages: [
-            {
-              role: "system",
-              content: "Eres un chef que responde SOLO con JSON válido. No uses markdown ni texto adicional.",
-            },
-            {
-              role: "user",
-              content: prompt,
-            },
-          ],
-          temperature: 0.7,
-          max_tokens: 1200,
-        }),
-      }
-
-      // Añadir timeout manual para producción
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Timeout: La petición tardó más de 45 segundos")), 45000),
-      )
-
-      const fetchPromise = fetch("https://api.openai.com/v1/chat/completions", fetchOptions)
-
-      openaiResponse = await Promise.race([fetchPromise, timeoutPromise])
-    } catch (error) {
-      console.error("Error en la llamada a OpenAI:", error)
-
-      if (error.message.includes("Timeout")) {
-        return NextResponse.json(
+    // Preparar opciones de fetch
+    const fetchOptions: RequestInit = {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "User-Agent": "MenuPlanner/1.0",
+      },
+      body: JSON.stringify({
+        model: "gpt-3.5-turbo",
+        messages: [
           {
-            error: "La generación de recetas está tardando más de lo esperado. Inténtalo de nuevo.",
+            role: "system",
+            content: "Eres un chef que responde SOLO con JSON válido. No uses markdown ni texto adicional.",
           },
-          { status: 408 },
-        )
-      }
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 1200,
+      }),
+    }
+
+    // Hacer la llamada con retry
+    let openaiResponse: Response
+    try {
+      openaiResponse = await fetchWithRetry("https://api.openai.com/v1/chat/completions", fetchOptions, 3)
+    } catch (error) {
+      console.error("❌ Error en todas las llamadas a OpenAI:", error)
 
       return NextResponse.json(
         {
-          error: "Error al comunicarse con la IA. Verifica tu conexión e inténtalo de nuevo.",
-          details: process.env.NODE_ENV === "development" ? error.message : undefined,
+          error: "No se pudo conectar con el servicio de IA. Verifica tu conexión e inténtalo de nuevo.",
+          code: "OPENAI_CONNECTION_FAILED",
+          details: error instanceof Error ? error.message : "Error de conexión",
+          duration: Date.now() - startTime,
         },
-        { status: 500 },
+        { status: 503 },
       )
     }
 
+    console.log("📡 Respuesta de OpenAI recibida, status:", openaiResponse.status)
+
     if (!openaiResponse.ok) {
-      console.error("Error en respuesta de OpenAI:", openaiResponse.status, openaiResponse.statusText)
+      let errorDetails = `HTTP ${openaiResponse.status}: ${openaiResponse.statusText}`
+
+      try {
+        const errorData = await openaiResponse.json()
+        errorDetails = errorData.error?.message || errorDetails
+        console.error("❌ Error detallado de OpenAI:", errorData)
+      } catch {
+        console.error("❌ No se pudo parsear error de OpenAI")
+      }
 
       if (openaiResponse.status === 429) {
         return NextResponse.json(
           {
             error: "Límite de uso de IA alcanzado. Inténtalo en unos minutos.",
+            code: "RATE_LIMITED",
           },
           { status: 429 },
         )
@@ -167,6 +238,7 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
         return NextResponse.json(
           {
             error: "Error de autenticación con la IA.",
+            code: "UNAUTHORIZED",
           },
           { status: 500 },
         )
@@ -176,6 +248,8 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
         return NextResponse.json(
           {
             error: "El servicio de IA está temporalmente no disponible. Inténtalo en unos minutos.",
+            code: "SERVICE_UNAVAILABLE",
+            details: errorDetails,
           },
           { status: 503 },
         )
@@ -183,31 +257,42 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
 
       return NextResponse.json(
         {
-          error: "Error al comunicarse con la IA. Inténtalo de nuevo.",
+          error: "Error al comunicarse con la IA.",
+          code: "OPENAI_ERROR",
+          details: errorDetails,
         },
         { status: 500 },
       )
     }
 
+    // Parsear respuesta
     let openaiData
     try {
       openaiData = await openaiResponse.json()
+      console.log("✅ Respuesta de OpenAI parseada exitosamente")
     } catch (error) {
-      console.error("Error al parsear respuesta de OpenAI:", error)
+      console.error("❌ Error al parsear respuesta de OpenAI:", error)
       return NextResponse.json(
         {
           error: "Error al procesar respuesta de la IA.",
+          code: "RESPONSE_PARSE_ERROR",
         },
         { status: 500 },
       )
     }
 
     const response = openaiData.choices?.[0]?.message?.content
-    console.log("Respuesta de OpenAI recibida, longitud:", response?.length || 0)
+    console.log("📝 Contenido de respuesta recibido, longitud:", response?.length || 0)
 
     if (!response) {
-      console.error("OpenAI devolvió respuesta vacía")
-      return NextResponse.json({ error: "La IA no pudo generar sugerencias" }, { status: 500 })
+      console.error("❌ OpenAI devolvió respuesta vacía")
+      return NextResponse.json(
+        {
+          error: "La IA no pudo generar sugerencias",
+          code: "EMPTY_RESPONSE",
+        },
+        { status: 500 },
+      )
     }
 
     // Limpiar y parsear la respuesta
@@ -220,16 +305,18 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
       cleanedResponse = cleanedResponse.replace(/^```\s*/, "").replace(/\s*```$/, "")
     }
 
-    console.log("Respuesta limpia (primeros 200 chars):", cleanedResponse.substring(0, 200))
+    console.log("🧹 Respuesta limpia (primeros 200 chars):", cleanedResponse.substring(0, 200))
 
     let suggestionsData
     try {
       suggestionsData = JSON.parse(cleanedResponse)
+      console.log("✅ JSON parseado exitosamente")
     } catch (parseError) {
-      console.error("Error al parsear JSON:", parseError)
+      console.error("❌ Error al parsear JSON:", parseError)
       console.error("Respuesta completa:", cleanedResponse)
 
-      // Intentar crear una respuesta de fallback
+      // Crear respuesta de fallback
+      console.log("🔄 Creando respuesta de fallback...")
       return NextResponse.json({
         recipes: [
           {
@@ -239,18 +326,26 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
             preparation: "Paso 1: Preparar los ingredientes\nPaso 2: Cocinar a fuego medio\nPaso 3: Servir caliente",
           },
         ],
+        fallback: true,
+        duration: Date.now() - startTime,
       })
     }
 
     // Validar estructura
     if (!suggestionsData.recipes || !Array.isArray(suggestionsData.recipes)) {
-      console.error("Estructura de respuesta inválida:", suggestionsData)
-      return NextResponse.json({ error: "Formato de respuesta de IA inválido" }, { status: 500 })
+      console.error("❌ Estructura de respuesta inválida:", suggestionsData)
+      return NextResponse.json(
+        {
+          error: "Formato de respuesta de IA inválido",
+          code: "INVALID_RESPONSE_FORMAT",
+        },
+        { status: 500 },
+      )
     }
 
     // Validar cada receta
     const validRecipes = suggestionsData.recipes.filter((recipe) => {
-      return (
+      const isValid =
         recipe &&
         typeof recipe.name === "string" &&
         typeof recipe.description === "string" &&
@@ -259,22 +354,44 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
         recipe.name.trim() &&
         recipe.ingredients.trim() &&
         recipe.preparation.trim()
-      )
+
+      if (!isValid) {
+        console.warn("⚠️ Receta inválida filtrada:", recipe)
+      }
+
+      return isValid
     })
 
     if (validRecipes.length === 0) {
-      console.error("No se encontraron recetas válidas")
-      return NextResponse.json({ error: "No se pudieron generar recetas válidas" }, { status: 500 })
+      console.error("❌ No se encontraron recetas válidas")
+      return NextResponse.json(
+        {
+          error: "No se pudieron generar recetas válidas",
+          code: "NO_VALID_RECIPES",
+        },
+        { status: 500 },
+      )
     }
 
-    console.log(`Devolviendo ${validRecipes.length} recetas válidas`)
-    return NextResponse.json({ recipes: validRecipes })
+    const duration = Date.now() - startTime
+    console.log(`✅ Proceso completado exitosamente en ${duration}ms`)
+    console.log(`📊 Devolviendo ${validRecipes.length} recetas válidas`)
+
+    return NextResponse.json({
+      recipes: validRecipes,
+      duration,
+      timestamp: new Date().toISOString(),
+    })
   } catch (error) {
-    console.error("Error general en la API:", error)
+    const duration = Date.now() - startTime
+    console.error("💥 Error general en la API:", error)
+
     return NextResponse.json(
       {
         error: "Error interno del servidor",
-        details: "No se pudieron generar las sugerencias. Inténtalo de nuevo.",
+        code: "INTERNAL_ERROR",
+        details: error instanceof Error ? error.message : "Error desconocido",
+        duration,
       },
       { status: 500 },
     )
