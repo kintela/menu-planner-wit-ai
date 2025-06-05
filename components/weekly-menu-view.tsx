@@ -471,18 +471,25 @@ export function WeeklyMenuView({
     }
   }
 
-  // Función para manejar la creación de una nueva receta desde la IA
+  // Función mejorada para manejar la creación de una nueva receta desde la IA
   const handleRecipeCreated = async (
     newRecipe: Recipe,
     dayOfWeek: number,
     mealType: "comida" | "cena",
     dishOrder = 1,
   ) => {
-    // Añadir la nueva receta a la lista primero
-    setRecipes((prev) => [...prev, newRecipe])
+    console.log("🆕 Nueva receta creada:", newRecipe.name)
+
+    // Añadir la nueva receta a la lista local inmediatamente
+    setRecipes((prevRecipes) => {
+      const updatedRecipes = [...prevRecipes, newRecipe]
+      console.log("📝 Lista de recetas actualizada, total:", updatedRecipes.length)
+      return updatedRecipes
+    })
 
     // Esperar un momento para que el estado se actualice
     setTimeout(async () => {
+      console.log("🔄 Seleccionando automáticamente la nueva receta...")
       // Seleccionar automáticamente la nueva receta
       await handleRecipeChange(dayOfWeek, mealType, newRecipe.id.toString(), dishOrder)
     }, 100)
@@ -689,7 +696,6 @@ export function WeeklyMenuView({
                         mealType="comida"
                         dishOrder={1}
                         dayName={dayMenu.dayName}
-                        useSaveAndSelect={true}
                       />
                     </div>
                   </div>
@@ -747,7 +753,6 @@ export function WeeklyMenuView({
                         mealType="comida"
                         dishOrder={2}
                         dayName={dayMenu.dayName}
-                        useSaveAndSelect={true}
                       />
                     </div>
                   </div>
@@ -805,7 +810,6 @@ export function WeeklyMenuView({
                       mealType="cena"
                       dishOrder={1}
                       dayName={dayMenu.dayName}
-                      useSaveAndSelect={true}
                     />
                   </div>
                 </div>
