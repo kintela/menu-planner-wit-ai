@@ -6,9 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { AuthProvider } from "@/components/auth/auth-provider"
 import SimpleNavigation from "@/components/simple-navigation"
-
 import SessionWrapper from "@/components/providers/session-wrapper"
-
 
 const inter = Inter({
   subsets: ["latin"],
@@ -33,11 +31,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es" suppressHydrationWarning>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-      </head>
-      <body className={inter.className}>
+    <html lang="es" suppressHydrationWarning className={inter.className}>
+      <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <SessionWrapper>
             <AuthProvider>
