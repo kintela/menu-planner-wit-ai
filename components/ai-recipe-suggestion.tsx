@@ -1,11 +1,8 @@
 "use client"
 
 import { DialogTrigger } from "@/components/ui/dialog"
-
 import { useState, useEffect } from "react"
-
-import { Sparkles, Loader2, Plus, Check } from "lucide-react"
-
+import { Sparkles, Loader2, Plus, Check, AlertCircle } from "lucide-react"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { Recipe } from "@/lib/types"
@@ -16,6 +13,7 @@ import { useToast } from "@/hooks/use-toast"
 import { calculateCalories } from "@/lib/calories-calculator"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface AiRecipeSuggestionProps {
   onRecipeCreated: (recipe: Recipe) => void
@@ -43,6 +41,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   const [dailyUsage, setDailyUsage] = useState<number>(0)
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   const [usageLimitReached, setUsageLimitReached] = useState<boolean>(false)
+  const [lastError, setLastError] = useState<string>("")
 
   const checkUserLimits = async () => {
     if (!user) return
@@ -56,17 +55,16 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       const userIsAdmin = profile?.role === "admin"
       setIsAdmin(userIsAdmin)
 
-      // Verificar uso diario para todos los usuarios (admin y no admin)
+      // Verificar uso diario
       const { data: usageData } = await supabase.rpc("get_daily_ai_usage", { p_user_id: user.id })
 
       const currentUsage = usageData || 0
       setDailyUsage(currentUsage)
 
-      // Solo establecer el límite para usuarios no admin
       if (!userIsAdmin) {
         setUsageLimitReached(currentUsage >= 2)
       } else {
-        setUsageLimitReached(false) // Los admin nunca alcanzan el límite
+        setUsageLimitReached(false)
       }
     } catch (error) {
       console.error("Error checking user limits:", error)
@@ -83,7 +81,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       return
     }
 
-    // Verificar límites para usuarios no admin
     if (!isAdmin && usageLimitReached) {
       toast({
         title: "Límite diario alcanzado",
@@ -96,27 +93,29 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     setIsGenerating(true)
     setSuggestions([])
     setSavedRecipes(new Set())
+    setLastError("")
 
     try {
-      // Incrementar contador de uso para TODOS los usuarios (admin y no admin)
+      // Incrementar contador de uso
       const supabase = getSupabaseClient()
-
       let newUsage = dailyUsage
+
       try {
         const { data: usageResult } = await supabase.rpc("increment_ai_usage", { p_user_id: user?.id })
         newUsage = usageResult || dailyUsage + 1
         setDailyUsage(newUsage)
       } catch (usageError) {
-        console.error("Error incrementing usage:", usageError)
-        // Continue anyway
+        console.warn("Error incrementing usage:", usageError)
       }
 
-      // Verificar si alcanzó el límite después de este uso (solo para no admin)
       if (!isAdmin && newUsage >= 2) {
         setUsageLimitReached(true)
       }
 
-      console.log("Making request to API with:", { searchQuery, mealType, dishOrder, dayName })
+      console.log("Enviando petición a la API...")
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 segundos timeout
 
       const response = await fetch("/api/generate-recipe-suggestions", {
         method: "POST",
@@ -124,18 +123,21 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          searchQuery,
+          searchQuery: searchQuery.trim(),
           mealType,
           dishOrder,
           dayName,
         }),
+        signal: controller.signal,
       })
 
-      console.log("Response status:", response.status)
+      clearTimeout(timeoutId)
 
-      // Check if response is ok first
+      console.log("Respuesta recibida, status:", response.status)
+
       if (!response.ok) {
-        let errorMessage = `Error ${response.status}: ${response.statusText}`
+        let errorMessage = `Error ${response.status}`
+
         try {
           const errorData = await response.json()
           errorMessage = errorData.error || errorMessage
@@ -143,28 +145,17 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
             errorMessage += ` - ${errorData.details}`
           }
         } catch {
-          // If response is not JSON, get text instead
-          try {
-            const errorText = await response.text()
-            if (errorText && errorText.length < 200) {
-              errorMessage = errorText
-            }
-          } catch {
-            // Fallback to status message
+          const errorText = await response.text()
+          if (errorText && errorText.length < 200) {
+            errorMessage = errorText
           }
         }
+
         throw new Error(errorMessage)
       }
 
-      // Try to parse JSON response
-      let data
-      try {
-        data = await response.json()
-        console.log("Parsed response data:", data)
-      } catch (jsonError) {
-        console.error("Failed to parse JSON response:", jsonError)
-        throw new Error(`El servidor devolvió una respuesta inválida. Por favor, inténtalo de nuevo.`)
-      }
+      const data = await response.json()
+      console.log("Datos parseados:", data)
 
       if (data.recipes && Array.isArray(data.recipes) && data.recipes.length > 0) {
         setSuggestions(data.recipes)
@@ -174,11 +165,10 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           description: `Se generaron ${data.recipes.length} recetas para ti.`,
         })
 
-        // Mostrar mensaje de límite si es necesario (solo para no admin)
         if (!isAdmin && newUsage >= 2) {
           toast({
             title: "Último uso del día",
-            description: "Has alcanzado el límite diario de 2 generaciones. Podrás usar la IA nuevamente mañana.",
+            description: "Has alcanzado el límite diario. Podrás usar la IA nuevamente mañana.",
             variant: "default",
           })
         }
@@ -187,9 +177,20 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       }
     } catch (error) {
       console.error("Error generating suggestions:", error)
+
+      let errorMessage = "No se pudieron generar sugerencias. Inténtalo de nuevo."
+
+      if (error.name === "AbortError") {
+        errorMessage = "La petición tardó demasiado. Inténtalo de nuevo."
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+
+      setLastError(errorMessage)
+
       toast({
         title: "Error al generar sugerencias",
-        description: error instanceof Error ? error.message : "No se pudieron generar sugerencias. Inténtalo de nuevo.",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
@@ -211,11 +212,8 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
     try {
       const supabase = getSupabaseClient()
-
-      // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
 
-      // Guardar la receta en la base de datos
       const { data: newRecipe, error } = await supabase
         .from("recipes")
         .insert({
@@ -234,12 +232,11 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       if (error) throw error
 
-      // Marcar como guardada
       setSavedRecipes((prev) => new Set(prev).add(index))
 
       toast({
         title: "¡Receta guardada!",
-        description: `"${suggestion.name}" se ha añadido a tu colección de recetas.`,
+        description: `"${suggestion.name}" se ha añadido a tu colección.`,
       })
     } catch (error) {
       console.error("Error saving recipe:", error)
@@ -267,17 +264,13 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
     try {
       const supabase = getSupabaseClient()
-
-      // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
 
-      // Mostrar mensaje inicial
       toast({
         title: "Creando receta...",
         description: "Guardando la receta en tu colección...",
       })
 
-      // Guardar la receta en la base de datos
       const { data: newRecipe, error } = await supabase
         .from("recipes")
         .insert({
@@ -301,10 +294,8 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
         description: `"${suggestion.name}" se ha añadido a tu colección y seleccionado para el menú.`,
       })
 
-      // Llamar al callback con la nueva receta
       onRecipeCreated(newRecipe as Recipe)
 
-      // Cerrar el modal y limpiar
       setIsOpen(false)
       setSearchQuery("")
       setSuggestions([])
@@ -327,7 +318,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     }
   }, [isOpen, user])
 
-  // No mostrar el componente si no hay usuario autenticado
   if (!user) {
     return null
   }
@@ -364,12 +354,19 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
         </DialogHeader>
 
         <div className="space-y-4">
+          {lastError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{lastError}</AlertDescription>
+            </Alert>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="search-query">¿Qué tipo de plato buscas?</Label>
             <div className="flex gap-2">
               <Input
                 id="search-query"
-                placeholder="ej: pasta italiana, pollo al horno, ensalada fresca, sopa de verduras..."
+                placeholder="ej: pasta italiana, pollo al horno, ensalada fresca..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
@@ -382,7 +379,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
               <Button
                 onClick={generateSuggestions}
                 disabled={isGenerating || !searchQuery.trim() || (!isAdmin && usageLimitReached)}
-                className={!isAdmin && usageLimitReached ? "opacity-50" : ""}
               >
                 {isGenerating ? (
                   <>
@@ -390,11 +386,11 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                     Generando...
                   </>
                 ) : !isAdmin && usageLimitReached ? (
-                  "Límite diario alcanzado"
+                  "Límite alcanzado"
                 ) : (
                   <>
                     Generar
-                    {!isAdmin && <span className="ml-2 text-xs opacity-75">({dailyUsage}/2 usos hoy)</span>}
+                    {!isAdmin && <span className="ml-2 text-xs opacity-75">({dailyUsage}/2)</span>}
                   </>
                 )}
               </Button>
@@ -405,6 +401,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
             <div className="text-center py-8">
               <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-purple-500" />
               <p className="text-muted-foreground">Generando 3 sugerencias personalizadas...</p>
+              <p className="text-xs text-muted-foreground mt-2">Esto puede tardar hasta 30 segundos</p>
             </div>
           )}
 
@@ -425,7 +422,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div>
-                        <h4 className="font-medium text-sm mb-2 text-green-700">🥘 Ingredientes principales:</h4>
+                        <h4 className="font-medium text-sm mb-2 text-green-700">🥘 Ingredientes:</h4>
                         <div className="text-sm text-muted-foreground max-h-32 overflow-y-auto">
                           <ul className="list-disc list-inside space-y-1">
                             {suggestion.ingredients
@@ -455,7 +452,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                         </div>
                       </div>
 
-                      {/* Botones de acción */}
                       <div className="flex gap-2 mt-4">
                         <Button
                           onClick={() => saveAndSelectRecipe(suggestion)}
@@ -466,7 +462,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                           {isSaving ? (
                             <>
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Creando receta...
+                              Creando...
                             </>
                           ) : (
                             <>
@@ -496,7 +492,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
                           ) : (
                             <>
                               <Plus className="mr-2 h-4 w-4" />
-                              Guardar receta
+                              Guardar
                             </>
                           )}
                         </Button>
