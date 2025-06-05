@@ -35,6 +35,8 @@ export async function POST(request: Request) {
     try {
       openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
+        // Forzar que se ejecute en servidor
+        dangerouslyAllowBrowser: false,
       })
     } catch (error) {
       console.error("Error al inicializar OpenAI:", error)
@@ -118,7 +120,6 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
         ],
         temperature: 0.7,
         max_tokens: 1200,
-        timeout: 30000, // 30 segundos de timeout
       })
     } catch (error) {
       console.error("Error en la llamada a OpenAI:", error)
@@ -227,3 +228,7 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
     )
   }
 }
+
+// Forzar que esta ruta se ejecute en el servidor
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
