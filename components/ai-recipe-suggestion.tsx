@@ -123,10 +123,39 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
         }),
       })
 
-      const data = await response.json()
-
+      // Check if response is ok first
       if (!response.ok) {
-        throw new Error(data.error || "Error al generar sugerencias")
+        // Try to get error message from response
+        let errorMessage = `Error ${response.status}: ${response.statusText}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          // If response is not JSON, get text instead
+          try {
+            const errorText = await response.text()
+            errorMessage = errorText || errorMessage
+          } catch {
+            // Fallback to status message
+          }
+        }
+        throw new Error(errorMessage)
+      }
+
+      // Try to parse JSON response
+      let data
+      try {
+        data = await response.json()
+      } catch (jsonError) {
+        console.error("Failed to parse JSON response:", jsonError)
+        // Try to get the actual response text for debugging
+        try {
+          const responseText = await response.text()
+          console.error("Response text:", responseText)
+          throw new Error(`El servidor devolvió una respuesta inválida. Por favor, inténtalo de nuevo.`)
+        } catch {
+          throw new Error(`Error al procesar la respuesta del servidor. Por favor, inténtalo de nuevo.`)
+        }
       }
 
       if (data.recipes && Array.isArray(data.recipes)) {
@@ -136,12 +165,12 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
         if (!isAdmin && dailyUsage + 1 >= 2) {
           toast({
             title: "Último uso del día",
-            description: "Has alcanzado el límite diario de 2 generaciones. Podrás usar la IA nuevamente mañana.",
+            description: "Has alcanzado el límite diario de 2 generaciones. Podrás usarlo nuevamente mañana.",
             variant: "default",
           })
         }
       } else {
-        throw new Error("Formato de respuesta inválido")
+        throw new Error("Formato de respuesta inválido del servidor")
       }
     } catch (error) {
       console.error("Error generating suggestions:", error)
