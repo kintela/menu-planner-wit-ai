@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
+// Configuración específica para producción
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+export const maxDuration = 60 // 60 segundos máximo
+
 export async function POST(request: Request) {
   console.log("=== Iniciando generación de sugerencias ===")
 
@@ -90,14 +95,15 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
 
     console.log("Enviando petición a OpenAI usando fetch...")
 
-    // Usar fetch directo en lugar del SDK de OpenAI
+    // Usar fetch directo con mejor manejo de errores
     let openaiResponse
     try {
-      openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      const fetchOptions = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "User-Agent": "MenuPlanner/1.0",
         },
         body: JSON.stringify({
           model: "gpt-3.5-turbo",
@@ -114,12 +120,32 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
           temperature: 0.7,
           max_tokens: 1200,
         }),
-      })
+      }
+
+      // Añadir timeout manual para producción
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout: La petición tardó más de 45 segundos")), 45000),
+      )
+
+      const fetchPromise = fetch("https://api.openai.com/v1/chat/completions", fetchOptions)
+
+      openaiResponse = await Promise.race([fetchPromise, timeoutPromise])
     } catch (error) {
       console.error("Error en la llamada a OpenAI:", error)
+
+      if (error.message.includes("Timeout")) {
+        return NextResponse.json(
+          {
+            error: "La generación de recetas está tardando más de lo esperado. Inténtalo de nuevo.",
+          },
+          { status: 408 },
+        )
+      }
+
       return NextResponse.json(
         {
-          error: "Error al comunicarse con la IA. Inténtalo de nuevo.",
+          error: "Error al comunicarse con la IA. Verifica tu conexión e inténtalo de nuevo.",
+          details: process.env.NODE_ENV === "development" ? error.message : undefined,
         },
         { status: 500 },
       )
@@ -143,6 +169,15 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
             error: "Error de autenticación con la IA.",
           },
           { status: 500 },
+        )
+      }
+
+      if (openaiResponse.status >= 500) {
+        return NextResponse.json(
+          {
+            error: "El servicio de IA está temporalmente no disponible. Inténtalo en unos minutos.",
+          },
+          { status: 503 },
         )
       }
 
@@ -245,7 +280,3 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
     )
   }
 }
-
-// Forzar que esta ruta se ejecute en el servidor
-export const runtime = "nodejs"
-export const dynamic = "force-dynamic"
