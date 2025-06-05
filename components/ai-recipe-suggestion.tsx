@@ -266,6 +266,8 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       const supabase = getSupabaseClient()
       const calories = calculateCalories(suggestion.ingredients)
 
+      console.log("🔄 Creando nueva receta:", suggestion.name)
+
       toast({
         title: "Creando receta...",
         description: "Guardando la receta en tu colección...",
@@ -289,13 +291,18 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       if (error) throw error
 
+      console.log("✅ Receta creada exitosamente:", newRecipe)
+
       toast({
         title: "¡Receta creada y seleccionada!",
         description: `"${suggestion.name}" se ha añadido a tu colección y seleccionado para el menú.`,
       })
 
+      // Llamar al callback INMEDIATAMENTE con la nueva receta
+      console.log("📞 Llamando callback onRecipeCreated...")
       onRecipeCreated(newRecipe as Recipe)
 
+      // Cerrar el modal y limpiar
       setIsOpen(false)
       setSearchQuery("")
       setSuggestions([])

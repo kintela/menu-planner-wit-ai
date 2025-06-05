@@ -87,6 +87,7 @@ export function WeeklyMenuView({
 
   // Actualizar estados cuando cambien las props
   useEffect(() => {
+    console.log("📥 Actualizando recetas desde props, total:", initialRecipes.length)
     setRecipes(initialRecipes)
   }, [initialRecipes])
 
@@ -471,28 +472,42 @@ export function WeeklyMenuView({
     }
   }
 
-  // Función mejorada para manejar la creación de una nueva receta desde la IA
+  // Función MEJORADA para manejar la creación de una nueva receta desde la IA
   const handleRecipeCreated = async (
     newRecipe: Recipe,
     dayOfWeek: number,
     mealType: "comida" | "cena",
     dishOrder = 1,
   ) => {
-    console.log("🆕 Nueva receta creada:", newRecipe.name)
+    console.log("🆕 Nueva receta creada desde IA:", newRecipe.name, "ID:", newRecipe.id)
 
-    // Añadir la nueva receta a la lista local inmediatamente
+    // 1. Añadir la nueva receta a la lista local INMEDIATAMENTE
     setRecipes((prevRecipes) => {
+      const recipeExists = prevRecipes.some((r) => r.id === newRecipe.id)
+      if (recipeExists) {
+        console.log("⚠️ La receta ya existe en la lista")
+        return prevRecipes
+      }
+
       const updatedRecipes = [...prevRecipes, newRecipe]
       console.log("📝 Lista de recetas actualizada, total:", updatedRecipes.length)
+      console.log("🔍 Nueva receta añadida:", newRecipe.name)
       return updatedRecipes
     })
 
-    // Esperar un momento para que el estado se actualice
-    setTimeout(async () => {
-      console.log("🔄 Seleccionando automáticamente la nueva receta...")
-      // Seleccionar automáticamente la nueva receta
-      await handleRecipeChange(dayOfWeek, mealType, newRecipe.id.toString(), dishOrder)
-    }, 100)
+    // 2. Forzar re-render del componente
+    setTimeout(() => {
+      console.log("🔄 Forzando actualización del componente...")
+
+      // 3. Seleccionar automáticamente la nueva receta
+      handleRecipeChange(dayOfWeek, mealType, newRecipe.id.toString(), dishOrder)
+        .then(() => {
+          console.log("✅ Receta seleccionada automáticamente en el menú")
+        })
+        .catch((error) => {
+          console.error("❌ Error al seleccionar la receta automáticamente:", error)
+        })
+    }, 200) // Aumentar el timeout para asegurar que el estado se actualice
   }
 
   const handleRemoveRecipe = async (dayOfWeek: number, mealType: "comida" | "cena", dishOrder?: number) => {
@@ -623,6 +638,7 @@ export function WeeklyMenuView({
       {/* Mostrar las fechas debajo de la cabecera */}
       <div className="text-sm text-muted-foreground">
         {formatDateToDDMMYYYY(currentStartDate)} al {formatDateToDDMMYYYY(endDateStr)}
+        <span className="ml-4 text-xs">📊 Total recetas disponibles: {recipes.length}</span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -649,6 +665,7 @@ export function WeeklyMenuView({
                   <Label className="text-xs text-muted-foreground">1er plato</Label>
                   <div className="flex flex-col gap-2">
                     <Select
+                      key={`comida-1-${dayMenu.day}-${recipes.length}`} // Key que cambia cuando se añaden recetas
                       value={dayMenu.meals.comida[0]?.id.toString() || ""}
                       onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 1)}
                       disabled={isUpdating || recipes.length === 0}
@@ -706,6 +723,7 @@ export function WeeklyMenuView({
                   <Label className="text-xs text-muted-foreground">2do plato</Label>
                   <div className="flex flex-col gap-2">
                     <Select
+                      key={`comida-2-${dayMenu.day}-${recipes.length}`} // Key que cambia cuando se añaden recetas
                       value={dayMenu.meals.comida[1]?.id.toString() || ""}
                       onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 2)}
                       disabled={isUpdating || recipes.length === 0}
@@ -764,6 +782,7 @@ export function WeeklyMenuView({
                 <h3 className="text-sm font-medium">Cena</h3>
                 <div className="flex flex-col gap-2">
                   <Select
+                    key={`cena-${dayMenu.day}-${recipes.length}`} // Key que cambia cuando se añaden recetas
                     value={dayMenu.meals.cena?.id.toString() || ""}
                     onValueChange={(value) => handleRecipeChange(dayMenu.day, "cena", value)}
                     disabled={isUpdating || recipes.length === 0}
