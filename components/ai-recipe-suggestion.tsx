@@ -2,7 +2,7 @@
 
 import { DialogTrigger } from "@/components/ui/dialog"
 import { useState, useEffect } from "react"
-import { Sparkles, Loader2, Plus, Check, AlertCircle } from "lucide-react"
+import { Sparkles, Loader2, Plus, Check, AlertCircle, RefreshCw } from "lucide-react"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { Recipe } from "@/lib/types"
@@ -42,6 +42,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
   const [usageLimitReached, setUsageLimitReached] = useState<boolean>(false)
   const [lastError, setLastError] = useState<string>("")
+  const [retryCount, setRetryCount] = useState(0)
 
   const checkUserLimits = async () => {
     if (!user) return
@@ -71,7 +72,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     }
   }
 
-  const generateSuggestions = async () => {
+  const generateSuggestions = async (isRetry = false) => {
     if (!searchQuery.trim()) {
       toast({
         title: "Búsqueda requerida",
@@ -95,27 +96,33 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     setSavedRecipes(new Set())
     setLastError("")
 
+    if (!isRetry) {
+      setRetryCount(0)
+    }
+
     try {
-      // Incrementar contador de uso
+      // Incrementar contador de uso solo si no es retry
       const supabase = getSupabaseClient()
       let newUsage = dailyUsage
 
-      try {
-        const { data: usageResult } = await supabase.rpc("increment_ai_usage", { p_user_id: user?.id })
-        newUsage = usageResult || dailyUsage + 1
-        setDailyUsage(newUsage)
-      } catch (usageError) {
-        console.warn("Error incrementing usage:", usageError)
+      if (!isRetry) {
+        try {
+          const { data: usageResult } = await supabase.rpc("increment_ai_usage", { p_user_id: user?.id })
+          newUsage = usageResult || dailyUsage + 1
+          setDailyUsage(newUsage)
+        } catch (usageError) {
+          console.warn("Error incrementing usage:", usageError)
+        }
+
+        if (!isAdmin && newUsage >= 2) {
+          setUsageLimitReached(true)
+        }
       }
 
-      if (!isAdmin && newUsage >= 2) {
-        setUsageLimitReached(true)
-      }
-
-      console.log("Enviando petición a la API...")
+      console.log("🚀 Enviando petición a la API...", { isRetry, retryCount })
 
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 segundos timeout
+      const timeoutId = setTimeout(() => controller.abort(), 70000) // 70 segundos timeout
 
       const response = await fetch("/api/generate-recipe-suggestions", {
         method: "POST",
@@ -133,16 +140,19 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       clearTimeout(timeoutId)
 
-      console.log("Respuesta recibida, status:", response.status)
+      console.log("📡 Respuesta recibida, status:", response.status)
 
       if (!response.ok) {
         let errorMessage = `Error ${response.status}`
+        let errorCode = "UNKNOWN_ERROR"
 
         try {
           const errorData = await response.json()
           errorMessage = errorData.error || errorMessage
+          errorCode = errorData.code || errorCode
+
           if (errorData.details) {
-            errorMessage += ` - ${errorData.details}`
+            console.error("Error details:", errorData.details)
           }
         } catch {
           const errorText = await response.text()
@@ -151,18 +161,29 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           }
         }
 
+        // Manejar errores específicos
+        if (response.status === 503 || errorCode === "OPENAI_CONNECTION_FAILED") {
+          throw new Error("El servicio de IA está temporalmente no disponible. Inténtalo en unos minutos.")
+        }
+
         throw new Error(errorMessage)
       }
 
       const data = await response.json()
-      console.log("Datos parseados:", data)
+      console.log("✅ Datos parseados:", {
+        recipesCount: data.recipes?.length,
+        duration: data.duration,
+        fallback: data.fallback,
+      })
 
       if (data.recipes && Array.isArray(data.recipes) && data.recipes.length > 0) {
         setSuggestions(data.recipes)
 
         toast({
-          title: "¡Sugerencias generadas!",
-          description: `Se generaron ${data.recipes.length} recetas para ti.`,
+          title: data.fallback ? "¡Sugerencia generada!" : "¡Sugerencias generadas!",
+          description: data.fallback
+            ? "Se generó una receta básica. Inténtalo con una búsqueda más específica."
+            : `Se generaron ${data.recipes.length} recetas para ti.`,
         })
 
         if (!isAdmin && newUsage >= 2) {
@@ -176,9 +197,9 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
         throw new Error("No se pudieron generar recetas. Inténtalo con una búsqueda diferente.")
       }
     } catch (error) {
-      console.error("Error generating suggestions:", error)
+      console.error("❌ Error generating suggestions:", error)
 
-      let errorMessage = "No se pudieron generar sugerencias. Inténtalo de nuevo."
+      let errorMessage = "No se pudieron generar sugerencias."
 
       if (error.name === "AbortError") {
         errorMessage = "La petición tardó demasiado. Inténtalo de nuevo."
@@ -188,14 +209,29 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       setLastError(errorMessage)
 
+      // Mostrar opción de retry para ciertos errores
+      const canRetry =
+        retryCount < 2 &&
+        (error.name === "AbortError" ||
+          errorMessage.includes("temporalmente no disponible") ||
+          errorMessage.includes("Failed to fetch"))
+
       toast({
         title: "Error al generar sugerencias",
-        description: errorMessage,
+        description: canRetry ? `${errorMessage} (Intento ${retryCount + 1}/3)` : errorMessage,
         variant: "destructive",
       })
+
+      if (canRetry) {
+        setRetryCount((prev) => prev + 1)
+      }
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  const retryGeneration = () => {
+    generateSuggestions(true)
   }
 
   const saveRecipeToCollection = async (suggestion: GeneratedRecipe, index: number) => {
@@ -329,6 +365,8 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     return null
   }
 
+  const canRetry = retryCount < 2 && lastError && !isGenerating
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
@@ -336,13 +374,13 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           <Sparkles className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-purple-500" />
-            Sugerencias de IA para {dayName}
+      <DialogContent className="w-[95vw] max-w-4xl h-[90vh] max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="px-4 py-3 border-b flex-shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />
+            <span className="truncate">Sugerencias de IA para {dayName}</span>
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             Describe qué tipo de plato buscas para {mealType === "comida" ? "la comida" : "la cena"}
             {dishOrder && ` (${dishOrder === 1 ? "primer" : "segundo"} plato)`}
             <br />
@@ -360,156 +398,197 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {lastError && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{lastError}</AlertDescription>
-            </Alert>
-          )}
+        <div className="flex-1 overflow-y-auto px-4 py-3">
+          <div className="space-y-4">
+            {lastError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm">
+                  {lastError}
+                  {canRetry && (
+                    <Button variant="outline" size="sm" onClick={retryGeneration} className="ml-2 h-6 px-2 text-xs">
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Reintentar ({retryCount + 1}/3)
+                    </Button>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
 
-          <div className="space-y-2">
-            <Label htmlFor="search-query">¿Qué tipo de plato buscas?</Label>
-            <div className="flex gap-2">
-              <Input
-                id="search-query"
-                placeholder="ej: pasta italiana, pollo al horno, ensalada fresca..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !isGenerating && searchQuery.trim()) {
-                    generateSuggestions()
-                  }
-                }}
-                className="flex-1"
-              />
-              <Button
-                onClick={generateSuggestions}
-                disabled={isGenerating || !searchQuery.trim() || (!isAdmin && usageLimitReached)}
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generando...
-                  </>
-                ) : !isAdmin && usageLimitReached ? (
-                  "Límite alcanzado"
-                ) : (
-                  <>
-                    Generar
-                    {!isAdmin && <span className="ml-2 text-xs opacity-75">({dailyUsage}/2)</span>}
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-
-          {isGenerating && (
-            <div className="text-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-purple-500" />
-              <p className="text-muted-foreground">Generando 3 sugerencias personalizadas...</p>
-              <p className="text-xs text-muted-foreground mt-2">Esto puede tardar hasta 30 segundos</p>
-            </div>
-          )}
-
-          {suggestions.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="font-medium text-lg">Elige una opción o guarda las que te gusten:</h3>
-              <div className="grid gap-4">
-                {suggestions.map((suggestion, index) => (
-                  <Card key={index} className="hover:shadow-md transition-shadow border-2 hover:border-purple-200">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <span className="bg-purple-100 text-purple-700 rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">
-                          {index + 1}
-                        </span>
-                        {suggestion.name}
-                      </CardTitle>
-                      <CardDescription className="text-sm">{suggestion.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div>
-                        <h4 className="font-medium text-sm mb-2 text-green-700">🥘 Ingredientes:</h4>
-                        <div className="text-sm text-muted-foreground max-h-32 overflow-y-auto">
-                          <ul className="list-disc list-inside space-y-1">
-                            {suggestion.ingredients
-                              .split("\n")
-                              .filter((ingredient) => ingredient.trim())
-                              .map((ingredient, idx) => (
-                                <li key={idx} className="text-sm">
-                                  {ingredient.trim()}
-                                </li>
-                              ))}
-                          </ul>
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-sm mb-2 text-blue-700">👨‍🍳 Preparación:</h4>
-                        <div className="text-sm text-muted-foreground max-h-40 overflow-y-auto">
-                          <div className="space-y-2">
-                            {suggestion.preparation
-                              .split("\n")
-                              .filter((step) => step.trim())
-                              .map((step, idx) => (
-                                <p key={idx} className="text-sm leading-relaxed">
-                                  <span className="font-medium text-blue-600">{idx + 1}.</span> {step.trim()}
-                                </p>
-                              ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2 mt-4">
-                        <Button
-                          onClick={() => saveAndSelectRecipe(suggestion)}
-                          disabled={isSaving}
-                          className="flex-1"
-                          size="sm"
-                        >
-                          {isSaving ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Creando...
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="mr-2 h-4 w-4" />
-                              Seleccionar para el menú
-                            </>
-                          )}
-                        </Button>
-
-                        <Button
-                          onClick={() => saveRecipeToCollection(suggestion, index)}
-                          disabled={isSaving || savedRecipes.has(index)}
-                          variant="outline"
-                          size="sm"
-                          className="px-4"
-                        >
-                          {savedRecipes.has(index) ? (
-                            <>
-                              <Check className="mr-2 h-4 w-4 text-green-600" />
-                              Guardada
-                            </>
-                          ) : isSaving ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Guardando...
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="mr-2 h-4 w-4" />
-                              Guardar
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+            <div className="space-y-3">
+              <Label htmlFor="search-query" className="text-sm font-medium">
+                ¿Qué tipo de plato buscas?
+              </Label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  id="search-query"
+                  placeholder="ej: pasta italiana, pollo al horno, ensalada fresca..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !isGenerating && searchQuery.trim()) {
+                      generateSuggestions()
+                    }
+                  }}
+                  className="flex-1 text-sm"
+                />
+                <Button
+                  onClick={() => generateSuggestions()}
+                  disabled={isGenerating || !searchQuery.trim() || (!isAdmin && usageLimitReached)}
+                  className="w-full sm:w-auto whitespace-nowrap"
+                  size="sm"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generando...
+                    </>
+                  ) : !isAdmin && usageLimitReached ? (
+                    "Límite alcanzado"
+                  ) : (
+                    <>
+                      Generar
+                      {!isAdmin && <span className="ml-2 text-xs opacity-75">({dailyUsage}/2)</span>}
+                    </>
+                  )}
+                </Button>
               </div>
             </div>
-          )}
+
+            {isGenerating && (
+              <div className="text-center py-6">
+                <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin mx-auto mb-3 text-purple-500" />
+                <p className="text-sm text-muted-foreground">Generando 3 sugerencias personalizadas...</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Esto puede tardar hasta 60 segundos
+                  {retryCount > 0 && ` (Intento ${retryCount + 1}/3)`}
+                </p>
+              </div>
+            )}
+
+            {suggestions.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="font-medium text-sm sm:text-base">Elige una opción o guarda las que te gusten:</h3>
+                <div className="space-y-3">
+                  {suggestions.map((suggestion, index) => (
+                    <Card key={index} className="hover:shadow-md transition-shadow border-2 hover:border-purple-200">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm sm:text-base flex items-start gap-2">
+                          <span className="bg-purple-100 text-purple-700 rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center text-xs sm:text-sm font-bold flex-shrink-0 mt-0.5">
+                            {index + 1}
+                          </span>
+                          <span className="line-clamp-2">{suggestion.name}</span>
+                        </CardTitle>
+                        <CardDescription className="text-xs sm:text-sm line-clamp-2">
+                          {suggestion.description}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-3 pt-0">
+                        <div>
+                          <h4 className="font-medium text-xs sm:text-sm mb-2 text-green-700">🥘 Ingredientes:</h4>
+                          <div className="text-xs sm:text-sm text-muted-foreground max-h-24 sm:max-h-32 overflow-y-auto">
+                            <ul className="list-disc list-inside space-y-0.5">
+                              {suggestion.ingredients
+                                .split("\n")
+                                .filter((ingredient) => ingredient.trim())
+                                .slice(0, 6) // Limitar a 6 ingredientes en móvil
+                                .map((ingredient, idx) => (
+                                  <li key={idx} className="text-xs sm:text-sm line-clamp-1">
+                                    {ingredient.trim()}
+                                  </li>
+                                ))}
+                              {suggestion.ingredients.split("\n").filter((ingredient) => ingredient.trim()).length >
+                                6 && (
+                                <li className="text-xs text-muted-foreground italic">
+                                  +
+                                  {suggestion.ingredients.split("\n").filter((ingredient) => ingredient.trim()).length -
+                                    6}{" "}
+                                  más...
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="font-medium text-xs sm:text-sm mb-2 text-blue-700">👨‍🍳 Preparación:</h4>
+                          <div className="text-xs sm:text-sm text-muted-foreground max-h-24 sm:max-h-40 overflow-y-auto">
+                            <div className="space-y-1">
+                              {suggestion.preparation
+                                .split("\n")
+                                .filter((step) => step.trim())
+                                .slice(0, 3) // Limitar a 3 pasos en móvil
+                                .map((step, idx) => (
+                                  <p key={idx} className="text-xs sm:text-sm leading-relaxed line-clamp-2">
+                                    <span className="font-medium text-blue-600">{idx + 1}.</span> {step.trim()}
+                                  </p>
+                                ))}
+                              {suggestion.preparation.split("\n").filter((step) => step.trim()).length > 3 && (
+                                <p className="text-xs text-muted-foreground italic">
+                                  +{suggestion.preparation.split("\n").filter((step) => step.trim()).length - 3} pasos
+                                  más...
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-2 mt-3">
+                          <Button
+                            onClick={() => saveAndSelectRecipe(suggestion)}
+                            disabled={isSaving}
+                            className="flex-1 text-xs sm:text-sm"
+                            size="sm"
+                          >
+                            {isSaving ? (
+                              <>
+                                <Loader2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                                Creando...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                                <span className="hidden sm:inline">Seleccionar para el menú</span>
+                                <span className="sm:hidden">Seleccionar</span>
+                              </>
+                            )}
+                          </Button>
+
+                          <Button
+                            onClick={() => saveRecipeToCollection(suggestion, index)}
+                            disabled={isSaving || savedRecipes.has(index)}
+                            variant="outline"
+                            size="sm"
+                            className="sm:px-4 text-xs sm:text-sm"
+                          >
+                            {savedRecipes.has(index) ? (
+                              <>
+                                <Check className="mr-2 h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
+                                <span className="hidden sm:inline">Guardada</span>
+                                <span className="sm:hidden">✓</span>
+                              </>
+                            ) : isSaving ? (
+                              <>
+                                <Loader2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                                <span className="hidden sm:inline">Guardando...</span>
+                                <span className="sm:hidden">...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                                <span className="hidden sm:inline">Guardar</span>
+                                <span className="sm:hidden">+</span>
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
