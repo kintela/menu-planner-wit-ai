@@ -100,15 +100,23 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     try {
       // Incrementar contador de uso para TODOS los usuarios (admin y no admin)
       const supabase = getSupabaseClient()
-      const { data: newUsage } = await supabase.rpc("increment_ai_usage", { p_user_id: user?.id })
 
-      // Actualizar el contador de uso mostrado
-      setDailyUsage(newUsage || 0)
+      let newUsage = dailyUsage
+      try {
+        const { data: usageResult } = await supabase.rpc("increment_ai_usage", { p_user_id: user?.id })
+        newUsage = usageResult || dailyUsage + 1
+        setDailyUsage(newUsage)
+      } catch (usageError) {
+        console.error("Error incrementing usage:", usageError)
+        // Continue anyway
+      }
 
       // Verificar si alcanzó el límite después de este uso (solo para no admin)
       if (!isAdmin && newUsage >= 2) {
         setUsageLimitReached(true)
       }
+
+      console.log("Making request to API with:", { searchQuery, mealType, dishOrder, dayName })
 
       const response = await fetch("/api/generate-recipe-suggestions", {
         method: "POST",
@@ -123,18 +131,24 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
         }),
       })
 
+      console.log("Response status:", response.status)
+
       // Check if response is ok first
       if (!response.ok) {
-        // Try to get error message from response
         let errorMessage = `Error ${response.status}: ${response.statusText}`
         try {
           const errorData = await response.json()
           errorMessage = errorData.error || errorMessage
+          if (errorData.details) {
+            errorMessage += ` - ${errorData.details}`
+          }
         } catch {
           // If response is not JSON, get text instead
           try {
             const errorText = await response.text()
-            errorMessage = errorText || errorMessage
+            if (errorText && errorText.length < 200) {
+              errorMessage = errorText
+            }
           } catch {
             // Fallback to status message
           }
@@ -146,31 +160,30 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       let data
       try {
         data = await response.json()
+        console.log("Parsed response data:", data)
       } catch (jsonError) {
         console.error("Failed to parse JSON response:", jsonError)
-        // Try to get the actual response text for debugging
-        try {
-          const responseText = await response.text()
-          console.error("Response text:", responseText)
-          throw new Error(`El servidor devolvió una respuesta inválida. Por favor, inténtalo de nuevo.`)
-        } catch {
-          throw new Error(`Error al procesar la respuesta del servidor. Por favor, inténtalo de nuevo.`)
-        }
+        throw new Error(`El servidor devolvió una respuesta inválida. Por favor, inténtalo de nuevo.`)
       }
 
-      if (data.recipes && Array.isArray(data.recipes)) {
+      if (data.recipes && Array.isArray(data.recipes) && data.recipes.length > 0) {
         setSuggestions(data.recipes)
 
+        toast({
+          title: "¡Sugerencias generadas!",
+          description: `Se generaron ${data.recipes.length} recetas para ti.`,
+        })
+
         // Mostrar mensaje de límite si es necesario (solo para no admin)
-        if (!isAdmin && dailyUsage + 1 >= 2) {
+        if (!isAdmin && newUsage >= 2) {
           toast({
             title: "Último uso del día",
-            description: "Has alcanzado el límite diario de 2 generaciones. Podrás usarlo nuevamente mañana.",
+            description: "Has alcanzado el límite diario de 2 generaciones. Podrás usar la IA nuevamente mañana.",
             variant: "default",
           })
         }
       } else {
-        throw new Error("Formato de respuesta inválido del servidor")
+        throw new Error("No se pudieron generar recetas. Inténtalo con una búsqueda diferente.")
       }
     } catch (error) {
       console.error("Error generating suggestions:", error)
@@ -182,12 +195,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     } finally {
       setIsGenerating(false)
     }
-  }
-
-  const generateRecipeImage = async (recipeName: string, ingredients: string) => {
-    // Image generation is disabled
-    console.log("Image generation disabled, skipping...")
-    return null
   }
 
   const saveRecipeToCollection = async (suggestion: GeneratedRecipe, index: number) => {
@@ -208,9 +215,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       // Calcular calorías automáticamente
       const calories = calculateCalories(suggestion.ingredients)
 
-      // Imagen deshabilitada
-      const imageUrl = null
-
       // Guardar la receta en la base de datos
       const { data: newRecipe, error } = await supabase
         .from("recipes")
@@ -220,10 +224,10 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           preparation: suggestion.preparation,
           calories: calories > 0 ? calories : null,
           is_ai_generated: true,
-          image_url: imageUrl,
+          image_url: null,
           video_url: null,
           source_url: null,
-          user_id: user.id, // Añadir el user_id
+          user_id: user.id,
         })
         .select()
         .single()
@@ -235,7 +239,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       toast({
         title: "¡Receta guardada!",
-        description: `"${suggestion.name}" se ha añadido a tu colección de recetas${imageUrl ? " con imagen generada" : ""}.`,
+        description: `"${suggestion.name}" se ha añadido a tu colección de recetas.`,
       })
     } catch (error) {
       console.error("Error saving recipe:", error)
@@ -273,11 +277,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
         description: "Guardando la receta en tu colección...",
       })
 
-      // Imagen deshabilitada
-      const imageUrl = null
-
-      // Guardar la receta en la base de datos (con o sin imagen)
-
+      // Guardar la receta en la base de datos
       const { data: newRecipe, error } = await supabase
         .from("recipes")
         .insert({
@@ -286,12 +286,10 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
           preparation: suggestion.preparation,
           calories: calories > 0 ? calories : null,
           is_ai_generated: true,
-
-          image_url: imageUrl, // Puede ser null si falló la generación o está deshabilitada
-
+          image_url: null,
           video_url: null,
           source_url: null,
-          user_id: user.id, // Añadir el user_id
+          user_id: user.id,
         })
         .select()
         .single()
@@ -300,7 +298,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       toast({
         title: "¡Receta creada y seleccionada!",
-        description: `"${suggestion.name}" se ha añadido a tu colección y seleccionado para el menú${imageUrl ? " con imagen generada" : ""}.`,
+        description: `"${suggestion.name}" se ha añadido a tu colección y seleccionado para el menú.`,
       })
 
       // Llamar al callback con la nueva receta
