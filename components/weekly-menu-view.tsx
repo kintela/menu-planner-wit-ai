@@ -78,6 +78,7 @@ export function WeeklyMenuView({
   const [weeklyMenu, setWeeklyMenu] = useState<WeeklyMenu | null>(initialWeeklyMenu)
   const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems)
   const [currentStartDate, setCurrentStartDate] = useState<string>(startDate)
+  const [forceUpdate, setForceUpdate] = useState(0)
 
   // Determinar si estamos viendo la semana actual o la siguiente
   const currentWeekStart = getCurrentWeekStart()
@@ -87,6 +88,7 @@ export function WeeklyMenuView({
 
   // Actualizar estados cuando cambien las props
   useEffect(() => {
+    console.log("📥 Actualizando recetas desde props, total:", initialRecipes.length)
     setRecipes(initialRecipes)
   }, [initialRecipes])
 
@@ -471,21 +473,186 @@ export function WeeklyMenuView({
     }
   }
 
-  // Función para manejar la creación de una nueva receta desde la IA
+  // Función MEJORADA para manejar la creación de una nueva receta desde la IA
   const handleRecipeCreated = async (
     newRecipe: Recipe,
     dayOfWeek: number,
     mealType: "comida" | "cena",
     dishOrder = 1,
   ) => {
-    // Añadir la nueva receta a la lista primero
-    setRecipes((prev) => [...prev, newRecipe])
+    console.log("🆕 Nueva receta creada desde IA:", newRecipe.name, "ID:", newRecipe.id)
 
-    // Esperar un momento para que el estado se actualice
-    setTimeout(async () => {
-      // Seleccionar automáticamente la nueva receta
-      await handleRecipeChange(dayOfWeek, mealType, newRecipe.id.toString(), dishOrder)
-    }, 100)
+    try {
+      // 1. Añadir la nueva receta a la lista local INMEDIATAMENTE
+      setRecipes((prevRecipes) => {
+        const recipeExists = prevRecipes.some((r) => r.id === newRecipe.id)
+        if (recipeExists) {
+          console.log("⚠️ La receta ya existe en la lista")
+          return prevRecipes
+        }
+
+        const updatedRecipes = [...prevRecipes, newRecipe]
+        console.log("📝 Lista de recetas actualizada, total:", updatedRecipes.length)
+        return updatedRecipes
+      })
+
+      // 2. Crear/actualizar el menú semanal si es necesario
+      const supabase = getSupabaseClient()
+      let currentWeeklyMenu = weeklyMenu
+
+      if (!currentWeeklyMenu) {
+        const endDateStr = new Date(new Date(currentStartDate).getTime() + 6 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split("T")[0]
+
+        const { data: existingMenu } = await supabase
+          .from("weekly_menus")
+          .select("*")
+          .eq("start_date", currentStartDate)
+          .eq("end_date", endDateStr)
+          .eq("user_id", user?.id)
+          .maybeSingle()
+
+        if (existingMenu) {
+          currentWeeklyMenu = existingMenu
+          setWeeklyMenu(currentWeeklyMenu)
+        } else {
+          const { data: newMenu, error: createError } = await supabase
+            .from("weekly_menus")
+            .insert({
+              name: `Menú del ${formatDateToDDMMYYYY(currentStartDate)} al ${formatDateToDDMMYYYY(endDateStr)}`,
+              start_date: currentStartDate,
+              end_date: endDateStr,
+              user_id: user?.id,
+              is_saved: false,
+            })
+            .select()
+            .single()
+
+          if (createError) throw createError
+          currentWeeklyMenu = newMenu
+          setWeeklyMenu(currentWeeklyMenu)
+        }
+      }
+
+      // 3. Añadir/actualizar el item del menú directamente en la base de datos
+      const finalDishOrder = dishOrder || 1
+
+      if (mealType === "comida") {
+        const { data: existingItem } = await supabase
+          .from("menu_items")
+          .select("*")
+          .eq("weekly_menu_id", currentWeeklyMenu.id)
+          .eq("day_of_week", dayOfWeek)
+          .eq("meal_type", "comida")
+          .eq("dish_order", finalDishOrder)
+          .maybeSingle()
+
+        if (existingItem) {
+          // Actualizar item existente
+          await supabase.from("menu_items").update({ recipe_id: newRecipe.id }).eq("id", existingItem.id)
+
+          // Actualizar estado local
+          setMenuItems((prevItems) =>
+            prevItems.map((item) =>
+              item.id === existingItem.id ? { ...item, recipe_id: newRecipe.id, recipe: newRecipe } : item,
+            ),
+          )
+        } else {
+          // Crear nuevo item
+          const { data: newItem, error: insertError } = await supabase
+            .from("menu_items")
+            .insert({
+              weekly_menu_id: currentWeeklyMenu.id,
+              recipe_id: newRecipe.id,
+              day_of_week: dayOfWeek,
+              meal_type: "comida",
+              dish_order: finalDishOrder,
+            })
+            .select()
+            .single()
+
+          if (insertError) throw insertError
+
+          if (newItem) {
+            const newMenuItemWithRecipe = {
+              ...newItem,
+              recipe: newRecipe,
+            } as MenuItem
+            setMenuItems((prevItems) => [...prevItems, newMenuItemWithRecipe])
+          }
+        }
+      } else {
+        // Para cena
+        const { data: existingItem } = await supabase
+          .from("menu_items")
+          .select("*")
+          .eq("weekly_menu_id", currentWeeklyMenu.id)
+          .eq("day_of_week", dayOfWeek)
+          .eq("meal_type", "cena")
+          .maybeSingle()
+
+        if (existingItem) {
+          await supabase.from("menu_items").update({ recipe_id: newRecipe.id }).eq("id", existingItem.id)
+
+          setMenuItems((prevItems) =>
+            prevItems.map((item) =>
+              item.id === existingItem.id ? { ...item, recipe_id: newRecipe.id, recipe: newRecipe } : item,
+            ),
+          )
+        } else {
+          const { data: newItem, error: insertError } = await supabase
+            .from("menu_items")
+            .insert({
+              weekly_menu_id: currentWeeklyMenu.id,
+              recipe_id: newRecipe.id,
+              day_of_week: dayOfWeek,
+              meal_type: "cena",
+              dish_order: 1,
+            })
+            .select()
+            .single()
+
+          if (insertError) throw insertError
+
+          if (newItem) {
+            const newMenuItemWithRecipe = {
+              ...newItem,
+              recipe: newRecipe,
+            } as MenuItem
+            setMenuItems((prevItems) => [...prevItems, newMenuItemWithRecipe])
+          }
+        }
+      }
+
+      // 4. Marcar el menú como guardado si no lo estaba
+      if (currentWeeklyMenu && !currentWeeklyMenu.is_saved) {
+        await supabase
+          .from("weekly_menus")
+          .update({
+            is_saved: true,
+            saved_at: new Date().toISOString(),
+          })
+          .eq("id", currentWeeklyMenu.id)
+
+        setWeeklyMenu({ ...currentWeeklyMenu, is_saved: true, saved_at: new Date().toISOString() })
+      }
+
+      console.log("✅ Receta creada y seleccionada automáticamente")
+
+      toast({
+        title: "¡Receta añadida al menú!",
+        description: `"${newRecipe.name}" se ha creado y seleccionado automáticamente.`,
+      })
+    } catch (error) {
+      console.error("❌ Error al crear y seleccionar la receta:", error)
+      toast({
+        title: "Error",
+        description: "Hubo un problema al añadir la receta al menú.",
+        variant: "destructive",
+      })
+    }
+    setForceUpdate((prev) => prev + 1)
   }
 
   const handleRemoveRecipe = async (dayOfWeek: number, mealType: "comida" | "cena", dishOrder?: number) => {
@@ -616,6 +783,7 @@ export function WeeklyMenuView({
       {/* Mostrar las fechas debajo de la cabecera */}
       <div className="text-sm text-muted-foreground">
         {formatDateToDDMMYYYY(currentStartDate)} al {formatDateToDDMMYYYY(endDateStr)}
+        <span className="ml-4 text-xs">📊 Total recetas disponibles: {recipes.length}</span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -642,6 +810,7 @@ export function WeeklyMenuView({
                   <Label className="text-xs text-muted-foreground">1er plato</Label>
                   <div className="flex flex-col gap-2">
                     <Select
+                      key={`comida-1-${dayMenu.day}-${recipes.length}-${forceUpdate}`} // Key que cambia cuando se añaden recetas
                       value={dayMenu.meals.comida[0]?.id.toString() || ""}
                       onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 1)}
                       disabled={isUpdating || recipes.length === 0}
@@ -689,7 +858,6 @@ export function WeeklyMenuView({
                         mealType="comida"
                         dishOrder={1}
                         dayName={dayMenu.dayName}
-                        useSaveAndSelect={true}
                       />
                     </div>
                   </div>
@@ -700,6 +868,7 @@ export function WeeklyMenuView({
                   <Label className="text-xs text-muted-foreground">2do plato</Label>
                   <div className="flex flex-col gap-2">
                     <Select
+                      key={`comida-2-${dayMenu.day}-${recipes.length}-${forceUpdate}`} // Key que cambia cuando se añaden recetas
                       value={dayMenu.meals.comida[1]?.id.toString() || ""}
                       onValueChange={(value) => handleRecipeChange(dayMenu.day, "comida", value, 2)}
                       disabled={isUpdating || recipes.length === 0}
@@ -747,7 +916,6 @@ export function WeeklyMenuView({
                         mealType="comida"
                         dishOrder={2}
                         dayName={dayMenu.dayName}
-                        useSaveAndSelect={true}
                       />
                     </div>
                   </div>
@@ -759,6 +927,7 @@ export function WeeklyMenuView({
                 <h3 className="text-sm font-medium">Cena</h3>
                 <div className="flex flex-col gap-2">
                   <Select
+                    key={`cena-${dayMenu.day}-${recipes.length}-${forceUpdate}`} // Key que cambia cuando se añaden recetas
                     value={dayMenu.meals.cena?.id.toString() || ""}
                     onValueChange={(value) => handleRecipeChange(dayMenu.day, "cena", value)}
                     disabled={isUpdating || recipes.length === 0}
@@ -805,7 +974,6 @@ export function WeeklyMenuView({
                       mealType="cena"
                       dishOrder={1}
                       dayName={dayMenu.dayName}
-                      useSaveAndSelect={true}
                     />
                   </div>
                 </div>
