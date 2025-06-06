@@ -83,6 +83,13 @@ export async function GET(request: NextRequest) {
         authResult = await supabase.auth.exchangeCodeForSession(authCode)
       }
 
+      console.log("User data from auth:", {
+        userId: authResult?.data?.user?.id,
+        email: authResult?.data?.user?.email,
+        emailVerified: authResult?.data?.user?.email_confirmed_at,
+        userMetadata: authResult?.data?.user?.user_metadata,
+      })
+
       if (authResult.error) {
         console.error("Error in auth process:", authResult.error)
 
