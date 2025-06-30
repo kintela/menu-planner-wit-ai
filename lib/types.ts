@@ -43,19 +43,48 @@ export interface MenuItem {
 }
 
 export interface UserProfile {
-  id: string
-  user_id: string
+  id: string // Esta es la columna correcta que coincide con auth.users.id
   email: string
   full_name?: string
+  first_name?: string
+  last_name?: string
+  alias?: string
   avatar_url?: string
-  role: "user" | "admin"
+  role: "admin" | "user_full" | "user_restricted"
   created_at: string
   updated_at: string
 }
+
+export type UserRole = "admin" | "user_full" | "user_restricted"
 
 export interface Category {
   id: string
   name: string
   description?: string
   created_at: string
+}
+
+export interface RecipeSearchFilters {
+  query?: string
+  category?: string
+  difficulty?: string
+  maxPrepTime?: number
+  maxCookTime?: number
+  minRating?: number
+  tags?: string[]
+  myRecipesOnly?: boolean
+}
+
+export interface AIRecipeSuggestion {
+  name: string
+  description: string
+  ingredients: string[]
+  instructions: string[]
+  prep_time: number
+  cook_time: number
+  servings: number
+  difficulty: string
+  category: string
+  tags: string[]
+  calories_per_serving?: number
 }

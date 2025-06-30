@@ -50,7 +50,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadUserProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase.from("user_profiles").select("*").eq("user_id", userId).single()
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("id", userId) // Cambiado de user_id a id
+        .single()
 
       if (error) {
         console.error("Error loading user profile:", error)
