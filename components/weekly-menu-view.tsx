@@ -74,6 +74,20 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
       endOfWeek.setDate(endOfWeek.getDate() + 6)
       const endDate = endOfWeek.toISOString().split("T")[0]
 
+      // Test Supabase connection first
+      try {
+        const { data: testData, error: testError } = await supabase.from("recipes").select("count").limit(1)
+
+        if (testError) {
+          console.error("Supabase connection test failed:", testError)
+          throw new Error(`Database connection failed: ${testError.message}`)
+        }
+        console.log("✅ Supabase connection test passed")
+      } catch (connectionError) {
+        console.error("❌ Supabase connection error:", connectionError)
+        throw new Error("No se pudo conectar a la base de datos. Verifica tu conexión.")
+      }
+
       // Buscar menú semanal existente
       const { data: weeklyMenuData, error: menuError } = await supabase
         .from("weekly_menus")
@@ -85,7 +99,7 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
 
       if (menuError) {
         console.error("Error fetching weekly menu:", menuError)
-        throw menuError
+        throw new Error(`Error al cargar el menú semanal: ${menuError.message}`)
       }
 
       // Inicializar estados
@@ -107,7 +121,7 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
 
         if (itemsError) {
           console.error("Error fetching menu items:", itemsError)
-          throw itemsError
+          throw new Error(`Error al cargar los elementos del menú: ${itemsError.message}`)
         }
 
         setMenuItems((items as unknown as MenuItemWithRecipe[]) || [])
@@ -121,14 +135,15 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
 
       if (recipesError) {
         console.error("Error fetching recipes:", recipesError)
-        throw recipesError
+        throw new Error(`Error al cargar las recetas: ${recipesError.message}`)
       }
 
       setRecipes(recipesData || [])
-      console.log("✅ Datos cargados correctamente")
+      console.log(`✅ ${recipesData?.length || 0} recetas cargadas correctamente`)
     } catch (err) {
       console.error("❌ Error cargando datos:", err)
-      setError("Error al cargar los datos del menú semanal")
+      const errorMessage = err instanceof Error ? err.message : "Error desconocido al cargar los datos"
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -335,9 +350,15 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
 
   if (error) {
     return (
-      <div className="text-center space-y-4">
-        <div className="text-red-600">{error}</div>
-        <Button onClick={() => loadDataForWeek(startDate)}>Reintentar</Button>
+      <div className="text-center space-y-4 p-8">
+        <div className="text-red-600 text-lg font-semibold">Error</div>
+        <div className="text-red-500 max-w-md mx-auto">{error}</div>
+        <Button onClick={() => loadDataForWeek(startDate)} variant="outline">
+          Reintentar
+        </Button>
+        <div className="text-sm text-muted-foreground mt-4">
+          Si el problema persiste, verifica tu conexión a internet y las variables de entorno de Supabase.
+        </div>
       </div>
     )
   }
@@ -464,6 +485,23 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Mensaje cuando no hay recetas */}
+      {recipes.length === 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>No hay recetas disponibles</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">
+              Necesitas crear algunas recetas antes de poder planificar tu menú semanal.
+            </p>
+            <Button className="mt-4" onClick={() => (window.location.href = "/recipes/add")}>
+              Crear primera receta
+            </Button>
           </CardContent>
         </Card>
       )}
