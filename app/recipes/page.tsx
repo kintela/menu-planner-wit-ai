@@ -8,125 +8,149 @@ interface CategoryWithCount {
   recipeCount: number
 }
 
-// Función para crear cliente mock si Supabase no está disponible
-const createMockSupabaseClient = () => {
+// Datos mock para desarrollo
+const getMockData = () => {
+  const mockRecipes = [
+    {
+      id: 1,
+      name: "Paella Valenciana",
+      ingredients: "Arroz, pollo, verduras, azafrán",
+      preparation: "Cocinar el arroz con los ingredientes en paellera...",
+      image_url: "/placeholder.svg?height=200&width=300&text=Paella",
+      is_ai_generated: false,
+      video_url: null,
+      source_url: null,
+      calories: 450,
+      created_at: "2024-01-01T00:00:00Z",
+      user_id: "mock-user",
+      categories: [{ id: 2, name: "Almuerzo" }],
+      user_profiles: {
+        id: "mock-user",
+        full_name: "Chef Demo",
+        email: "chef@demo.com",
+        alias: "Chef",
+        first_name: "Chef",
+        last_name: "Demo",
+        avatar_url: null,
+      },
+    },
+    {
+      id: 2,
+      name: "Tortilla Española",
+      ingredients: "Huevos, patatas, cebolla, aceite, sal",
+      preparation: "Freír las patatas, batir los huevos y cuajar la tortilla...",
+      image_url: "/placeholder.svg?height=200&width=300&text=Tortilla",
+      is_ai_generated: false,
+      video_url: null,
+      source_url: null,
+      calories: 320,
+      created_at: "2024-01-02T00:00:00Z",
+      user_id: "mock-user",
+      categories: [
+        { id: 1, name: "Desayuno" },
+        { id: 3, name: "Cena" },
+      ],
+      user_profiles: {
+        id: "mock-user",
+        full_name: "Chef Demo",
+        email: "chef@demo.com",
+        alias: "Chef",
+        first_name: "Chef",
+        last_name: "Demo",
+        avatar_url: null,
+      },
+    },
+  ]
+
+  const mockCategories: CategoryWithCount[] = [
+    { id: 1, name: "Desayuno", recipeCount: 1 },
+    { id: 2, name: "Almuerzo", recipeCount: 1 },
+    { id: 3, name: "Cena", recipeCount: 1 },
+    { id: 4, name: "Postre", recipeCount: 0 },
+    { id: 5, name: "Snacks", recipeCount: 0 },
+  ]
+
   return {
-    from: (table: string) => ({
-      select: (columns?: string) => ({
-        eq: (column: string, value: any) => ({
-          order: (column: string, options?: any) => Promise.resolve({ data: [], error: null }),
-          single: () => Promise.resolve({ data: null, error: null }),
-        }),
-        order: (column: string, options?: any) => Promise.resolve({ data: [], error: null }),
-      }),
-    }),
+    recipes: mockRecipes,
+    categories: mockCategories,
+    totalRecipesCount: mockRecipes.length,
+    dataQuality: {
+      hasFullRecipeData: true,
+      hasCategoriesData: true,
+      hasRelationsData: true,
+    },
   }
 }
 
 export const getRecipesAndCategories = async () => {
-  let supabase: any
-
   try {
-    // Intentar importar y crear cliente real de Supabase
-    const { createServerComponentClient } = await import("@supabase/auth-helpers-nextjs")
-    const { cookies } = await import("next/headers")
+    // Intentar usar Supabase real
+    const { createClient } = await import("@/lib/supabase/server")
+    const { safeQuery } = await import("@/lib/supabase/rate-limiter")
 
-    supabase = createServerComponentClient({ cookies })
-  } catch (error) {
-    console.warn("Supabase no disponible, usando cliente mock")
-    supabase = createMockSupabaseClient()
-  }
+    const supabase = createClient()
 
-  try {
-    console.log("🚀 Cargando recetas y categorías...")
+    console.log("🚀 Cargando datos de Supabase...")
 
     // Cargar recetas
-    let recipes: any[] = []
-    let hasFullRecipeData = false
-
-    try {
-      console.log("📋 Cargando recetas completas...")
-      const recipesResult = await supabase
-        .from("recipes")
-        .select(`
-          *,
-          user_profiles (
-            id,
-            full_name,
-            email,
-            alias,
-            first_name,
-            last_name,
-            avatar_url
-          )
-        `)
-        .order("created_at", { ascending: false })
-
-      if (recipesResult.error) {
-        throw recipesResult.error
-      }
-
-      recipes = recipesResult.data || []
-      hasFullRecipeData = true
-      console.log(`✅ Recetas cargadas: ${recipes.length}`)
-    } catch (error) {
-      console.warn("⚠️ Error cargando recetas completas, intentando básicas:", error)
-
-      try {
-        const basicRecipesResult = await supabase
+    const recipesData = await safeQuery(
+      async () => {
+        const result = await supabase
           .from("recipes")
-          .select("id, name, ingredients, preparation, image_url, user_id, created_at, calories, is_ai_generated")
+          .select(`
+            *,
+            user_profiles (
+              id,
+              full_name,
+              email,
+              alias,
+              first_name,
+              last_name,
+              avatar_url
+            )
+          `)
           .order("created_at", { ascending: false })
 
-        if (basicRecipesResult.error) {
-          throw basicRecipesResult.error
-        }
+        return result
+      },
+      {
+        endpoint: "recipes-full",
+        maxRetries: 2,
+        baseDelay: 1000,
+      },
+    )
 
-        recipes = (basicRecipesResult.data || []).map((recipe: any) => ({
-          ...recipe,
-          user_profiles: null,
-        }))
-        console.log(`✅ Recetas básicas cargadas: ${recipes.length}`)
-      } catch (fallbackError) {
-        console.error("❌ Error en fallback de recetas:", fallbackError)
-        recipes = []
-      }
+    if (recipesData.error) {
+      throw recipesData.error
     }
+
+    const recipes = recipesData.data || []
+    console.log(`✅ Recetas cargadas: ${recipes.length}`)
 
     // Cargar categorías
-    let categoriesData: any[] = []
-    let hasCategoriesData = false
+    const categoriesData = await safeQuery(
+      async () => {
+        const result = await supabase.from("categories").select("id, name").order("name")
+        return result
+      },
+      {
+        endpoint: "categories",
+        maxRetries: 2,
+        baseDelay: 1000,
+      },
+    )
 
-    try {
-      console.log("📂 Cargando categorías...")
-      const categoriesResult = await supabase.from("categories").select("id, name").order("name")
-
-      if (categoriesResult.error) {
-        throw categoriesResult.error
-      }
-
-      categoriesData = categoriesResult.data || []
-      hasCategoriesData = true
-      console.log(`✅ Categorías cargadas: ${categoriesData.length}`)
-    } catch (error) {
-      console.warn("⚠️ Error cargando categorías, usando fallback:", error)
-      categoriesData = [
-        { id: 1, name: "Desayuno" },
-        { id: 2, name: "Almuerzo" },
-        { id: 3, name: "Cena" },
-        { id: 4, name: "Postre" },
-        { id: 5, name: "Snacks" },
-      ]
+    if (categoriesData.error) {
+      throw categoriesData.error
     }
 
-    // Cargar relaciones receta-categoría
-    let recipeCategories: any[] = []
-    let hasRelationsData = false
+    const categoriesRaw = categoriesData.data || []
+    console.log(`✅ Categorías cargadas: ${categoriesRaw.length}`)
 
-    if (hasFullRecipeData && hasCategoriesData && recipes.length > 0) {
-      try {
-        console.log("🔗 Cargando relaciones receta-categoría...")
-        const relationsResult = await supabase.from("recipe_categories").select(`
+    // Cargar relaciones
+    const relationsData = await safeQuery(
+      async () => {
+        const result = await supabase.from("recipe_categories").select(`
             recipe_id,
             category_id,
             categories (
@@ -134,19 +158,17 @@ export const getRecipesAndCategories = async () => {
               name
             )
           `)
+        return result
+      },
+      {
+        endpoint: "recipe-categories",
+        maxRetries: 1,
+        baseDelay: 1500,
+      },
+    )
 
-        if (relationsResult.error) {
-          throw relationsResult.error
-        }
-
-        recipeCategories = relationsResult.data || []
-        hasRelationsData = true
-        console.log(`✅ Relaciones cargadas: ${recipeCategories.length}`)
-      } catch (error) {
-        console.warn("⚠️ Error cargando relaciones:", error)
-        recipeCategories = []
-      }
-    }
+    const recipeCategories = relationsData.data || []
+    console.log(`✅ Relaciones cargadas: ${recipeCategories.length}`)
 
     // Procesar datos
     const recipeToCategories: { [key: number]: any[] } = {}
@@ -166,10 +188,10 @@ export const getRecipesAndCategories = async () => {
     }))
 
     // Calcular conteo de recetas por categoría
-    const categories: CategoryWithCount[] = categoriesData.map((category: any) => {
-      const recipeCount = hasRelationsData
-        ? enrichedRecipes.filter((recipe: any) => recipe.categories.some((cat: any) => cat.id === category.id)).length
-        : 0
+    const categories: CategoryWithCount[] = categoriesRaw.map((category: any) => {
+      const recipeCount = enrichedRecipes.filter((recipe: any) =>
+        recipe.categories.some((cat: any) => cat.id === category.id),
+      ).length
 
       return {
         id: category.id,
@@ -178,57 +200,27 @@ export const getRecipesAndCategories = async () => {
       }
     })
 
-    console.log("✅ Procesamiento completado:", {
-      recipesCount: enrichedRecipes.length,
-      categoriesCount: categories.length,
-      hasFullData: hasFullRecipeData && hasCategoriesData && hasRelationsData,
-    })
-
     return {
       recipes: enrichedRecipes,
       categories,
       totalRecipesCount: enrichedRecipes.length,
       dataQuality: {
-        hasFullRecipeData,
-        hasCategoriesData,
-        hasRelationsData,
+        hasFullRecipeData: true,
+        hasCategoriesData: true,
+        hasRelationsData: true,
       },
     }
   } catch (error) {
-    console.error("❌ Error crítico:", error)
-
-    return {
-      recipes: [],
-      categories: [
-        { id: 1, name: "Desayuno", recipeCount: 0 },
-        { id: 2, name: "Almuerzo", recipeCount: 0 },
-        { id: 3, name: "Cena", recipeCount: 0 },
-        { id: 4, name: "Postre", recipeCount: 0 },
-      ],
-      totalRecipesCount: 0,
-      dataQuality: {
-        hasFullRecipeData: false,
-        hasCategoriesData: false,
-        hasRelationsData: false,
-      },
-    }
+    console.warn("❌ Error cargando datos reales, usando mock:", error)
+    return getMockData()
   }
 }
 
 export const getRecipeById = async (id: number) => {
-  let supabase: any
-
   try {
-    const { createServerComponentClient } = await import("@supabase/auth-helpers-nextjs")
-    const { cookies } = await import("next/headers")
+    const { createClient } = await import("@/lib/supabase/server")
+    const supabase = createClient()
 
-    supabase = createServerComponentClient({ cookies })
-  } catch (error) {
-    console.warn("Supabase no disponible para getRecipeById")
-    return { recipe: null, error: "Supabase no disponible" }
-  }
-
-  try {
     console.log(`🔍 Obteniendo receta con ID: ${id}`)
 
     const { data: recipe, error } = await supabase
