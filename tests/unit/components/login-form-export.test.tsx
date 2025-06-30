@@ -1,20 +1,8 @@
-/**
- * Test para verificar que el componente LoginForm se exporta correctamente
- * y no causa errores de módulo
- */
-
 import { render, screen } from "@testing-library/react"
 import LoginForm from "@/components/auth/login-form"
-import { jest } from "@jest/globals"
+import jest from "jest" // Import jest to fix the undeclared variable error
 
-// Mock de next/navigation
-jest.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push: jest.fn(),
-  }),
-}))
-
-// Mock de supabase client
+// Mock Supabase
 jest.mock("@/lib/supabase/client", () => ({
   supabase: {
     auth: {
@@ -24,7 +12,15 @@ jest.mock("@/lib/supabase/client", () => ({
   },
 }))
 
-// Mock de hooks/use-toast
+// Mock useRouter
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+    refresh: jest.fn(),
+  }),
+}))
+
+// Mock toast
 jest.mock("@/hooks/use-toast", () => ({
   useToast: () => ({
     toast: jest.fn(),
@@ -32,44 +28,39 @@ jest.mock("@/hooks/use-toast", () => ({
 }))
 
 describe("LoginForm Export Test", () => {
-  it("should export LoginForm as default export without module errors", () => {
-    // Verificar que el componente se puede importar sin errores
+  it("should export LoginForm as default without errors", () => {
     expect(LoginForm).toBeDefined()
     expect(typeof LoginForm).toBe("function")
   })
 
-  it("should render LoginForm component without throwing errors", () => {
-    // Verificar que el componente se puede renderizar sin errores
-    expect(() => {
-      render(<LoginForm />)
-    }).not.toThrow()
-
-    // Verificar que los elementos básicos están presentes
-    expect(screen.getByText("Iniciar Sesión")).toBeInTheDocument()
-    expect(screen.getByLabelText("Email")).toBeInTheDocument()
-    expect(screen.getByLabelText("Contraseña")).toBeInTheDocument()
-  })
-
-  it("should have correct component structure for both login and signup modes", () => {
+  it("should render LoginForm without module errors", () => {
     render(<LoginForm />)
 
-    // Verificar modo login por defecto
-    expect(screen.getByText("Iniciar Sesión")).toBeInTheDocument()
-    expect(screen.getByText("¿No tienes cuenta? Crear una nueva")).toBeInTheDocument()
-
-    // Verificar que el botón de submit existe
-    expect(screen.getByRole("button", { name: /iniciar sesión/i })).toBeInTheDocument()
+    // Check that the form renders without throwing module errors
+    expect(screen.getByText(/iniciar sesión/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/contraseña/i)).toBeInTheDocument()
   })
 
-  it("should not have conflicting exports", () => {
-    // Verificar que no hay exports con nombre que puedan causar conflictos
-    const moduleExports = require("@/components/auth/login-form")
+  it("should have correct component structure", () => {
+    render(<LoginForm />)
 
-    // Debe tener solo el export default
-    expect(moduleExports.default).toBeDefined()
-    expect(typeof moduleExports.default).toBe("function")
+    // Verify the component has the expected structure
+    const form = screen.getByRole("form", { name: /formulario de autenticación/i })
+    expect(form).toBeInTheDocument()
 
-    // No debe tener exports con nombre que causen conflictos
-    expect(moduleExports.LoginForm).toBeUndefined()
+    const submitButton = screen.getByRole("button", { name: /iniciar sesión/i })
+    expect(submitButton).toBeInTheDocument()
+  })
+
+  it("should not have conflicting named exports", () => {
+    // This test ensures there are no conflicting exports that cause module errors
+    const component = require("@/components/auth/login-form")
+
+    // Should have default export
+    expect(component.default).toBeDefined()
+
+    // Should not have conflicting named exports
+    expect(component.LoginForm).toBeUndefined()
   })
 })

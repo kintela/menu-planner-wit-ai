@@ -82,6 +82,13 @@ export default function WeeklyMenuPage() {
 
       setCurrentMenu(menuData)
 
+      // Inicializar menú vacío primero
+      const emptyMenu: Record<number, MenuDay> = {}
+      for (let i = 0; i < 7; i++) {
+        emptyMenu[i] = { lunch: [], dinner: [] }
+      }
+      setMenu(emptyMenu)
+
       if (menuData) {
         // Cargar items del menú
         const { data: itemsData, error: itemsError } = await supabase
@@ -101,20 +108,15 @@ export default function WeeklyMenuPage() {
           menuByDay[i] = { lunch: [], dinner: [] }
         }
 
-        itemsData?.forEach((item: MenuItem & { recipe: Recipe }) => {
-          if (item.recipe) {
-            menuByDay[item.day_of_week][item.meal_type].push(item.recipe)
-          }
-        })
+        if (itemsData && Array.isArray(itemsData)) {
+          itemsData.forEach((item: MenuItem & { recipe: Recipe }) => {
+            if (item.recipe && menuByDay[item.day_of_week] && menuByDay[item.day_of_week][item.meal_type]) {
+              menuByDay[item.day_of_week][item.meal_type].push(item.recipe)
+            }
+          })
+        }
 
         setMenu(menuByDay)
-      } else {
-        // Inicializar menú vacío
-        const emptyMenu: Record<number, MenuDay> = {}
-        for (let i = 0; i < 7; i++) {
-          emptyMenu[i] = { lunch: [], dinner: [] }
-        }
-        setMenu(emptyMenu)
       }
     } catch (error) {
       console.error("Error loading weekly menu:", error)
@@ -150,6 +152,12 @@ export default function WeeklyMenuPage() {
         menuId = newMenu.id
       }
 
+      // Verificar que el menú y el tipo de comida existen
+      if (!menu[dayIndex] || !menu[dayIndex][mealType]) {
+        console.error("Menu structure not initialized properly")
+        return
+      }
+
       // Añadir item al menú
       const { error: itemError } = await supabase.from("menu_items").insert({
         weekly_menu_id: menuId,
@@ -177,7 +185,7 @@ export default function WeeklyMenuPage() {
   const removeRecipeFromMenu = async (dayIndex: number, mealType: "lunch" | "dinner", recipeIndex: number) => {
     if (!currentMenu) return
 
-    const recipe = menu[dayIndex][mealType][recipeIndex]
+    const recipe = menu[dayIndex]?.[mealType]?.[recipeIndex]
     if (!recipe) return
 
     try {
