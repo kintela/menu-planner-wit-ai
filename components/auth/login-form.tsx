@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,6 +17,7 @@ export default function LoginForm() {
   const [isLogin, setIsLogin] = useState(true)
   const [success, setSuccess] = useState("")
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,7 +36,9 @@ export default function LoginForm() {
         if (error) {
           setError(error.message)
         } else {
-          router.push("/")
+          // Redirigir a la ruta original o a la página principal
+          const redirectTo = searchParams.get("redirect") || "/"
+          router.push(redirectTo)
         }
       } else {
         // Registrarse
