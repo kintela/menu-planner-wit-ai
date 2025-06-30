@@ -8,27 +8,21 @@ export interface Recipe {
   cook_time?: number
   servings?: number
   category?: string
-  difficulty?: "easy" | "medium" | "hard"
   image_url?: string
   created_at: string
   updated_at: string
   user_id: string
 }
 
-export interface User {
-  id: string
-  email: string
-  created_at: string
-}
-
 export interface UserProfile {
   id: string
-  role: string
-  full_name: string
+  email: string
+  full_name?: string
   first_name?: string
   last_name?: string
   alias?: string
   avatar_url?: string
+  role: "admin" | "user" | "user_restricted"
   created_at: string
   updated_at: string
 }
