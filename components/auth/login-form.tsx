@@ -3,30 +3,32 @@
 import type React from "react"
 
 import { useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Mail, Lock, AlertCircle } from "lucide-react"
 import { getSupabaseClient } from "@/lib/supabase/client"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
 
 export function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState("")
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { toast } = useToast()
+
   const redirectTo = searchParams.get("redirect") || "/"
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setError(null)
-    setMessage(null)
+    setError("")
 
     try {
       const supabase = getSupabaseClient()
@@ -37,42 +39,18 @@ export function LoginForm() {
 
       if (error) {
         setError(error.message)
-      } else {
-        setMessage("¡Inicio de sesión exitoso! Redirigiendo...")
-        setTimeout(() => {
-          router.push(redirectTo)
-        }, 1000)
+        return
       }
-    } catch (err) {
-      setError("Error inesperado al iniciar sesión")
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    setMessage(null)
-
-    try {
-      const supabase = getSupabaseClient()
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirectTo)}`,
-        },
+      toast({
+        title: "¡Bienvenido!",
+        description: "Has iniciado sesión correctamente.",
       })
 
-      if (error) {
-        setError(error.message)
-      } else {
-        setMessage("¡Registro exitoso! Revisa tu email para confirmar tu cuenta.")
-      }
+      router.push(redirectTo)
     } catch (err) {
-      setError("Error inesperado al registrarse")
+      console.error("Login error:", err)
+      setError("Ha ocurrido un error inesperado")
     } finally {
       setLoading(false)
     }
@@ -82,70 +60,61 @@ export function LoginForm() {
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
         <CardTitle>Iniciar Sesión</CardTitle>
-        <CardDescription>Accede a tu cuenta para gestionar tus menús semanales</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        {message && (
-          <Alert>
-            <Mail className="h-4 w-4" />
-            <AlertDescription>{message}</AlertDescription>
-          </Alert>
-        )}
-        <form onSubmit={handleLogin} className="space-y-4">
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="email"
-                type="email"
-                placeholder="tu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="pl-10"
-                required
-                disabled={loading}
-              />
-            </div>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+            />
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="password">Contraseña</Label>
             <div className="relative">
-              <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 id="password"
-                type="password"
-                placeholder="••••••••"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="pl-10"
                 required
                 disabled={loading}
               />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={loading}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button type="submit" className="flex-1" disabled={loading}>
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Iniciar Sesión
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="flex-1 bg-transparent"
-              onClick={handleSignUp}
-              disabled={loading}
-            >
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Registrarse
-            </Button>
-          </div>
+
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Iniciando sesión...
+              </>
+            ) : (
+              "Iniciar Sesión"
+            )}
+          </Button>
         </form>
       </CardContent>
     </Card>
