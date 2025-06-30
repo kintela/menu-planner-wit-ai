@@ -1,41 +1,28 @@
-import { createBrowserClient } from "@supabase/ssr"
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 
-let supabaseClient: ReturnType<typeof createBrowserClient> | null = null
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-export function createClient() {
-  if (supabaseClient) return supabaseClient
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error("❌ Faltan variables de entorno de Supabase")
-    throw new Error("Faltan variables de entorno de Supabase")
-  }
-
-  try {
-    supabaseClient = createBrowserClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        flowType: "pkce",
-      },
-      global: {
-        headers: {
-          "x-client-info": `menu-planner@1.0.0`,
-        },
-      },
-    })
-
-    return supabaseClient
-  } catch (error) {
-    console.error("❌ Error al crear cliente Supabase:", error)
-    throw error
-  }
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn("⚠️ Supabase environment variables not found")
 }
 
-// Alias para compatibilidad con código existente
+export function createClient() {
+  return createSupabaseClient(supabaseUrl || "https://placeholder.supabase.co", supabaseAnonKey || "placeholder-key", {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  })
+}
+
+// Singleton para uso en cliente
+let supabaseClient: ReturnType<typeof createClient> | null = null
+
 export function getSupabaseClient() {
-  return createClient()
+  if (!supabaseClient) {
+    supabaseClient = createClient()
+  }
+  return supabaseClient
 }
