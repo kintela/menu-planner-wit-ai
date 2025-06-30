@@ -258,10 +258,10 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
       // Crear menú si no existe
       const menuId = await createWeeklyMenuIfNeeded()
 
-      // Mapear meal_type a los valores correctos de la base de datos
-      const dbMealType = mealType === "lunch" ? "lunch" : "dinner"
+      // Mapear meal_type a los valores correctos de la base de datos (español)
+      const dbMealType = mealType === "lunch" ? "comida" : "cena"
 
-      console.log("📝 Insertando menu item:", {
+      console.log("📝 Insertando menu item con valores en español:", {
         weekly_menu_id: menuId,
         recipe_id: recipeId,
         day_of_week: dayIndex,
