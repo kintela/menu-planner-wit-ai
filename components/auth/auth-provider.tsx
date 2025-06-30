@@ -9,21 +9,25 @@ import type { UserProfile } from "@/lib/types"
 
 interface AuthContextType {
   user: User | null
-  userProfile: UserProfile | null
+  profile: UserProfile | null
   loading: boolean
   signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  userProfile: null,
+  profile: null,
   loading: true,
   signOut: async () => {},
 })
 
+export function useAuth() {
+  return useContext(AuthContext)
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
 
   const loadUserProfile = async (userId: string) => {
@@ -47,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) {
-        loadUserProfile(session.user.id).then(setUserProfile)
+        loadUserProfile(session.user.id).then(setProfile)
       }
       setLoading(false)
     })
@@ -59,10 +63,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null)
 
       if (session?.user) {
-        const profile = await loadUserProfile(session.user.id)
-        setUserProfile(profile)
+        const userProfile = await loadUserProfile(session.user.id)
+        setProfile(userProfile)
       } else {
-        setUserProfile(null)
+        setProfile(null)
       }
 
       setLoading(false)
@@ -74,16 +78,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut()
     setUser(null)
-    setUserProfile(null)
+    setProfile(null)
   }
 
-  return <AuthContext.Provider value={{ user, userProfile, loading, signOut }}>{children}</AuthContext.Provider>
-}
-
-export const useAuth = () => {
-  const context = useContext(AuthContext)
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider")
-  }
-  return context
+  return <AuthContext.Provider value={{ user, profile, loading, signOut }}>{children}</AuthContext.Provider>
 }

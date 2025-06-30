@@ -9,8 +9,9 @@ import { Toaster } from "@/components/ui/toaster"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Menu Planner with AI",
-  description: "Plan your weekly menus with AI-powered recipe suggestions",
+  title: "Menu Planner - Planifica tus menús semanales",
+  description:
+    "Organiza tus comidas, guarda tus recetas favoritas y simplifica tu cocina con nuestro planificador de menús semanal.",
     generator: 'v0.dev'
 }
 
@@ -20,9 +21,9 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <AuthProvider>
             {children}
             <Toaster />

@@ -3,134 +3,132 @@
 import { useAuth } from "@/components/auth/auth-provider"
 import { SimpleNavigation } from "@/components/simple-navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BookOpen, Calendar, ChefHat, Users } from "lucide-react"
 import Link from "next/link"
 
 export default function HomePage() {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
 
-  const features = [
-    {
-      icon: BookOpen,
-      title: "Gestión de Recetas",
-      description: "Organiza y guarda todas tus recetas favoritas en un solo lugar",
-      href: "/recipes",
-    },
-    {
-      icon: Calendar,
-      title: "Planificación Semanal",
-      description: "Planifica tus menús semanales de forma fácil e intuitiva",
-      href: "/weekly-menu",
-    },
-    {
-      icon: ChefHat,
-      title: "Sugerencias con IA",
-      description: "Obtén sugerencias de recetas personalizadas con inteligencia artificial",
-      href: "/recipes/search",
-    },
-    {
-      icon: Users,
-      title: "Comunidad",
-      description: "Comparte recetas y descubre nuevas ideas culinarias",
-      href: "/recipes",
-    },
-  ]
+  if (loading) {
+    return (
+      <div className="min-h-screen">
+        <SimpleNavigation />
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50">
+    <div className="min-h-screen bg-gray-50">
       <SimpleNavigation />
 
-      <main className="container mx-auto px-4 py-12">
-        {/* Hero Section */}
-        <div className="text-center mb-16">
-          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-            Planifica tus menús con{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-red-600">
-              inteligencia artificial
-            </span>
-          </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Organiza tus recetas, planifica menús semanales y obtén sugerencias personalizadas para hacer de la cocina
-            una experiencia más fácil y divertida.
+      {/* Hero Section */}
+      <section className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-20">
+        <div className="container mx-auto px-4 text-center">
+          <h1 className="text-4xl md:text-6xl font-bold mb-6">Planifica tus menús semanales</h1>
+          <p className="text-xl md:text-2xl mb-8 opacity-90">
+            Organiza tus comidas, guarda tus recetas favoritas y simplifica tu cocina
           </p>
-
           {user ? (
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="space-x-4">
               <Link href="/weekly-menu">
-                <Button
-                  size="lg"
-                  className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
-                >
-                  <Calendar className="mr-2 h-5 w-5" />
-                  Planificar Menú
+                <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100">
+                  Ver Mi Menú Semanal
                 </Button>
               </Link>
               <Link href="/recipes">
-                <Button size="lg" variant="outline">
-                  <BookOpen className="mr-2 h-5 w-5" />
-                  Ver Recetas
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="border-white text-white hover:bg-white hover:text-blue-600 bg-transparent"
+                >
+                  Mis Recetas
                 </Button>
               </Link>
             </div>
           ) : (
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/login">
-                <Button
-                  size="lg"
-                  className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
-                >
-                  Comenzar Gratis
-                </Button>
-              </Link>
-              <Link href="/recipes">
-                <Button size="lg" variant="outline">
-                  Explorar Recetas
-                </Button>
-              </Link>
-            </div>
-          )}
-        </div>
-
-        {/* Features Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
-          {features.map((feature, index) => (
-            <Card key={index} className="hover:shadow-lg transition-shadow duration-300">
-              <CardHeader>
-                <feature.icon className="h-12 w-12 text-orange-600 mb-4" />
-                <CardTitle className="text-xl">{feature.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CardDescription className="text-gray-600 mb-4">{feature.description}</CardDescription>
-                <Link href={feature.href}>
-                  <Button variant="ghost" className="text-orange-600 hover:text-orange-700 p-0">
-                    Explorar →
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* CTA Section */}
-        <div className="text-center bg-white rounded-2xl p-8 shadow-lg">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">¿Listo para revolucionar tu cocina?</h2>
-          <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-            Únete a miles de usuarios que ya están organizando sus menús de forma inteligente y ahorrando tiempo en la
-            cocina.
-          </p>
-          {!user && (
             <Link href="/login">
-              <Button
-                size="lg"
-                className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
-              >
-                Empezar Ahora - Es Gratis
+              <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100">
+                Comenzar Ahora
               </Button>
             </Link>
           )}
         </div>
-      </main>
+      </section>
+
+      {/* Features Section */}
+      <section className="py-20">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Todo lo que necesitas para planificar tus menús</h2>
+            <p className="text-xl text-gray-600">Herramientas simples y potentes para organizar tu cocina</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <Card className="text-center">
+              <CardHeader>
+                <Calendar className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+                <CardTitle>Planificación Semanal</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Organiza tus comidas y cenas para toda la semana de forma visual e intuitiva
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="text-center">
+              <CardHeader>
+                <BookOpen className="h-12 w-12 text-green-600 mx-auto mb-4" />
+                <CardTitle>Gestión de Recetas</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">Guarda, organiza y busca tus recetas favoritas en un solo lugar</p>
+              </CardContent>
+            </Card>
+
+            <Card className="text-center">
+              <CardHeader>
+                <ChefHat className="h-12 w-12 text-orange-600 mx-auto mb-4" />
+                <CardTitle>Sugerencias IA</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Recibe sugerencias personalizadas de recetas basadas en tus preferencias
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="text-center">
+              <CardHeader>
+                <Users className="h-12 w-12 text-purple-600 mx-auto mb-4" />
+                <CardTitle>Compartir</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">Comparte tus recetas y menús favoritos con familia y amigos</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      {!user && (
+        <section className="bg-blue-600 text-white py-16">
+          <div className="container mx-auto px-4 text-center">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">¿Listo para empezar?</h2>
+            <p className="text-xl mb-8 opacity-90">Únete a miles de usuarios que ya organizan sus menús con nosotros</p>
+            <Link href="/login">
+              <Button size="lg" className="bg-white text-blue-600 hover:bg-gray-100">
+                Crear Cuenta Gratis
+              </Button>
+            </Link>
+          </div>
+        </section>
+      )}
     </div>
   )
 }
