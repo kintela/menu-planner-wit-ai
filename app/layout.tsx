@@ -2,16 +2,16 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import { AuthProvider } from "@/components/auth/auth-provider"
 import { ThemeProvider } from "@/components/theme-provider"
+import { AuthProvider } from "@/components/auth/auth-provider"
+import { SimpleNavigation } from "@/components/simple-navigation"
 import { Toaster } from "@/components/ui/toaster"
-import SimpleNavigation from "@/components/simple-navigation"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Menu Planner",
-  description: "Planifica tus menús semanales",
+  title: "Planificador de Menús Semanales",
+  description: "Planifica tus comidas y cenas para toda la semana de manera sencilla",
     generator: 'v0.dev'
 }
 
@@ -27,7 +27,7 @@ export default function RootLayout({
           <AuthProvider>
             <div className="min-h-screen bg-background">
               <SimpleNavigation />
-              <main>{children}</main>
+              <main className="container mx-auto px-4 py-8">{children}</main>
             </div>
             <Toaster />
           </AuthProvider>
