@@ -1,14 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
-import type { User } from "@supabase/supabase-js"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-import { ChefHat, Calendar, LogOut, Menu, X, History, Settings, Home } from "lucide-react"
+import { ChefHat, Calendar, LogOut, Menu, X, History, Settings, Home, UserIcon, LogIn } from "lucide-react"
 
 interface UserProfile {
   role: string
@@ -20,13 +19,9 @@ interface UserProfile {
 }
 
 export default function SimpleNavigation() {
-  const pathname = usePathname()
-  const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
+  const { user, loading, signOut } = useAuth()
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
-  const [loading, setLoading] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [isSigningOut, setIsSigningOut] = useState(false)
   const [avatarKey, setAvatarKey] = useState(Date.now()) // Para forzar la recarga del avatar
   const supabase = createClient()
 
@@ -79,12 +74,6 @@ export default function SimpleNavigation() {
   useEffect(() => {
     async function getUser() {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        setUser(user)
-
         if (user) {
           const profile = await loadUserProfile(user.id)
           if (profile) {
@@ -93,29 +82,11 @@ export default function SimpleNavigation() {
         }
       } catch (error) {
         console.error("Error getting user for navigation:", error)
-      } finally {
-        setLoading(false)
       }
     }
 
     getUser()
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        const profile = await loadUserProfile(session.user.id)
-        if (profile) {
-          setUserProfile(profile)
-        }
-      } else {
-        setUserProfile(null)
-      }
-      setLoading(false)
-    })
-
-    // Listener para actualizaciones de perfil
     const handleProfileUpdate = async (event: Event) => {
       const customEvent = event as CustomEvent
 
@@ -135,61 +106,9 @@ export default function SimpleNavigation() {
     window.addEventListener("avatar_updated", handleProfileUpdate)
 
     return () => {
-      subscription.unsubscribe()
       window.removeEventListener("avatar_updated", handleProfileUpdate)
     }
-  }, [supabase]) // Solo supabase como dependencia, NO user
-
-  const handleSignOut = async () => {
-    try {
-      setIsSigningOut(true)
-
-      // Cerrar sesión en Supabase
-      const { error } = await supabase.auth.signOut()
-
-      if (error) {
-
-        console.error("❌ Error durante el cierre de sesión:", error)
-        // Continuar con la limpieza incluso si hay error
-      }
-
-      // Limpiar estado local inmediatamente
-
-      setUser(null)
-      setUserProfile(null)
-
-      // Limpiar almacenamiento local
-      if (typeof window !== "undefined") {
-        localStorage.clear()
-        sessionStorage.clear()
-      }
-
-      // Usar router.push en lugar de window.location.href para mejor manejo
-      router.push("/")
-
-      // Forzar recarga de la página después de un breve delay
-      setTimeout(() => {
-        window.location.reload()
-      }, 100)
-    } catch (error) {
-      console.error("❌ Error inesperado durante el cierre de sesión:", error)
-
-      // Forzar limpieza y redirección incluso con errores
-      setUser(null)
-      setUserProfile(null)
-
-      if (typeof window !== "undefined") {
-        localStorage.clear()
-        sessionStorage.clear()
-        window.location.href = "/"
-      }
-    } finally {
-      // Asegurar que el estado de carga se resetee
-      setTimeout(() => {
-        setIsSigningOut(false)
-      }, 500)
-    }
-  }
+  }, [user, supabase]) // Solo user y supabase como dependencias
 
   // Función para verificar si el usuario puede ver una opción del menú
   const canViewMenuItem = (menuItem: string) => {
@@ -214,19 +133,16 @@ export default function SimpleNavigation() {
 
   if (loading) {
     return (
-      <nav className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <Link href="/" className="flex items-center justify-center p-2 text-gray-900" title="Inicio">
-                <Home className="h-6 w-6" />
-              </Link>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="animate-pulse bg-gray-200 h-8 w-20 rounded"></div>
-              <div className="md:hidden">
-                <Menu className="h-6 w-6 text-gray-400" />
-              </div>
+      <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container flex h-14 items-center">
+          <div className="mr-4 hidden md:flex">
+            <Link href="/" className="mr-6 flex items-center space-x-2">
+              <span className="hidden font-bold sm:inline-block">Menu Planner</span>
+            </Link>
+          </div>
+          <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
+            <div className="w-full flex-1 md:w-auto md:flex-none">
+              <div className="animate-pulse h-8 bg-gray-200 rounded w-20"></div>
             </div>
           </div>
         </div>
@@ -238,9 +154,14 @@ export default function SimpleNavigation() {
   const displayName = user ? getDisplayName(userProfile, user.email) : ""
 
   return (
-    <nav className="bg-white shadow-sm border-b">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container flex h-14 items-center">
+        <div className="mr-4 hidden md:flex">
+          <Link href="/" className="mr-6 flex items-center space-x-2">
+            <span className="hidden font-bold sm:inline-block">Menu Planner</span>
+          </Link>
+        </div>
+        <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
           {/* Left side - Home icon */}
           <div className="flex items-center">
             <Link href="/" className="flex items-center justify-center p-2 text-gray-900" title="Inicio">
@@ -249,48 +170,33 @@ export default function SimpleNavigation() {
 
             {/* Desktop navigation */}
             <div className="hidden md:flex items-center space-x-2 ml-4">
-              <Link
-                href="/recipes"
-                className={`flex items-center space-x-1 px-2 py-1 rounded-md text-sm font-medium ${
-                  pathname === "/recipes" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <ChefHat className="h-4 w-4" />
-                <span>Recetas</span>
-              </Link>
-
-              <Link
-                href="/weekly-menu"
-                className={`flex items-center space-x-1 px-2 py-1 rounded-md text-sm font-medium ${
-                  pathname === "/weekly-menu" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <Calendar className="h-4 w-4" />
-                <span>Menú Semanal</span>
-              </Link>
-
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/recipes">
+                  <ChefHat className="h-4 w-4" />
+                  <span className="sr-only">Recetas</span>
+                </Link>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/weekly-menu">
+                  <Calendar className="h-4 w-4" />
+                  <span className="sr-only">Menú Semanal</span>
+                </Link>
+              </Button>
               {canViewMenuItem("categories") && (
-                <Link
-                  href="/categories"
-                  className={`flex items-center space-x-1 px-2 py-1 rounded-md text-sm font-medium ${
-                    pathname === "/categories" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <Settings className="h-4 w-4" />
-                  <span>Categorías</span>
-                </Link>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/categories">
+                    <Settings className="h-4 w-4" />
+                    <span className="sr-only">Categorías</span>
+                  </Link>
+                </Button>
               )}
-
               {canViewMenuItem("history") && (
-                <Link
-                  href="/history"
-                  className={`flex items-center space-x-1 px-2 py-1 rounded-md text-sm font-medium ${
-                    pathname === "/history" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <History className="h-4 w-4" />
-                  <span>Historial</span>
-                </Link>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/history">
+                    <History className="h-4 w-4" />
+                    <span className="sr-only">Historial</span>
+                  </Link>
+                </Button>
               )}
             </div>
           </div>
@@ -321,33 +227,39 @@ export default function SimpleNavigation() {
                     </span>
                   </Link>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    onClick={handleSignOut}
-                    disabled={isSigningOut}
-                    className="flex items-center space-x-1 text-red-600 border-red-300 hover:bg-red-100 hover:text-red-700 hover:border-red-400 transition-colors disabled:opacity-50"
+                    onClick={signOut}
+                    className="flex items-center space-x-1 text-red-600"
                   >
                     <LogOut className="h-4 w-4" />
-                    <span>{isSigningOut ? "Cerrando..." : "Cerrar Sesión"}</span>
+                    <span className="sr-only">Cerrar Sesión</span>
                   </Button>
                 </>
               ) : (
-                <Link href="/login">
-                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
-                    Iniciar Sesión
-                  </Button>
-                </Link>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/login">
+                    <LogIn className="h-4 w-4" />
+                    <span className="sr-only">Iniciar Sesión</span>
+                  </Link>
+                </Button>
               )}
             </div>
 
             {/* Mobile quick access icons */}
             <div className="md:hidden flex items-center space-x-1">
-              <Link href="/recipes" className="p-2" title="Recetas">
-                <ChefHat className="h-5 w-5 text-gray-600" />
-              </Link>
-              <Link href="/weekly-menu" className="p-2" title="Menú Semanal">
-                <Calendar className="h-5 w-5 text-gray-600" />
-              </Link>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/recipes" className="p-2" title="Recetas">
+                  <ChefHat className="h-5 w-5 text-gray-600" />
+                  <span className="sr-only">Recetas</span>
+                </Link>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/weekly-menu" className="p-2" title="Menú Semanal">
+                  <Calendar className="h-5 w-5 text-gray-600" />
+                  <span className="sr-only">Menú Semanal</span>
+                </Link>
+              </Button>
             </div>
 
             {/* Mobile user info or login */}
@@ -368,11 +280,12 @@ export default function SimpleNavigation() {
                   <span className="max-w-24 truncate">{displayName}</span>
                 </Link>
               ) : (
-                <Link href="/login">
-                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1">
-                    Iniciar Sesión
-                  </Button>
-                </Link>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/login">
+                    <LogIn className="h-4 w-4" />
+                    <span className="sr-only">Iniciar Sesión</span>
+                  </Link>
+                </Button>
               )}
             </div>
 
@@ -394,87 +307,81 @@ export default function SimpleNavigation() {
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-gray-200">
             <div className="px-2 pt-2 pb-3 space-y-1">
-              <Link
-                href="/recipes"
-                className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium ${
-                  pathname === "/recipes" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                }`}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <ChefHat className="h-5 w-5" />
-                <span>Recetas</span>
-              </Link>
-
-              <Link
-                href="/weekly-menu"
-                className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium ${
-                  pathname === "/weekly-menu" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                }`}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <Calendar className="h-5 w-5" />
-                <span>Menú Semanal</span>
-              </Link>
-
+              <Button variant="ghost" size="sm" asChild>
+                <Link
+                  href="/recipes"
+                  className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <ChefHat className="h-5 w-5" />
+                  <span>Recetas</span>
+                </Link>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <Link
+                  href="/weekly-menu"
+                  className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Calendar className="h-5 w-5" />
+                  <span>Menú Semanal</span>
+                </Link>
+              </Button>
               {canViewMenuItem("categories") && (
-                <Link
-                  href="/categories"
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium ${
-                    pathname === "/categories" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Settings className="h-5 w-5" />
-                  <span>Categorías</span>
-                </Link>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link
+                    href="/categories"
+                    className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Settings className="h-5 w-5" />
+                    <span>Categorías</span>
+                  </Link>
+                </Button>
               )}
-
               {canViewMenuItem("history") && (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link
+                    href="/history"
+                    className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <History className="h-5 w-5" />
+                    <span>Historial</span>
+                  </Link>
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" asChild>
                 <Link
-                  href="/history"
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium ${
-                    pathname === "/history" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  href="/profile"
+                  className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <History className="h-5 w-5" />
-                  <span>Historial</span>
+                  <UserIcon className="h-5 w-5" />
+                  <span>Mi Perfil</span>
                 </Link>
-              )}
-
-              <Link
-                href="/profile"
-                className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium ${
-                  pathname === "/profile" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                }`}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <Settings className="h-5 w-5" />
-                <span>Mi Perfil</span>
-              </Link>
-
+              </Button>
               {user && (
-                <button
-                  onClick={() => {
-                    handleSignOut()
-                    setMobileMenuOpen(false)
-                  }}
-                  disabled={isSigningOut}
-                  className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-red-50 w-full text-left disabled:opacity-50"
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={signOut}
+                  className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-red-50 w-full text-left"
                 >
                   <LogOut className="h-5 w-5" />
-                  <span>{isSigningOut ? "Cerrando..." : "Cerrar Sesión"}</span>
-                </button>
+                  <span className="sr-only">Cerrar Sesión</span>
+                </Button>
               )}
-
               {!user && (
-                <Link
-                  href="/login"
-                  className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <span>Iniciar Sesión</span>
-                </Link>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link
+                    href="/login"
+                    className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <span>Iniciar Sesión</span>
+                  </Link>
+                </Button>
               )}
             </div>
           </div>

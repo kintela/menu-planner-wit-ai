@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { getSupabaseClient } from "@/lib/supabase/client"
-import { WeeklyMenuView } from "@/components/weekly-menu-view"
+import WeeklyMenuView from "@/components/weekly-menu-view"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, Loader2 } from "lucide-react"
@@ -449,20 +449,7 @@ export default function WeeklyMenuPage() {
   return (
     <div className="container py-10">
       <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <WeeklyMenuView
-            weeklyMenu={weeklyMenu}
-            menuItems={menuItems}
-            initialRecipes={recipes}
-            startDate={startDate}
-            onDataUpdate={handleDataUpdate}
-            menuHistory={menuHistory}
-            onMenuSelect={handleMenuSelect}
-            onWeekChange={handleWeekChange}
-          />
-        </div>
-      </div>
+      <WeeklyMenuView />
     </div>
   )
 }

@@ -1,132 +1,116 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Calendar, ChefHat, Clock, Users, Sparkles, BookOpen } from "lucide-react"
+import { BookOpen, Calendar, ChefHat, Clock, Users, Utensils } from "lucide-react"
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
+    <div className="container mx-auto px-4 py-8">
       {/* Hero Section */}
-      <section className="container mx-auto px-4 py-16 text-center">
-        <div className="max-w-4xl mx-auto">
-          <Badge variant="secondary" className="mb-4">
-            <Sparkles className="w-4 h-4 mr-2" />
-            Planificación Inteligente
-          </Badge>
-          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-            Planifica tus menús
-            <span className="text-orange-600"> semanales</span>
-          </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            Organiza tus comidas de la semana de forma sencilla. Guarda recetas, genera menús automáticamente y nunca
-            más te quedes sin ideas para cocinar.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button asChild size="lg" className="text-lg px-8">
-              <Link href="/weekly-menu">
-                <Calendar className="mr-2 h-5 w-5" />
-                Crear Menú Semanal
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="lg" className="text-lg px-8 bg-transparent">
-              <Link href="/recipes">
-                <BookOpen className="mr-2 h-5 w-5" />
-                Ver Recetas
-              </Link>
-            </Button>
-          </div>
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-bold tracking-tight mb-4">Planificador de Menús Semanales</h1>
+        <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+          Organiza tus comidas de la semana de manera sencilla. Crea recetas, planifica menús y simplifica tu rutina
+          culinaria.
+        </p>
+        <div className="flex gap-4 justify-center flex-wrap">
+          <Button asChild size="lg">
+            <Link href="/weekly-menu">
+              <Calendar className="mr-2 h-5 w-5" />
+              Crear Menú Semanal
+            </Link>
+          </Button>
+          <Button variant="outline" size="lg" asChild>
+            <Link href="/recipes">
+              <BookOpen className="mr-2 h-5 w-5" />
+              Ver Recetas
+            </Link>
+          </Button>
         </div>
-      </section>
+      </div>
 
-      {/* Features Section */}
-      <section className="container mx-auto px-4 py-16">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Todo lo que necesitas para planificar</h2>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Herramientas diseñadas para hacer la planificación de menús más fácil y eficiente
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
-                <Calendar className="h-6 w-6 text-orange-600" />
-              </div>
-              <CardTitle>Planificación Semanal</CardTitle>
-              <CardDescription>
-                Organiza tus comidas y cenas para toda la semana de forma visual e intuitiva
-              </CardDescription>
-            </CardHeader>
-          </Card>
-
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                <ChefHat className="h-6 w-6 text-blue-600" />
-              </div>
-              <CardTitle>Gestión de Recetas</CardTitle>
-              <CardDescription>
-                Guarda, organiza y categoriza todas tus recetas favoritas en un solo lugar
-              </CardDescription>
-            </CardHeader>
-          </Card>
-
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                <Sparkles className="h-6 w-6 text-green-600" />
-              </div>
-              <CardTitle>Generación Automática</CardTitle>
-              <CardDescription>Genera menús semanales automáticamente basados en tus recetas guardadas</CardDescription>
-            </CardHeader>
-          </Card>
-
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                <Clock className="h-6 w-6 text-purple-600" />
-              </div>
-              <CardTitle>Ahorra Tiempo</CardTitle>
-              <CardDescription>Reduce el tiempo dedicado a pensar qué cocinar cada día</CardDescription>
-            </CardHeader>
-          </Card>
-
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
-                <Users className="h-6 w-6 text-red-600" />
-              </div>
-              <CardTitle>Para Toda la Familia</CardTitle>
-              <CardDescription>Planifica menús considerando las preferencias de todos en casa</CardDescription>
-            </CardHeader>
-          </Card>
-
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-4">
-                <BookOpen className="h-6 w-6 text-yellow-600" />
-              </div>
-              <CardTitle>Historial de Menús</CardTitle>
-              <CardDescription>Accede a menús anteriores y reutiliza tus planificaciones favoritas</CardDescription>
-            </CardHeader>
-          </Card>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="container mx-auto px-4 py-16">
-        <Card className="bg-gradient-to-r from-orange-500 to-red-500 border-0 text-white">
-          <CardContent className="text-center py-12">
-            <h2 className="text-3xl font-bold mb-4">¿Listo para empezar?</h2>
-            <p className="text-xl mb-8 opacity-90">Comienza a planificar tus menús semanales hoy mismo</p>
-            <Button asChild size="lg" variant="secondary" className="text-lg px-8">
-              <Link href="/login">Comenzar Ahora</Link>
+      {/* Features Grid */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ChefHat className="h-5 w-5" />
+              Gestión de Recetas
+            </CardTitle>
+            <CardDescription>Crea, edita y organiza todas tus recetas favoritas en un solo lugar.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" asChild className="w-full bg-transparent">
+              <Link href="/recipes/add">Añadir Receta</Link>
             </Button>
           </CardContent>
         </Card>
-      </section>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Planificación Semanal
+            </CardTitle>
+            <CardDescription>Planifica tus comidas y cenas para toda la semana de forma visual.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" asChild className="w-full bg-transparent">
+              <Link href="/weekly-menu">Ver Planificador</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Utensils className="h-5 w-5" />
+              Categorías
+            </CardTitle>
+            <CardDescription>Organiza tus recetas por categorías para encontrarlas fácilmente.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" asChild className="w-full bg-transparent">
+              <Link href="/categories">Ver Categorías</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+        <div className="text-center p-4 bg-muted rounded-lg">
+          <Clock className="h-8 w-8 mx-auto mb-2 text-primary" />
+          <div className="text-2xl font-bold">5 min</div>
+          <div className="text-sm text-muted-foreground">Planificación rápida</div>
+        </div>
+        <div className="text-center p-4 bg-muted rounded-lg">
+          <BookOpen className="h-8 w-8 mx-auto mb-2 text-primary" />
+          <div className="text-2xl font-bold">∞</div>
+          <div className="text-sm text-muted-foreground">Recetas ilimitadas</div>
+        </div>
+        <div className="text-center p-4 bg-muted rounded-lg">
+          <Users className="h-8 w-8 mx-auto mb-2 text-primary" />
+          <div className="text-2xl font-bold">Familia</div>
+          <div className="text-sm text-muted-foreground">Para toda la familia</div>
+        </div>
+        <div className="text-center p-4 bg-muted rounded-lg">
+          <ChefHat className="h-8 w-8 mx-auto mb-2 text-primary" />
+          <div className="text-2xl font-bold">Fácil</div>
+          <div className="text-sm text-muted-foreground">Interfaz intuitiva</div>
+        </div>
+      </div>
+
+      {/* Call to Action */}
+      <div className="text-center bg-muted rounded-lg p-8">
+        <h2 className="text-2xl font-bold mb-4">¿Listo para empezar?</h2>
+        <p className="text-muted-foreground mb-6">
+          Comienza a planificar tus menús semanales y simplifica tu rutina culinaria.
+        </p>
+        <Button asChild size="lg">
+          <Link href="/weekly-menu">Empezar Ahora</Link>
+        </Button>
+      </div>
     </div>
   )
 }
