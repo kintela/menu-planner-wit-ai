@@ -8,6 +8,16 @@ export function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
+  // Check if we're in a preview environment
+  const isPreview =
+    typeof window !== "undefined" &&
+    (window.location.hostname.includes("v0.dev") || window.location.hostname.includes("vusercontent.net"))
+
+  if (isPreview) {
+    console.warn("🔍 Preview environment detected - Supabase client not initialized")
+    throw new Error("Supabase not available in preview environment")
+  }
+
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error("❌ Faltan variables de entorno de Supabase")
     throw new Error("Faltan variables de entorno de Supabase")
