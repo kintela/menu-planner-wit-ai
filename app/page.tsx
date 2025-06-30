@@ -1,64 +1,106 @@
-import { CalendarDays, ChefHat, PlusCircle } from "lucide-react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import Link from "next/link"
+import { CalendarDays, ChefHat, Clock, Users } from "lucide-react"
 
 export default function HomePage() {
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Hero Section */}
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">Planificador de Menús Semanales</h1>
-        <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-          Organiza tus comidas de la semana de manera fácil y eficiente. Crea menús personalizados y gestiona tus
-          recetas favoritas.
+        <h1 className="text-4xl font-bold tracking-tight mb-4">Planificador de Menús Semanales</h1>
+        <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+          Organiza tus comidas de la semana de manera sencilla. Crea, guarda y comparte tus menús favoritos.
         </p>
+        <div className="flex gap-4 justify-center flex-wrap">
+          <Button asChild size="lg">
+            <Link href="/weekly-menu">
+              <CalendarDays className="mr-2 h-5 w-5" />
+              Crear Menú Semanal
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="lg">
+            <Link href="/recipes">
+              <ChefHat className="mr-2 h-5 w-5" />
+              Ver Recetas
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-        <Card className="hover:shadow-lg transition-shadow">
+      {/* Features Grid */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CalendarDays className="h-6 w-6 text-blue-600" />
-              Planificar Menús
+              <CalendarDays className="h-5 w-5 text-primary" />
+              Planificación Semanal
             </CardTitle>
-            <CardDescription>Crea y organiza tus menús semanales con facilidad</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-gray-600">
-              Planifica tus comidas para toda la semana, organiza tus recetas y nunca más te quedes sin ideas para
-              cocinar.
-            </p>
-            <Button asChild className="w-full">
-              <Link href="/weekly-menu">Ir al Planificador</Link>
-            </Button>
+          <CardContent>
+            <CardDescription>
+              Organiza tus comidas y cenas para toda la semana. Visualiza tu menú de forma clara y ordenada.
+            </CardDescription>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ChefHat className="h-6 w-6 text-green-600" />
-              Gestionar Recetas
+              <ChefHat className="h-5 w-5 text-primary" />
+              Gestión de Recetas
             </CardTitle>
-            <CardDescription>Administra tu colección de recetas favoritas</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-gray-600">
-              Guarda, organiza y descubre nuevas recetas. Mantén todas tus recetas favoritas en un solo lugar.
-            </p>
-            <div className="flex gap-2">
-              <Button asChild variant="outline" className="flex-1 bg-transparent">
-                <Link href="/recipes">Ver Recetas</Link>
-              </Button>
-              <Button asChild className="flex-1">
-                <Link href="/recipes/add">
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  Añadir Receta
-                </Link>
-              </Button>
-            </div>
+          <CardContent>
+            <CardDescription>
+              Añade, edita y organiza tus recetas favoritas. Incluye ingredientes, instrucciones y categorías.
+            </CardDescription>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-primary" />
+              Ahorra Tiempo
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CardDescription>
+              Planifica con anticipación y reduce el tiempo dedicado a decidir qué cocinar cada día.
+            </CardDescription>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              Para Toda la Familia
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CardDescription>
+              Crea menús que satisfagan a todos los miembros de tu familia con opciones variadas y equilibradas.
+            </CardDescription>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="text-center">
+        <h2 className="text-2xl font-semibold mb-6">Acciones Rápidas</h2>
+        <div className="flex gap-4 justify-center flex-wrap">
+          <Button asChild variant="outline">
+            <Link href="/recipes/add">Añadir Receta</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/categories">Ver Categorías</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/history">Historial de Menús</Link>
+          </Button>
+        </div>
       </div>
     </div>
   )

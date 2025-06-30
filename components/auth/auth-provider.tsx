@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { createContext, useContext, useEffect, useState } from "react"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
@@ -21,8 +20,15 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!mounted) return
+
     const supabase = getSupabaseClient()
 
     // Get initial session
@@ -58,12 +64,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription?.unsubscribe()
     }
-  }, [])
+  }, [mounted])
 
   const signOut = async () => {
     const supabase = getSupabaseClient()
     await supabase.auth.signOut()
     setUser(null)
+  }
+
+  // Don't render anything until mounted to prevent hydration mismatch
+  if (!mounted) {
+    return <div suppressHydrationWarning>{children}</div>
   }
 
   return <AuthContext.Provider value={{ user, loading, signOut }}>{children}</AuthContext.Provider>

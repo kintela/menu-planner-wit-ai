@@ -20,7 +20,21 @@ export default function WeeklyMenuPage() {
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [startDate, setStartDate] = useState<string>("")
   const [menuHistory, setMenuHistory] = useState<WeeklyMenu[]>([])
+  const [mounted, setMounted] = useState(false)
   const { toast } = useToast()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const getCurrentWeekStartDate = () => {
+    const today = new Date()
+    const startOfWeek = new Date(today)
+    const dayOfWeek = today.getDay()
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+    startOfWeek.setDate(today.getDate() - daysToSubtract)
+    return startOfWeek.toISOString().split("T")[0]
+  }
 
   const loadDataForWeek = async (weekStartDate: string) => {
     if (!user) {
@@ -115,13 +129,7 @@ export default function WeeklyMenuPage() {
       console.log("🔄 Cargando datos del menú semanal para usuario:", user?.email)
 
       // Calcular fechas de la semana actual
-      const today = new Date()
-      const startOfWeek = new Date(today)
-      const dayOfWeek = today.getDay()
-      const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-      startOfWeek.setDate(today.getDate() - daysToSubtract)
-
-      const startDateStr = startOfWeek.toISOString().split("T")[0]
+      const startDateStr = getCurrentWeekStartDate()
       setStartDate(startDateStr)
 
       // Cargar datos para la semana actual
@@ -160,6 +168,8 @@ export default function WeeklyMenuPage() {
   }
 
   useEffect(() => {
+    if (!mounted) return
+
     console.log("Auth loading:", authLoading, "User:", user?.email)
 
     if (authLoading) {
@@ -176,7 +186,7 @@ export default function WeeklyMenuPage() {
     console.log("User found, loading data...")
     loadData()
     loadMenuHistory()
-  }, [user, authLoading])
+  }, [user, authLoading, mounted])
 
   const handleDataUpdate = () => {
     console.log("🔄 Recargando datos...")
@@ -331,6 +341,19 @@ export default function WeeklyMenuPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Don't render anything until mounted to prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <div className="container py-10" suppressHydrationWarning>
+        <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <span className="ml-2">Cargando...</span>
+        </div>
+      </div>
+    )
   }
 
   // Show loading while auth is loading
