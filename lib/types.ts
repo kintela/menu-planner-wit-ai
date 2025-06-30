@@ -40,13 +40,16 @@ export interface UserProfile {
   id: string
   email: string
   full_name?: string
+  first_name?: string
+  last_name?: string
+  alias?: string
   avatar_url?: string
   role: UserRole
   created_at: string
   updated_at: string
 }
 
-export type UserRole = "admin" | "user_full" | "user_restricted"
+export type UserRole = "admin" | "user" | "user_restricted"
 
 export interface Category {
   id: string
