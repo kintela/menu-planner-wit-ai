@@ -33,11 +33,11 @@ const MEAL_TYPES = [
 export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [weeklyMenu, setWeeklyMenu] = useState<WeeklyMenu | null>(null)
   const [menuItems, setMenuItems] = useState<MenuItemWithRecipe[]>([])
   const [startDate, setStartDate] = useState<string>("")
   const [saving, setSaving] = useState(false)
+  const [hasConnectionIssues, setHasConnectionIssues] = useState(false)
   const { toast } = useToast()
 
   const getCurrentWeekStartDate = () => {
@@ -64,40 +64,49 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
   }
 
   const loadDataForWeek = async (weekStartDate: string) => {
-    try {
-      setLoading(true)
-      setError(null)
+    // SIEMPRE terminar el loading, sin importar qué pase
+    const finishLoading = () => {
+      setLoading(false)
+    }
 
+    // Usar setTimeout para asegurar que el loading termine
+    const loadingTimeout = setTimeout(finishLoading, 5000) // 5 segundos máximo
+
+    try {
       console.log("🔄 Cargando datos para la semana:", weekStartDate)
+
+      // Inicializar estados por defecto INMEDIATAMENTE
+      setWeeklyMenu(null)
+      setMenuItems([])
+      setHasConnectionIssues(false)
 
       const endOfWeek = new Date(weekStartDate)
       endOfWeek.setDate(endOfWeek.getDate() + 6)
       const endDate = endOfWeek.toISOString().split("T")[0]
 
-      // Inicializar estados por defecto
-      setWeeklyMenu(null)
-      setMenuItems([])
-      setRecipes([])
-
-      // Cargar recetas disponibles PRIMERO (es lo más importante)
+      // 1. Cargar recetas (lo más importante)
+      let recipesLoaded = false
       try {
+        console.log("📚 Intentando cargar recetas...")
         const { data: recipesData, error: recipesError } = await supabase.from("recipes").select("*").order("name")
 
         if (recipesError) {
-          console.error("Error fetching recipes:", recipesError)
-          // No lanzar error, solo logear y continuar con array vacío
-          console.log("⚠️ Continuando sin recetas debido al error:", recipesError.message)
+          console.error("⚠️ Error cargando recetas:", recipesError)
+          setHasConnectionIssues(true)
         } else {
           setRecipes(recipesData || [])
+          recipesLoaded = true
           console.log(`✅ ${recipesData?.length || 0} recetas cargadas correctamente`)
         }
       } catch (recipesErr) {
-        console.error("❌ Error cargando recetas:", recipesErr)
-        // Continuar sin recetas
+        console.error("❌ Excepción cargando recetas:", recipesErr)
+        setHasConnectionIssues(true)
       }
 
-      // Buscar menú semanal existente
+      // 2. Cargar menú semanal (opcional)
+      let menuLoaded = false
       try {
+        console.log("📅 Intentando cargar menú semanal...")
         const { data: weeklyMenuData, error: menuError } = await supabase
           .from("weekly_menus")
           .select("*")
@@ -107,51 +116,56 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
           .maybeSingle()
 
         if (menuError) {
-          console.error("Error fetching weekly menu:", menuError)
-          console.log("⚠️ Continuando sin menú semanal debido al error:", menuError.message)
+          console.error("⚠️ Error cargando menú semanal:", menuError)
+          setHasConnectionIssues(true)
         } else if (weeklyMenuData) {
           setWeeklyMenu(weeklyMenuData)
-          console.log("✅ Menú semanal encontrado:", weeklyMenuData.name)
-
-          // Solo cargar items del menú si existe el menú
-          try {
-            const { data: items, error: itemsError } = await supabase
-              .from("menu_items")
-              .select(`
-                *,
-                recipe:recipe_id (*)
-              `)
-              .eq("weekly_menu_id", weeklyMenuData.id)
-              .order("day_of_week")
-              .order("meal_type")
-              .order("dish_order")
-
-            if (itemsError) {
-              console.error("Error fetching menu items:", itemsError)
-              console.log("⚠️ Continuando sin items del menú debido al error:", itemsError.message)
-            } else {
-              setMenuItems((items as unknown as MenuItemWithRecipe[]) || [])
-              console.log(`✅ ${items?.length || 0} items del menú cargados`)
-            }
-          } catch (itemsErr) {
-            console.error("❌ Error cargando items del menú:", itemsErr)
-            // Continuar sin items
-          }
+          menuLoaded = true
+          console.log("✅ Menú semanal cargado:", weeklyMenuData.name)
         } else {
-          console.log("📝 No hay menú para esta semana, mostrando vacío")
+          console.log("📝 No hay menú para esta semana")
         }
       } catch (menuErr) {
-        console.error("❌ Error cargando menú semanal:", menuErr)
-        // Continuar sin menú
+        console.error("❌ Excepción cargando menú semanal:", menuErr)
+        setHasConnectionIssues(true)
       }
 
-      console.log("✅ Carga de datos completada (con o sin errores)")
-    } catch (err) {
-      console.error("❌ Error general cargando datos:", err)
-      // No establecer error que impida el renderizado
-      console.log("⚠️ Continuando con datos por defecto debido a errores")
+      // 3. Cargar items del menú (solo si hay menú)
+      if (menuLoaded && weeklyMenu) {
+        try {
+          console.log("🍽️ Intentando cargar items del menú...")
+          const { data: items, error: itemsError } = await supabase
+            .from("menu_items")
+            .select(`
+              *,
+              recipe:recipe_id (*)
+            `)
+            .eq("weekly_menu_id", weeklyMenu.id)
+            .order("day_of_week")
+            .order("meal_type")
+            .order("dish_order")
+
+          if (itemsError) {
+            console.error("⚠️ Error cargando items del menú:", itemsError)
+            setHasConnectionIssues(true)
+          } else {
+            setMenuItems((items as unknown as MenuItemWithRecipe[]) || [])
+            console.log(`✅ ${items?.length || 0} items del menú cargados`)
+          }
+        } catch (itemsErr) {
+          console.error("❌ Excepción cargando items del menú:", itemsErr)
+          setHasConnectionIssues(true)
+        }
+      }
+
+      console.log("✅ Proceso de carga completado")
+    } catch (generalErr) {
+      console.error("❌ Error general en loadDataForWeek:", generalErr)
+      setHasConnectionIssues(true)
     } finally {
-      setLoading(false)
+      // SIEMPRE terminar el loading
+      clearTimeout(loadingTimeout)
+      finishLoading()
     }
   }
 
@@ -160,6 +174,9 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
       const currentWeekStart = getCurrentWeekStartDate()
       setStartDate(currentWeekStart)
       loadDataForWeek(currentWeekStart)
+    } else {
+      // Si no hay userId, terminar loading inmediatamente
+      setLoading(false)
     }
   }, [userId])
 
@@ -339,6 +356,7 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
     }
   }
 
+  // SIEMPRE mostrar loading por máximo 3 segundos
   if (loading) {
     return (
       <div className="space-y-4">
@@ -350,17 +368,18 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
             ))}
           </div>
         </div>
+        <div className="text-center text-sm text-muted-foreground">Cargando planificador de menús...</div>
       </div>
     )
   }
 
-  // Siempre renderizar el componente, incluso si hay errores
+  // SIEMPRE renderizar el componente después del loading
   const menuTitle = weeklyMenu?.name || `Nuevo Menú - ${formatDateRange(startDate)}`
 
   return (
     <div className="space-y-6">
       {/* Mostrar advertencia si hay problemas de conexión */}
-      {error && (
+      {hasConnectionIssues && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <div className="flex">
             <div className="text-yellow-600 text-sm">
