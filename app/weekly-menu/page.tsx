@@ -1,13 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ChevronLeft, ChevronRight, Save, X } from "lucide-react"
-import { supabase } from "@/lib/supabase/client"
+import { useEffect, useState } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
-import { useToast } from "@/hooks/use-toast"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { SimpleNavigation } from "@/components/simple-navigation"
+import { WeeklyMenuView } from "@/components/weekly-menu-view"
+import { supabase } from "@/lib/supabase/client"
 import type { Recipe, WeeklyMenu, MenuItem } from "@/lib/types"
 
 const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
@@ -18,8 +17,8 @@ interface MenuDay {
 }
 
 export default function WeeklyMenuPage() {
-  const { user } = useAuth()
-  const { toast } = useToast()
+  const { user, loading: authLoading } = useAuth()
+  const [mounted, setMounted] = useState(false)
   const [currentWeek, setCurrentWeek] = useState(new Date())
   const [menu, setMenu] = useState<Record<number, MenuDay>>({})
   const [recipes, setRecipes] = useState<Recipe[]>([])
@@ -27,34 +26,20 @@ export default function WeeklyMenuPage() {
   const [saving, setSaving] = useState(false)
   const [currentMenu, setCurrentMenu] = useState<WeeklyMenu | null>(null)
 
-  // Calcular fechas de la semana
-  const getWeekDates = (date: Date) => {
-    const monday = new Date(date)
-    const day = monday.getDay()
-    const diff = monday.getDate() - day + (day === 0 ? -6 : 1)
-    monday.setDate(diff)
+  const [weekDates, setWeekDates] = useState<Date[]>([])
+  const [startDate, setStartDate] = useState<Date | null>(null)
+  const [endDate, setEndDate] = useState<Date | null>(null)
 
-    const dates = []
-    for (let i = 0; i < 7; i++) {
-      const day = new Date(monday)
-      day.setDate(monday.getDate() + i)
-      dates.push(day)
-    }
-    return dates
-  }
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
-  const weekDates = getWeekDates(currentWeek)
-  const startDate = weekDates[0]
-  const endDate = weekDates[6]
-
-  // Cargar recetas
   useEffect(() => {
     if (user) {
       loadRecipes()
     }
   }, [user])
 
-  // Cargar menú de la semana
   useEffect(() => {
     if (user) {
       loadWeeklyMenu()
@@ -73,11 +58,11 @@ export default function WeeklyMenuPage() {
       setRecipes(data || [])
     } catch (error) {
       console.error("Error loading recipes:", error)
-      toast({
-        title: "Error",
-        description: "No se pudieron cargar las recetas",
-        variant: "destructive",
-      })
+      // toast({
+      //   title: "Error",
+      //   description: "No se pudieron cargar las recetas",
+      //   variant: "destructive",
+      // })
     }
   }
 
@@ -86,6 +71,13 @@ export default function WeeklyMenuPage() {
 
     setLoading(true)
     try {
+      const weekDates = getWeekDates(currentWeek)
+      const startDate = weekDates[0]
+      const endDate = weekDates[6]
+      setWeekDates(weekDates)
+      setStartDate(startDate)
+      setEndDate(endDate)
+
       // Buscar menú existente para esta semana
       const { data: menuData, error: menuError } = await supabase
         .from("weekly_menus")
@@ -136,11 +128,11 @@ export default function WeeklyMenuPage() {
       }
     } catch (error) {
       console.error("Error loading weekly menu:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo cargar el menú semanal",
-        variant: "destructive",
-      })
+      // toast({
+      //   title: "Error",
+      //   description: "No se pudo cargar el menú semanal",
+      //   variant: "destructive",
+      // })
     } finally {
       setLoading(false)
     }
@@ -159,9 +151,9 @@ export default function WeeklyMenuPage() {
         const { data: newMenu, error: menuError } = await supabase
           .from("weekly_menus")
           .insert({
-            name: `Menú ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`,
-            start_date: startDate.toISOString().split("T")[0],
-            end_date: endDate.toISOString().split("T")[0],
+            name: `Menú ${startDate?.toLocaleDateString()} - ${endDate?.toLocaleDateString()}`,
+            start_date: startDate?.toISOString().split("T")[0],
+            end_date: endDate?.toISOString().split("T")[0],
             user_id: user.id,
             is_saved: false,
           })
@@ -193,17 +185,17 @@ export default function WeeklyMenuPage() {
         },
       }))
 
-      toast({
-        title: "Receta añadida",
-        description: `${recipe.name} añadida al ${mealType === "lunch" ? "almuerzo" : "cena"} del ${DAYS[dayIndex]}`,
-      })
+      // toast({
+      //   title: "Receta añadida",
+      //   description: `${recipe.name} añadida al ${mealType === "lunch" ? "almuerzo" : "cena"} del ${DAYS[dayIndex]}`,
+      // })
     } catch (error) {
       console.error("Error adding recipe to menu:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo añadir la receta al menú",
-        variant: "destructive",
-      })
+      // toast({
+      //   title: "Error",
+      //   description: "No se pudo añadir la receta al menú",
+      //   variant: "destructive",
+      // })
     }
   }
 
@@ -234,17 +226,17 @@ export default function WeeklyMenuPage() {
         },
       }))
 
-      toast({
-        title: "Receta eliminada",
-        description: `${recipe.name} eliminada del menú`,
-      })
+      // toast({
+      //   title: "Receta eliminada",
+      //   description: `${recipe.name} eliminada del menú`,
+      // })
     } catch (error) {
       console.error("Error removing recipe from menu:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo eliminar la receta del menú",
-        variant: "destructive",
-      })
+      // toast({
+      //   title: "Error",
+      //   description: "No se pudo eliminar la receta del menú",
+      //   variant: "destructive",
+      // })
     }
   }
 
@@ -258,17 +250,17 @@ export default function WeeklyMenuPage() {
       if (error) throw error
 
       setCurrentMenu((prev) => (prev ? { ...prev, is_saved: true } : null))
-      toast({
-        title: "Menú guardado",
-        description: "El menú semanal ha sido guardado exitosamente",
-      })
+      // toast({
+      //   title: "Menú guardado",
+      //   description: "El menú semanal ha sido guardado exitosamente",
+      // })
     } catch (error) {
       console.error("Error saving menu:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo guardar el menú",
-        variant: "destructive",
-      })
+      // toast({
+      //   title: "Error",
+      //   description: "No se pudo guardar el menú",
+      //   variant: "destructive",
+      // })
     } finally {
       setSaving(false)
     }
@@ -280,137 +272,73 @@ export default function WeeklyMenuPage() {
     setCurrentWeek(newDate)
   }
 
-  if (loading) {
+  const getWeekDates = (date: Date) => {
+    const monday = new Date(date)
+    const day = monday.getDay()
+    const diff = monday.getDate() - day + (day === 0 ? -6 : 1)
+    monday.setDate(diff)
+
+    const dates = []
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(monday)
+      day.setDate(monday.getDate() + i)
+      dates.push(day)
+    }
+    return dates
+  }
+
+  // Don't render anything until mounted to prevent hydration mismatch
+  if (!mounted) {
     return (
-      <div className="container mx-auto p-4">
-        <div className="text-center">Cargando menú semanal...</div>
+      <div className="container mx-auto px-4 py-8" suppressHydrationWarning>
+        <SimpleNavigation />
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-64 mb-4"></div>
+          <div className="h-96 bg-gray-200 rounded"></div>
+        </div>
       </div>
     )
   }
 
-  return (
-    <div className="container mx-auto p-4 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => navigateWeek("prev")}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <h1 className="text-2xl font-bold">
-            Menú Semanal - {startDate.toLocaleDateString()} al {endDate.toLocaleDateString()}
-          </h1>
-          <Button variant="outline" size="sm" onClick={() => navigateWeek("next")}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+  // Show loading while auth is loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen">
+        <SimpleNavigation />
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
-        {currentMenu && (
-          <Button onClick={saveMenu} disabled={saving || currentMenu.is_saved}>
-            <Save className="h-4 w-4 mr-2" />
-            {currentMenu.is_saved ? "Guardado" : saving ? "Guardando..." : "Guardar Menú"}
-          </Button>
-        )}
       </div>
+    )
+  }
 
-      {/* Weekly Menu Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {DAYS.map((day, dayIndex) => (
-          <Card key={dayIndex} className="h-fit">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">
-                {day}
-                <div className="text-sm font-normal text-muted-foreground">
-                  {weekDates[dayIndex].toLocaleDateString()}
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Almuerzo */}
-              <div>
-                <h4 className="font-medium mb-2 text-orange-600">Almuerzo</h4>
-                <div className="space-y-2">
-                  {menu[dayIndex]?.lunch.map((recipe, recipeIndex) => (
-                    <div
-                      key={recipeIndex}
-                      className="flex items-center justify-between bg-orange-50 p-2 rounded text-sm"
-                    >
-                      <span className="truncate">{recipe.name}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeRecipeFromMenu(dayIndex, "lunch", recipeIndex)}
-                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Select onValueChange={(value) => addRecipeToMenu(dayIndex, "lunch", value)}>
-                    <SelectTrigger className="h-8">
-                      <SelectValue placeholder="Añadir receta" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {recipes.map((recipe) => (
-                        <SelectItem key={recipe.id} value={recipe.id}>
-                          {recipe.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Cena */}
-              <div>
-                <h4 className="font-medium mb-2 text-blue-600">Cena</h4>
-                <div className="space-y-2">
-                  {menu[dayIndex]?.dinner.map((recipe, recipeIndex) => (
-                    <div key={recipeIndex} className="flex items-center justify-between bg-blue-50 p-2 rounded text-sm">
-                      <span className="truncate">{recipe.name}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeRecipeFromMenu(dayIndex, "dinner", recipeIndex)}
-                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Select onValueChange={(value) => addRecipeToMenu(dayIndex, "dinner", value)}>
-                    <SelectTrigger className="h-8">
-                      <SelectValue placeholder="Añadir receta" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {recipes.map((recipe) => (
-                        <SelectItem key={recipe.id} value={recipe.id}>
-                          {recipe.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Available Recipes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recetas Disponibles ({recipes.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
-            {recipes.map((recipe) => (
-              <div key={recipe.id} className="p-2 border rounded text-sm text-center hover:bg-gray-50">
-                <div className="font-medium truncate">{recipe.name}</div>
-                {recipe.category && <div className="text-xs text-muted-foreground">{recipe.category}</div>}
-              </div>
-            ))}
+  // Show login required if no user
+  if (!user) {
+    return (
+      <div className="min-h-screen">
+        <SimpleNavigation />
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center space-y-6">
+            <h1 className="text-3xl font-bold">Planificador de Menús Semanales</h1>
+            <p className="text-lg text-muted-foreground">
+              Necesitas iniciar sesión para acceder al planificador de menús
+            </p>
+            <Link href="/login">
+              <Button size="lg">Iniciar Sesión</Button>
+            </Link>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+    )
+  }
+
+  // Show the weekly menu view
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <SimpleNavigation />
+      <div className="container mx-auto px-4 py-8">
+        <WeeklyMenuView userId={user.id} />
+      </div>
     </div>
   )
 }

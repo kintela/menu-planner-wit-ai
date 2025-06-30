@@ -19,8 +19,15 @@ interface MenuItemWithRecipe extends MenuItem {
 
 const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 const MEAL_TYPES = [
-  { key: "lunch", label: "Comida" },
-  { key: "dinner", label: "Cena" },
+  {
+    key: "lunch",
+    label: "Comida",
+    dishes: [
+      { order: 0, label: "Primer plato" },
+      { order: 1, label: "Segundo plato" },
+    ],
+  },
+  { key: "dinner", label: "Cena", dishes: [{ order: 0, label: "Plato único" }] },
 ] as const
 
 export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
@@ -132,7 +139,7 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
 
       setMenuItems((items as unknown as MenuItemWithRecipe[]) || [])
 
-      // Cargar recetas disponibles
+      // Cargar recetas disponibles (sin filtro is_public)
       const { data: recipesData, error: recipesError } = await supabase.from("recipes").select("*").order("name")
 
       if (recipesError) {
@@ -173,16 +180,27 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
     loadDataForWeek(newStartDate)
   }
 
-  const getMenuItemsForDay = (dayIndex: number, mealType: "lunch" | "dinner") => {
-    return menuItems.filter((item) => item.day_of_week === dayIndex && item.meal_type === mealType)
+  const getMenuItemsForDayAndMeal = (dayIndex: number, mealType: "lunch" | "dinner", dishOrder: number) => {
+    return menuItems.filter(
+      (item) => item.day_of_week === dayIndex && item.meal_type === mealType && item.dish_order === dishOrder,
+    )
   }
 
-  const addRecipeToMenu = async (dayIndex: number, mealType: "lunch" | "dinner", recipeId: string) => {
+  const addRecipeToMenu = async (
+    dayIndex: number,
+    mealType: "lunch" | "dinner",
+    dishOrder: number,
+    recipeId: string,
+  ) => {
     if (!weeklyMenu) return
 
     try {
-      const existingItems = getMenuItemsForDay(dayIndex, mealType)
-      const dishOrder = existingItems.length
+      // Verificar si ya existe una receta en esta posición
+      const existingItems = getMenuItemsForDayAndMeal(dayIndex, mealType, dishOrder)
+      if (existingItems.length > 0) {
+        // Eliminar la receta existente primero
+        await removeRecipeFromMenu(existingItems[0].id)
+      }
 
       const { data: newItem, error } = await supabase
         .from("menu_items")
@@ -204,7 +222,12 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
         throw error
       }
 
-      setMenuItems((prev) => [...prev, newItem as unknown as MenuItemWithRecipe])
+      setMenuItems((prev) => [
+        ...prev.filter(
+          (item) => !(item.day_of_week === dayIndex && item.meal_type === mealType && item.dish_order === dishOrder),
+        ),
+        newItem as unknown as MenuItemWithRecipe,
+      ])
 
       toast({
         title: "Receta añadida",
@@ -331,52 +354,66 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
       {/* Grid de días */}
       <div className="grid gap-4 md:grid-cols-7">
         {DAYS.map((day, dayIndex) => (
-          <Card key={day} className="min-h-[400px]">
+          <Card key={day} className="min-h-[500px]">
             <CardHeader className="pb-3">
               <CardTitle className="text-center text-lg">{day}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {MEAL_TYPES.map(({ key: mealType, label }) => (
-                <div key={mealType} className="space-y-2">
+              {MEAL_TYPES.map(({ key: mealType, label, dishes }) => (
+                <div key={mealType} className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium">{label}</h4>
+                    <h4 className={`text-sm font-medium ${mealType === "lunch" ? "text-orange-600" : "text-blue-600"}`}>
+                      {label}
+                    </h4>
                   </div>
 
-                  {/* Recetas existentes */}
+                  {/* Platos */}
                   <div className="space-y-2">
-                    {getMenuItemsForDay(dayIndex, mealType).map((item) => (
-                      <div key={item.id} className="flex items-center justify-between p-2 bg-muted rounded-lg text-sm">
-                        <span className="truncate">{item.recipe.name}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeRecipeFromMenu(item.id)}
-                          className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
+                    {dishes.map(({ order: dishOrder, label: dishLabel }) => {
+                      const existingItem = getMenuItemsForDayAndMeal(dayIndex, mealType, dishOrder)[0]
 
-                  {/* Selector para añadir recetas */}
-                  <Select onValueChange={(recipeId) => addRecipeToMenu(dayIndex, mealType, recipeId)}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Añadir receta" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {recipes
-                        .filter(
-                          (recipe) =>
-                            !getMenuItemsForDay(dayIndex, mealType).some((item) => item.recipe_id === recipe.id),
-                        )
-                        .map((recipe) => (
-                          <SelectItem key={recipe.id} value={recipe.id}>
-                            {recipe.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                      return (
+                        <div key={dishOrder} className="space-y-1">
+                          <div className="text-xs text-muted-foreground">{dishLabel}</div>
+
+                          {/* Receta existente */}
+                          {existingItem && (
+                            <div
+                              className={`flex items-center justify-between p-2 rounded-lg text-sm ${
+                                mealType === "lunch" ? "bg-orange-50" : "bg-blue-50"
+                              }`}
+                            >
+                              <span className="truncate">{existingItem.recipe.name}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeRecipeFromMenu(existingItem.id)}
+                                className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
+
+                          {/* Selector para añadir/cambiar recetas */}
+                          <Select
+                            onValueChange={(recipeId) => addRecipeToMenu(dayIndex, mealType, dishOrder, recipeId)}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder={existingItem ? "Cambiar receta" : "Añadir receta"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {recipes.map((recipe) => (
+                                <SelectItem key={recipe.id} value={recipe.id}>
+                                  {recipe.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               ))}
             </CardContent>

@@ -1,72 +1,70 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { LogOut, Menu, Calendar } from "lucide-react"
+import { Menu, X, Home, BookOpen, Calendar, User, LogOut } from "lucide-react"
 
 export function SimpleNavigation() {
-  const { user, profile, signOut } = useAuth()
+  const { user, userProfile, signOut } = useAuth()
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
-  const getInitials = (name?: string, email?: string) => {
-    if (name) {
-      return name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    }
-    if (email) {
-      return email.slice(0, 2).toUpperCase()
-    }
-    return "U"
-  }
+  const navigation = [
+    { name: "Inicio", href: "/", icon: Home },
+    { name: "Recetas", href: "/recipes", icon: BookOpen },
+    { name: "Menú Semanal", href: "/weekly-menu", icon: Calendar },
+  ]
+
+  const toggleMenu = () => setIsMenuOpen(!isMenuOpen)
 
   return (
-    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center space-x-6">
-            <Link href="/" className="flex items-center space-x-2">
-              <Menu className="h-6 w-6" />
-              <span className="font-bold text-xl">Menu Planner</span>
+    <nav className="bg-white shadow-sm border-b">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
+          <div className="flex items-center">
+            <Link href="/" className="flex-shrink-0 flex items-center">
+              <span className="text-xl font-bold text-primary">Menu Planner</span>
             </Link>
-
-            {user && (
-              <div className="hidden md:flex items-center space-x-4">
-                <Link href="/recipes" className="text-sm font-medium hover:text-primary">
-                  Recetas
-                </Link>
-                <Link href="/weekly-menu" className="text-sm font-medium hover:text-primary flex items-center gap-1">
-                  <Calendar className="h-4 w-4" />
-                  Menú Semanal
-                </Link>
-              </div>
-            )}
           </div>
 
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center space-x-8">
+            {navigation.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+              >
+                <item.icon className="h-4 w-4" />
+                {item.name}
+              </Link>
+            ))}
+          </div>
+
+          {/* User Menu */}
           <div className="flex items-center space-x-4">
             {user ? (
               <div className="flex items-center space-x-3">
-                <div className="flex items-center space-x-2">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage
-                      src={profile?.avatar_url || undefined}
-                      alt={profile?.full_name || user.email || "User"}
-                    />
-                    <AvatarFallback>{getInitials(profile?.full_name, user.email)}</AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm font-medium hidden sm:inline">{profile?.full_name || user.email}</span>
+                <div className="hidden md:block text-sm">
+                  <div className="font-medium text-gray-900">
+                    {userProfile?.full_name || userProfile?.alias || user.email}
+                  </div>
+                  <div className="text-gray-500">{userProfile?.role || "user"}</div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={signOut} className="flex items-center gap-1">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={userProfile?.avatar_url || "/placeholder.svg"} />
+                  <AvatarFallback>
+                    {(userProfile?.full_name || userProfile?.alias || user.email || "U").charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <Button variant="ghost" size="sm" onClick={signOut} className="hidden md:flex">
                   <LogOut className="h-4 w-4" />
-                  <span className="hidden sm:inline">Salir</span>
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center space-x-2">
+              <div className="hidden md:flex items-center space-x-2">
                 <Link href="/login">
                   <Button variant="ghost" size="sm">
                     Iniciar Sesión
@@ -74,9 +72,71 @@ export function SimpleNavigation() {
                 </Link>
               </div>
             )}
+
+            {/* Mobile menu button */}
+            <div className="md:hidden">
+              <Button variant="ghost" size="sm" onClick={toggleMenu}>
+                {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Mobile Navigation */}
+      {isMenuOpen && (
+        <div className="md:hidden">
+          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t">
+            {navigation.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                className="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium flex items-center gap-2"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.name}
+              </Link>
+            ))}
+            {user ? (
+              <div className="border-t pt-4 mt-4">
+                <div className="flex items-center px-3 py-2">
+                  <Avatar className="h-8 w-8 mr-3">
+                    <AvatarImage src={userProfile?.avatar_url || "/placeholder.svg"} />
+                    <AvatarFallback>
+                      {(userProfile?.full_name || userProfile?.alias || user.email || "U").charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="text-sm font-medium text-gray-900">
+                      {userProfile?.full_name || userProfile?.alias || user.email}
+                    </div>
+                    <div className="text-xs text-gray-500">{userProfile?.role || "user"}</div>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={signOut}
+                  className="w-full justify-start px-3 py-2 text-gray-600 hover:text-gray-900"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Cerrar Sesión
+                </Button>
+              </div>
+            ) : (
+              <div className="border-t pt-4 mt-4">
+                <Link href="/login" onClick={() => setIsMenuOpen(false)}>
+                  <Button variant="ghost" size="sm" className="w-full justify-start">
+                    <User className="h-4 w-4 mr-2" />
+                    Iniciar Sesión
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </nav>
   )
 }

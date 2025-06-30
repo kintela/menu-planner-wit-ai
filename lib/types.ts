@@ -17,7 +17,6 @@ export interface Recipe {
   updated_at: string
   calories_per_serving?: number
   rating?: number
-  is_public?: boolean
 }
 
 export interface WeeklyMenu {
@@ -43,7 +42,7 @@ export interface MenuItem {
 }
 
 export interface UserProfile {
-  id: string // Esta es la columna correcta que coincide con auth.users.id
+  id: string
   email: string
   full_name?: string
   first_name?: string
