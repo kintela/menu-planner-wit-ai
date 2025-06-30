@@ -246,6 +246,8 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
     recipeId: string,
   ) => {
     try {
+      console.log("🍽️ Añadiendo receta al menú:", { dayIndex, mealType, dishOrder, recipeId })
+
       // Verificar si ya existe una receta en esta posición
       const existingItems = getMenuItemsForDayAndMeal(dayIndex, mealType, dishOrder)
       if (existingItems.length > 0) {
@@ -256,13 +258,24 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
       // Crear menú si no existe
       const menuId = await createWeeklyMenuIfNeeded()
 
+      // Mapear meal_type a los valores correctos de la base de datos
+      const dbMealType = mealType === "lunch" ? "lunch" : "dinner"
+
+      console.log("📝 Insertando menu item:", {
+        weekly_menu_id: menuId,
+        recipe_id: recipeId,
+        day_of_week: dayIndex,
+        meal_type: dbMealType,
+        dish_order: dishOrder,
+      })
+
       const { data: newItem, error } = await supabase
         .from("menu_items")
         .insert({
           weekly_menu_id: menuId,
           recipe_id: recipeId,
           day_of_week: dayIndex,
-          meal_type: mealType,
+          meal_type: dbMealType,
           dish_order: dishOrder,
         })
         .select(`
@@ -272,7 +285,13 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
         .single()
 
       if (error) {
-        console.error("Error adding recipe to menu:", error)
+        console.error("❌ Error adding recipe to menu:", error)
+        console.error("Error details:", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        })
         throw error
       }
 
@@ -283,15 +302,16 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
         newItem as unknown as MenuItemWithRecipe,
       ])
 
+      console.log("✅ Receta añadida correctamente al menú")
       toast({
         title: "Receta añadida",
         description: "La receta se ha añadido al menú correctamente",
       })
     } catch (error) {
-      console.error("Error adding recipe:", error)
+      console.error("❌ Error adding recipe:", error)
       toast({
         title: "Error",
-        description: "No se pudo añadir la receta al menú",
+        description: `No se pudo añadir la receta al menú: ${error instanceof Error ? error.message : "Error desconocido"}`,
         variant: "destructive",
       })
     }
