@@ -1,232 +1,183 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useToast } from "@/hooks/use-toast"
-import { supabase } from "@/lib/supabase/client"
 import { useAuth } from "@/components/auth/auth-provider"
-import { Trash2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { supabase } from "@/lib/supabase/client"
+import Link from "next/link"
+import { Calendar, ChefHat, Plus } from "lucide-react"
 
 interface Recipe {
   id: string
   title: string
-  category: string
+  description?: string
+  category?: string
 }
 
-interface MenuEntry {
+interface MenuPlan {
   id: string
-  day: string
-  meal_type: "lunch" | "dinner"
+  day_of_week: string
+  meal_type: string
   recipe_id: string
   recipe?: Recipe
 }
 
-const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+const DAYS_OF_WEEK = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
-const MEAL_TYPES = {
-  lunch: "Comida",
-  dinner: "Cena",
-}
+const MEAL_TYPES = ["Comida", "Cena"]
 
 export default function WeeklyMenuView() {
+  const { user, loading } = useAuth()
+  const [menuPlans, setMenuPlans] = useState<MenuPlan[]>([])
   const [recipes, setRecipes] = useState<Recipe[]>([])
-  const [menuEntries, setMenuEntries] = useState<MenuEntry[]>([])
-  const [loading, setLoading] = useState(true)
-  const { user } = useAuth()
-  const { toast } = useToast()
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     if (user) {
-      loadData()
+      loadMenuPlans()
+      loadRecipes()
     }
   }, [user])
 
-  const loadData = async () => {
+  const loadMenuPlans = async () => {
     try {
-      setLoading(true)
-
-      // Load recipes
-      const { data: recipesData, error: recipesError } = await supabase
-        .from("recipes")
-        .select("id, title, category")
-        .eq("user_id", user?.id)
-        .order("title")
-
-      if (recipesError) throw recipesError
-
-      // Load menu entries
-      const { data: menuData, error: menuError } = await supabase
-        .from("weekly_menu")
+      const { data, error } = await supabase
+        .from("menu_plans")
         .select(`
-          id,
-          day,
-          meal_type,
-          recipe_id,
-          recipe:recipes(id, title, category)
+          *,
+          recipe:recipes(id, title, description, category)
         `)
         .eq("user_id", user?.id)
 
-      if (menuError) throw menuError
-
-      setRecipes(recipesData || [])
-      setMenuEntries(menuData || [])
+      if (error) throw error
+      setMenuPlans(data || [])
     } catch (error) {
-      console.error("Error loading data:", error)
-      toast({
-        title: "Error",
-        description: "No se pudieron cargar los datos",
-        variant: "destructive",
-      })
+      console.error("Error loading menu plans:", error)
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
-  const addRecipeToMenu = async (day: string, mealType: "lunch" | "dinner", recipeId: string) => {
+  const loadRecipes = async () => {
     try {
-      // Check if entry already exists
-      const existingEntry = menuEntries.find((entry) => entry.day === day && entry.meal_type === mealType)
-
-      if (existingEntry) {
-        // Update existing entry
-        const { error } = await supabase.from("weekly_menu").update({ recipe_id: recipeId }).eq("id", existingEntry.id)
-
-        if (error) throw error
-      } else {
-        // Create new entry
-        const { error } = await supabase.from("weekly_menu").insert({
-          user_id: user?.id,
-          day,
-          meal_type: mealType,
-          recipe_id: recipeId,
-        })
-
-        if (error) throw error
-      }
-
-      await loadData()
-      toast({
-        title: "Éxito",
-        description: "Receta añadida al menú",
-      })
-    } catch (error) {
-      console.error("Error adding recipe to menu:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo añadir la receta al menú",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const removeFromMenu = async (entryId: string) => {
-    try {
-      const { error } = await supabase.from("weekly_menu").delete().eq("id", entryId)
+      const { data, error } = await supabase
+        .from("recipes")
+        .select("id, title, description, category")
+        .eq("user_id", user?.id)
+        .order("title")
 
       if (error) throw error
-
-      await loadData()
-      toast({
-        title: "Éxito",
-        description: "Receta eliminada del menú",
-      })
+      setRecipes(data || [])
     } catch (error) {
-      console.error("Error removing from menu:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo eliminar la receta del menú",
-        variant: "destructive",
-      })
+      console.error("Error loading recipes:", error)
     }
   }
 
-  const getMenuEntry = (day: string, mealType: "lunch" | "dinner") => {
-    return menuEntries.find((entry) => entry.day === day && entry.meal_type === mealType)
+  const getMenuForDayAndMeal = (day: string, mealType: string) => {
+    return menuPlans.find((plan) => plan.day_of_week === day && plan.meal_type === mealType)
   }
 
-  if (loading) {
+  if (loading || isLoading) {
     return (
-      <div className="grid gap-4">
-        {DAYS.map((day) => (
-          <Card key={day}>
-            <CardHeader>
-              <CardTitle className="animate-pulse h-6 bg-gray-200 rounded w-24"></CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="animate-pulse h-20 bg-gray-200 rounded"></div>
-                <div className="animate-pulse h-20 bg-gray-200 rounded"></div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="space-y-6">
+        <div className="text-center">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-64 mb-4 mx-auto"></div>
+            <div className="h-4 bg-gray-200 rounded w-96 mb-8 mx-auto"></div>
+          </div>
+        </div>
+        <div className="grid gap-4">
+          {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+            <div key={i} className="animate-pulse">
+              <div className="h-32 bg-gray-200 rounded-lg"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="text-center py-12">
+        <Calendar className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+        <h2 className="text-2xl font-bold mb-4">Planifica tu menú semanal</h2>
+        <p className="text-gray-600 mb-6">Inicia sesión para comenzar a planificar tus comidas de la semana</p>
+        <Link href="/login">
+          <Button>Iniciar Sesión</Button>
+        </Link>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      {recipes.length === 0 && (
+      <div className="text-center">
+        <h1 className="text-3xl font-bold mb-2">Menú Semanal</h1>
+        <p className="text-gray-600">Planifica tus comidas y cenas para toda la semana</p>
+      </div>
+
+      {recipes.length === 0 ? (
         <Card>
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">
-              No tienes recetas aún.
-              <Button variant="link" asChild className="p-0 ml-1">
-                <a href="/recipes/add">Crea tu primera receta</a>
+          <CardHeader className="text-center">
+            <ChefHat className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+            <CardTitle>No tienes recetas aún</CardTitle>
+            <CardDescription>Necesitas crear algunas recetas antes de poder planificar tu menú semanal</CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <Link href="/recipes/add">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Crear mi primera receta
               </Button>
-            </p>
+            </Link>
           </CardContent>
         </Card>
+      ) : (
+        <div className="grid gap-4">
+          {DAYS_OF_WEEK.map((day) => (
+            <Card key={day}>
+              <CardHeader>
+                <CardTitle className="text-lg">{day}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {MEAL_TYPES.map((mealType) => {
+                    const menuItem = getMenuForDayAndMeal(day, mealType)
+                    return (
+                      <div key={mealType} className="border rounded-lg p-4">
+                        <h4 className="font-medium mb-2">{mealType}</h4>
+                        {menuItem?.recipe ? (
+                          <div className="space-y-2">
+                            <p className="font-medium">{menuItem.recipe.title}</p>
+                            {menuItem.recipe.description && (
+                              <p className="text-sm text-gray-600">{menuItem.recipe.description}</p>
+                            )}
+                            <Link href={`/recipes/${menuItem.recipe.id}`}>
+                              <Button variant="outline" size="sm">
+                                Ver receta
+                              </Button>
+                            </Link>
+                          </div>
+                        ) : (
+                          <div className="text-center py-4">
+                            <p className="text-gray-500 mb-2">Sin planificar</p>
+                            <Button variant="outline" size="sm">
+                              <Plus className="h-4 w-4 mr-1" />
+                              Añadir
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
-
-      <div className="grid gap-4">
-        {DAYS.map((day) => (
-          <Card key={day}>
-            <CardHeader>
-              <CardTitle>{day}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                {Object.entries(MEAL_TYPES).map(([mealType, mealLabel]) => {
-                  const entry = getMenuEntry(day, mealType as "lunch" | "dinner")
-
-                  return (
-                    <div key={mealType} className="space-y-2">
-                      <h4 className="font-medium">{mealLabel}</h4>
-
-                      {entry ? (
-                        <div className="flex items-center justify-between p-3 border rounded-lg">
-                          <span className="font-medium">{entry.recipe?.title}</span>
-                          <Button variant="ghost" size="sm" onClick={() => removeFromMenu(entry.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <Select
-                          onValueChange={(recipeId) => addRecipeToMenu(day, mealType as "lunch" | "dinner", recipeId)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar receta" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {recipes.map((recipe) => (
-                              <SelectItem key={recipe.id} value={recipe.id}>
-                                {recipe.title}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
     </div>
   )
 }

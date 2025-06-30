@@ -22,5 +22,4 @@ export function getSupabaseClient() {
   return supabase
 }
 
-// Export createClient for backwards compatibility
 export { createClient }

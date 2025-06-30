@@ -10,6 +10,7 @@ import { AlertCircle } from "lucide-react"
 import Link from "next/link"
 import type { MenuItem, Recipe, WeeklyMenu } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
+import { Suspense } from "react"
 
 export default function WeeklyMenuPage() {
   const { user, loading: authLoading } = useAuth()
@@ -437,7 +438,9 @@ export default function WeeklyMenuPage() {
         <h1 className="text-3xl font-bold tracking-tight mb-2">Menú Semanal</h1>
         <p className="text-muted-foreground">Planifica tus comidas y cenas para toda la semana</p>
       </div>
-      <WeeklyMenuView />
+      <Suspense fallback={<div>Cargando menú semanal...</div>}>
+        <WeeklyMenuView />
+      </Suspense>
     </div>
   )
 }
