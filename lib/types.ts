@@ -1,22 +1,19 @@
 export interface Recipe {
   id: number
   name: string
-  ingredients: string
-  preparation: string
+  description?: string
+  ingredients: string[]
+  instructions: string[]
+  prep_time?: number
+  cook_time?: number
+  servings?: number
+  difficulty?: string
+  category: string
   image_url?: string
-  created_at: string
-  is_ai_generated?: boolean
-  video_url?: string
   source_url?: string
-  calories?: number
-  user_id?: string // Añadido para la relación con el usuario
-  categories?: Category[]
-}
-
-export interface Category {
-  id: number
-  name: string
+  user_id: string
   created_at: string
+  updated_at: string
 }
 
 export interface WeeklyMenu {
@@ -24,8 +21,11 @@ export interface WeeklyMenu {
   name: string
   start_date: string
   end_date: string
-  created_at: string
   user_id: string
+  is_saved: boolean
+  saved_at?: string
+  created_at: string
+  updated_at: string
 }
 
 export interface MenuItem {
@@ -33,20 +33,30 @@ export interface MenuItem {
   weekly_menu_id: number
   recipe_id: number
   day_of_week: number
-  meal_type: string
+  meal_type: "comida" | "cena"
   dish_order: number
+  recipe?: Recipe
+  created_at: string
+}
+
+export interface DayMenu {
+  day: number
+  dayName: string
+  date: string
+  meals: {
+    comida: (Recipe | null)[]
+    cena: Recipe | null
+  }
 }
 
 export interface UserProfile {
   id: string
-  email: string
+  role: string
   full_name?: string
   first_name?: string
   last_name?: string
   alias?: string
   avatar_url?: string
-  phone?: string
-  role: "admin" | "user" | "user_restricted"
   created_at: string
   updated_at: string
 }

@@ -21,3 +21,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 export function getSupabaseClient() {
   return supabase
 }
+
+// Export createClient for backwards compatibility
+export { createClient }

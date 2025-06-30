@@ -1,28 +1,35 @@
 "use client"
 
-import { useAuth } from "@/components/auth/auth-provider"
+import { useState, useEffect } from "react"
+import { supabase } from "@/lib/supabase/client"
+import type { User } from "@supabase/supabase-js"
 
-// Custom useSession hook that uses Supabase auth but mimics NextAuth.js interface
 export function useSession() {
-  const { user, loading } = useAuth()
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const session = user
-    ? {
-        user: {
-          id: user.id,
-          email: user.email || undefined,
-          name: user.user_metadata?.full_name || user.email?.split("@")[0] || undefined,
-          image: user.user_metadata?.avatar_url || undefined,
-        },
-        expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-      }
-    : null
+  useEffect(() => {
+    // Get initial session
+    const getSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      setUser(session?.user ?? null)
+      setLoading(false)
+    }
 
-  const status = loading ? "loading" : user ? "authenticated" : "unauthenticated"
+    getSession()
 
-  return {
-    data: session,
-    status,
-    update: async () => session,
-  }
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setUser(session?.user ?? null)
+      setLoading(false)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  return { user, loading }
 }

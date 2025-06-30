@@ -3,10 +3,10 @@
 import Link from "next/link"
 import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
-import { createClient } from "@/lib/supabase/client"
+import { supabase } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { User } from "lucide-react" // Import User icon
+import { User } from "lucide-react"
 
 import { ChefHat, Calendar, LogOut, Menu, X, History, Settings, Home, LogIn } from "lucide-react"
 
@@ -23,19 +23,15 @@ export default function SimpleNavigation() {
   const { user, loading, signOut } = useAuth()
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [avatarKey, setAvatarKey] = useState(Date.now()) // Para forzar la recarga del avatar
-  const supabase = createClient()
+  const [avatarKey, setAvatarKey] = useState(Date.now())
 
-  // Función para determinar el nombre a mostrar según la prioridad
   const getDisplayName = (profile: UserProfile | null, email: string): string => {
     if (!profile) return email
 
-    // Prioridad 1: Alias
     if (profile.alias && profile.alias.trim() !== "") {
       return profile.alias
     }
 
-    // Prioridad 2: Nombre y apellidos
     if (
       profile.first_name &&
       profile.last_name &&
@@ -45,12 +41,10 @@ export default function SimpleNavigation() {
       return `${profile.first_name} ${profile.last_name}`
     }
 
-    // Prioridad 3: Nombre completo
     if (profile.full_name && profile.full_name.trim() !== "") {
       return profile.full_name
     }
 
-    // Si no hay nada, usar el email
     return email
   }
 
@@ -89,12 +83,8 @@ export default function SimpleNavigation() {
     getUser()
 
     const handleProfileUpdate = async (event: Event) => {
-      const customEvent = event as CustomEvent
-
-      // Forzar recarga del avatar
       setAvatarKey(Date.now())
 
-      // Recargar el perfil del usuario inmediatamente
       if (user) {
         const profile = await loadUserProfile(user.id)
         if (profile) {
@@ -103,17 +93,14 @@ export default function SimpleNavigation() {
       }
     }
 
-    // Escuchar el evento personalizado
     window.addEventListener("avatar_updated", handleProfileUpdate)
 
     return () => {
       window.removeEventListener("avatar_updated", handleProfileUpdate)
     }
-  }, [user, supabase]) // Solo user y supabase como dependencias
+  }, [user])
 
-  // Función para verificar si el usuario puede ver una opción del menú
   const canViewMenuItem = (menuItem: string) => {
-    // Si no hay usuario autenticado, ocultar Categorías e Historial
     if (!user || !userProfile) {
       if (menuItem === "categories" || menuItem === "history") {
         return false
@@ -121,9 +108,7 @@ export default function SimpleNavigation() {
       return true
     }
 
-    // Si hay usuario autenticado, verificar el rol
     if (userProfile.role === "user_restricted") {
-      // Los usuarios restringidos no pueden ver Categorías e Historial
       if (menuItem === "categories" || menuItem === "history") {
         return false
       }
@@ -151,8 +136,7 @@ export default function SimpleNavigation() {
     )
   }
 
-  // Obtener el nombre a mostrar según la prioridad
-  const displayName = user ? getDisplayName(userProfile, user.email) : ""
+  const displayName = user ? getDisplayName(userProfile, user.email || "") : ""
 
   return (
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -163,13 +147,11 @@ export default function SimpleNavigation() {
           </Link>
         </div>
         <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
-          {/* Left side - Home icon */}
           <div className="flex items-center">
             <Link href="/" className="flex items-center justify-center p-2 text-gray-900" title="Inicio">
               <Home className="h-6 w-6" />
             </Link>
 
-            {/* Desktop navigation */}
             <div className="hidden md:flex items-center space-x-2 ml-4">
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/recipes">
@@ -202,9 +184,7 @@ export default function SimpleNavigation() {
             </div>
           </div>
 
-          {/* Right side */}
           <div className="flex items-center space-x-2">
-            {/* Desktop user info and actions */}
             <div className="hidden md:flex items-center space-x-2">
               {user ? (
                 <>
@@ -247,7 +227,6 @@ export default function SimpleNavigation() {
               )}
             </div>
 
-            {/* Mobile quick access icons */}
             <div className="md:hidden flex items-center space-x-1">
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/recipes" className="p-2" title="Recetas">
@@ -263,7 +242,6 @@ export default function SimpleNavigation() {
               </Button>
             </div>
 
-            {/* Mobile user info or login */}
             <div className="md:hidden flex items-center space-x-2">
               {user ? (
                 <Link
@@ -290,7 +268,6 @@ export default function SimpleNavigation() {
               )}
             </div>
 
-            {/* Mobile hamburger menu - ALWAYS VISIBLE */}
             <div className="md:hidden">
               <Button
                 variant="outline"
@@ -304,7 +281,6 @@ export default function SimpleNavigation() {
           </div>
         </div>
 
-        {/* Mobile menu dropdown */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-gray-200">
             <div className="px-2 pt-2 pb-3 space-y-1">

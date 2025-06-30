@@ -1,7 +1,7 @@
 "use client"
 
 import { useAuth } from "@/components/auth/auth-provider"
-import { LoginForm } from "@/components/auth/login-form"
+import LoginForm from "@/components/auth/login-form"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect } from "react"
 import { Loader2 } from "lucide-react"
@@ -43,13 +43,8 @@ export default function LoginPage() {
   }
 
   return (
-
-    <div className="min-h-screen flex items-start justify-center bg-gray-50 pt-1 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div></div>
-
-        <LoginForm />
-      </div>
+    <div className="container mx-auto px-4 py-8 flex items-center justify-center min-h-[calc(100vh-4rem)]">
+      <LoginForm />
     </div>
   )
 }
