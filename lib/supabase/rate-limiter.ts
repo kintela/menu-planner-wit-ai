@@ -15,7 +15,6 @@ const ENDPOINT_LIMITS: Record<string, number> = {
   auth: 3, // 3 solicitudes por ventana para auth
 
   user_rating: 2, // Reducir límite para calificaciones de usuario
-
 }
 
 /**
@@ -59,90 +58,34 @@ export function calculateBackoff(attempt: number, baseDelay = 1000): number {
   return expBackoff + jitter
 }
 
-/**
- * Wrapper para consultas de Supabase con manejo de rate limiting
- */
-export async function safeQuery<T>(
+interface RateLimiterOptions {
+  endpoint: string
+  maxRetries?: number
+  baseDelay?: number
+}
 
-  queryFn: () => Promise<{ data: T | null; error: any }>,
+type QueryFunction<T> = () => Promise<T>
 
-  options: {
-    endpoint: string
-    maxRetries?: number
-    baseDelay?: number
-  },
+// Simple rate limiter for v0 environment
+export async function safeQuery<T>(queryFn: QueryFunction<T>, options: RateLimiterOptions): Promise<T> {
+  const { maxRetries = 3, baseDelay = 1000 } = options
 
-): Promise<{ data: T | null; error: any }> {
-  const { endpoint, maxRetries = 3, baseDelay = 500 } = options
-  let retries = 0
-  let lastError: any = null
+  let lastError: any
 
-  while (retries <= maxRetries) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      // Añadir un pequeño retraso aleatorio para evitar colisiones
-      if (retries > 0) {
-        const delay = baseDelay * Math.pow(2, retries - 1) + Math.random() * 200
-        console.log(`⏱️ Reintento ${retries}/${maxRetries} para ${endpoint} después de ${delay.toFixed(0)}ms`)
+      const result = await queryFn()
+      return result
+    } catch (error) {
+      lastError = error
+
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt)
+        console.log(`⏳ Retry ${attempt + 1}/${maxRetries} after ${delay}ms for ${options.endpoint}`)
         await new Promise((resolve) => setTimeout(resolve, delay))
       }
-
-      // Ejecutar la consulta
-      const result = await queryFn()
-
-      // Si hay un error específico de rate limiting, manejarlo
-      if (result.error) {
-        const errorMessage =
-          typeof result.error === "object" && result.error !== null
-            ? result.error.message || JSON.stringify(result.error)
-            : String(result.error)
-
-        // Detectar errores de rate limiting
-        if (
-          errorMessage.includes("Too Many Requests") ||
-          errorMessage.includes("429") ||
-          errorMessage.includes("rate limit")
-        ) {
-          console.warn(`⚠️ Rate limit alcanzado en ${endpoint} (intento ${retries + 1}/${maxRetries + 1})`)
-          lastError = result.error
-          retries++
-          continue
-        }
-
-        // Otros errores, simplemente devolver el resultado
-        return result
-      }
-
-      // Éxito
-      return result
-    } catch (error: any) {
-      console.error(`❌ Error en consulta ${endpoint} (intento ${retries + 1}/${maxRetries + 1}):`, error)
-
-      // Mejorar manejo de errores para respuestas no-JSON
-      const errorMessage = error?.message || String(error)
-
-      // Detectar errores de rate limiting en excepciones
-      if (
-        errorMessage.includes("Too Many Requests") ||
-        errorMessage.includes("429") ||
-        errorMessage.includes("rate limit") ||
-        errorMessage.includes("is not valid JSON") // Añadir detección de errores de parsing JSON
-      ) {
-        console.warn(`⚠️ Rate limit o error de parsing en ${endpoint} (intento ${retries + 1}/${maxRetries + 1})`)
-        lastError = error
-        retries++
-
-        // Esperar más tiempo para errores de rate limiting
-        await new Promise((resolve) => setTimeout(resolve, calculateBackoff(retries, baseDelay * 2)))
-        continue
-      }
-
-      // Para otros errores, devolver un objeto de resultado con el error
-      return { data: null, error }
     }
   }
 
-  // Si llegamos aquí, se agotaron los reintentos
-  console.error(`❌ Se agotaron los reintentos para ${endpoint}`)
-  return { data: null, error: lastError || new Error(`Se agotaron los reintentos para ${endpoint}`) }
-
+  throw lastError
 }
