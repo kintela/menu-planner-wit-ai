@@ -9,14 +9,12 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   error: Error | null
-  isPreview: boolean
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   error: null,
-  isPreview: false,
 })
 
 // Check if we're in a preview environment
@@ -33,12 +31,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  const [isPreview] = useState(() => isPreviewEnvironment())
   const [supabase] = useState(() => createClient())
 
   useEffect(() => {
     // In preview mode, simulate no user and finish loading
-    if (isPreview) {
+    if (isPreviewEnvironment()) {
       console.log("🔍 Preview mode - skipping authentication")
       setUser(null)
       setLoading(false)
@@ -100,9 +97,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabase, isPreview])
+  }, [supabase])
 
-  return <AuthContext.Provider value={{ user, loading, error, isPreview }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, loading, error }}>{children}</AuthContext.Provider>
 }
 
 export const useAuth = () => {
