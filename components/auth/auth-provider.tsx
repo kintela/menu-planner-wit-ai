@@ -17,16 +17,6 @@ const AuthContext = createContext<AuthContextType>({
   error: null,
 })
 
-// Check if we're in a preview environment
-function isPreviewEnvironment() {
-  if (typeof window === "undefined") return false
-  return (
-    window.location.hostname.includes("v0.dev") ||
-    window.location.hostname.includes("vusercontent.net") ||
-    window.location.hostname.includes("vercel.app")
-  )
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -34,15 +24,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [supabase] = useState(() => createClient())
 
   useEffect(() => {
-    // In preview mode, simulate no user and finish loading
-    if (isPreviewEnvironment()) {
-      console.log("🔍 Preview mode - skipping authentication")
-      setUser(null)
-      setLoading(false)
-      setError(null)
-      return
-    }
-
     // Función para inicializar la sesión
     const initSession = async () => {
       try {

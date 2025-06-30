@@ -23,38 +23,9 @@ export function LoginForm() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [isResetMode, setIsResetMode] = useState(false)
   const [resetCooldown, setResetCooldown] = useState(0)
-  const [isPreviewMode, setIsPreviewMode] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
-
-  // Check if we're in preview mode
-  useEffect(() => {
-    const isPreview =
-      window.location.hostname.includes("v0.dev") ||
-      window.location.hostname.includes("vusercontent.net") ||
-      !process.env.NEXT_PUBLIC_SUPABASE_URL
-    setIsPreviewMode(isPreview)
-
-    if (isPreview) {
-      setMessage("🔍 Modo preview detectado - La autenticación real no está disponible en este entorno")
-    }
-  }, [])
-
-  // Initialize Supabase client safely
-  const [supabase, setSupabase] = useState<any>(null)
-
-  useEffect(() => {
-    try {
-      if (!isPreviewMode) {
-        const client = getSupabaseClient()
-        setSupabase(client)
-      }
-    } catch (error) {
-      console.warn("No se pudo inicializar Supabase:", error)
-      setIsPreviewMode(true)
-      setMessage("⚠️ Configuración de Supabase no disponible - Modo preview activado")
-    }
-  }, [isPreviewMode])
+  const supabase = getSupabaseClient()
 
   // Buscar tanto "redirect" como "redirectTo" para compatibilidad
   const redirectTo = searchParams.get("redirect") || searchParams.get("redirectTo") || "/"
@@ -87,41 +58,8 @@ export function LoginForm() {
     }
   }, [resetCooldown])
 
-  const handlePreviewAuth = async () => {
-    setLoading(true)
-    setError(null)
-
-    // Simulate authentication delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    if (isSignUp) {
-      setMessage("✅ Cuenta creada exitosamente en modo preview! En producción recibirías un email de confirmación.")
-    } else {
-      setMessage("✅ Inicio de sesión exitoso en modo preview! Redirigiendo...")
-      setTimeout(() => {
-        // In preview mode, just redirect to the main page
-        window.location.href = "/"
-      }, 1500)
-    }
-
-    setLoading(false)
-  }
-
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    // Handle preview mode
-    if (isPreviewMode) {
-      await handlePreviewAuth()
-      return
-    }
-
-    // Handle real authentication
-    if (!supabase) {
-      setError("Error de configuración: Cliente de Supabase no disponible")
-      return
-    }
-
     setLoading(true)
     setError(null)
     setMessage(null)
@@ -162,7 +100,6 @@ export function LoginForm() {
         }
       }
     } catch (error: any) {
-      console.error("Error de autenticación:", error)
       setError(error.message || "Error en la autenticación")
     } finally {
       setLoading(false)
@@ -171,22 +108,6 @@ export function LoginForm() {
 
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    // Handle preview mode
-    if (isPreviewMode) {
-      setLoading(true)
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      setMessage("✅ En modo preview: Email de recuperación enviado simulado. En producción recibirías un email real.")
-      setLoading(false)
-      setIsResetMode(false)
-      return
-    }
-
-    if (!supabase) {
-      setError("Error de configuración: Cliente de Supabase no disponible")
-      return
-    }
-
     setLoading(true)
     setError(null)
     setMessage(null)
@@ -247,13 +168,11 @@ export function LoginForm() {
             {isResetMode ? "Recuperar contraseña" : isSignUp ? "Crear cuenta" : "Iniciar sesión"}
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            {isPreviewMode
-              ? "Vista previa del formulario de autenticación"
-              : isResetMode
-                ? "Introduce tu email para recibir un enlace de recuperación"
-                : isSignUp
-                  ? "Crea tu cuenta para comenzar a planificar tus menús"
-                  : "Accede a Menu Planner AI para gestionar tus recetas y menús"}
+            {isResetMode
+              ? "Introduce tu email para recibir un enlace de recuperación"
+              : isSignUp
+                ? "Crea tu cuenta para comenzar a planificar tus menús"
+                : "Accede a Menu Planner AI para gestionar tus recetas y menús"}
           </p>
         </div>
 
@@ -301,14 +220,6 @@ export function LoginForm() {
               {message && (
                 <Alert>
                   <AlertDescription className="text-green-600">{message}</AlertDescription>
-                </Alert>
-              )}
-
-              {isPreviewMode && (
-                <Alert>
-                  <AlertDescription className="text-blue-600">
-                    🔍 Modo preview: La autenticación real requiere configuración de Supabase en producción
-                  </AlertDescription>
                 </Alert>
               )}
 
@@ -373,7 +284,7 @@ export function LoginForm() {
                 </div>
               </div>
 
-              {isResetMode && !isPreviewMode && (
+              {isResetMode && (
                 <div className="text-xs text-muted-foreground text-center mt-4 space-y-1">
                   <p>• Solo puedes solicitar 1 email cada 60 segundos</p>
                   <p>• Máximo 5 intentos por hora por seguridad</p>
