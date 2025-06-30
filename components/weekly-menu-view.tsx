@@ -74,76 +74,82 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
       endOfWeek.setDate(endOfWeek.getDate() + 6)
       const endDate = endOfWeek.toISOString().split("T")[0]
 
-      // Test Supabase connection first
-      try {
-        const { data: testData, error: testError } = await supabase.from("recipes").select("count").limit(1)
+      // Inicializar estados por defecto
+      setWeeklyMenu(null)
+      setMenuItems([])
+      setRecipes([])
 
-        if (testError) {
-          console.error("Supabase connection test failed:", testError)
-          throw new Error(`Database connection failed: ${testError.message}`)
+      // Cargar recetas disponibles PRIMERO (es lo más importante)
+      try {
+        const { data: recipesData, error: recipesError } = await supabase.from("recipes").select("*").order("name")
+
+        if (recipesError) {
+          console.error("Error fetching recipes:", recipesError)
+          // No lanzar error, solo logear y continuar con array vacío
+          console.log("⚠️ Continuando sin recetas debido al error:", recipesError.message)
+        } else {
+          setRecipes(recipesData || [])
+          console.log(`✅ ${recipesData?.length || 0} recetas cargadas correctamente`)
         }
-        console.log("✅ Supabase connection test passed")
-      } catch (connectionError) {
-        console.error("❌ Supabase connection error:", connectionError)
-        throw new Error("No se pudo conectar a la base de datos. Verifica tu conexión.")
+      } catch (recipesErr) {
+        console.error("❌ Error cargando recetas:", recipesErr)
+        // Continuar sin recetas
       }
 
       // Buscar menú semanal existente
-      const { data: weeklyMenuData, error: menuError } = await supabase
-        .from("weekly_menus")
-        .select("*")
-        .eq("start_date", weekStartDate)
-        .eq("end_date", endDate)
-        .eq("user_id", userId)
-        .maybeSingle()
+      try {
+        const { data: weeklyMenuData, error: menuError } = await supabase
+          .from("weekly_menus")
+          .select("*")
+          .eq("start_date", weekStartDate)
+          .eq("end_date", endDate)
+          .eq("user_id", userId)
+          .maybeSingle()
 
-      if (menuError) {
-        console.error("Error fetching weekly menu:", menuError)
-        throw new Error(`Error al cargar el menú semanal: ${menuError.message}`)
-      }
+        if (menuError) {
+          console.error("Error fetching weekly menu:", menuError)
+          console.log("⚠️ Continuando sin menú semanal debido al error:", menuError.message)
+        } else if (weeklyMenuData) {
+          setWeeklyMenu(weeklyMenuData)
+          console.log("✅ Menú semanal encontrado:", weeklyMenuData.name)
 
-      // Inicializar estados
-      setWeeklyMenu(weeklyMenuData)
-      setMenuItems([])
+          // Solo cargar items del menú si existe el menú
+          try {
+            const { data: items, error: itemsError } = await supabase
+              .from("menu_items")
+              .select(`
+                *,
+                recipe:recipe_id (*)
+              `)
+              .eq("weekly_menu_id", weeklyMenuData.id)
+              .order("day_of_week")
+              .order("meal_type")
+              .order("dish_order")
 
-      // Solo cargar items del menú si existe el menú
-      if (weeklyMenuData) {
-        const { data: items, error: itemsError } = await supabase
-          .from("menu_items")
-          .select(`
-            *,
-            recipe:recipe_id (*)
-          `)
-          .eq("weekly_menu_id", weeklyMenuData.id)
-          .order("day_of_week")
-          .order("meal_type")
-          .order("dish_order")
-
-        if (itemsError) {
-          console.error("Error fetching menu items:", itemsError)
-          throw new Error(`Error al cargar los elementos del menú: ${itemsError.message}`)
+            if (itemsError) {
+              console.error("Error fetching menu items:", itemsError)
+              console.log("⚠️ Continuando sin items del menú debido al error:", itemsError.message)
+            } else {
+              setMenuItems((items as unknown as MenuItemWithRecipe[]) || [])
+              console.log(`✅ ${items?.length || 0} items del menú cargados`)
+            }
+          } catch (itemsErr) {
+            console.error("❌ Error cargando items del menú:", itemsErr)
+            // Continuar sin items
+          }
+        } else {
+          console.log("📝 No hay menú para esta semana, mostrando vacío")
         }
-
-        setMenuItems((items as unknown as MenuItemWithRecipe[]) || [])
-        console.log("✅ Menú y items cargados correctamente")
-      } else {
-        console.log("📝 No hay menú para esta semana, mostrando vacío")
+      } catch (menuErr) {
+        console.error("❌ Error cargando menú semanal:", menuErr)
+        // Continuar sin menú
       }
 
-      // Cargar recetas disponibles (siempre, independientemente del menú)
-      const { data: recipesData, error: recipesError } = await supabase.from("recipes").select("*").order("name")
-
-      if (recipesError) {
-        console.error("Error fetching recipes:", recipesError)
-        throw new Error(`Error al cargar las recetas: ${recipesError.message}`)
-      }
-
-      setRecipes(recipesData || [])
-      console.log(`✅ ${recipesData?.length || 0} recetas cargadas correctamente`)
+      console.log("✅ Carga de datos completada (con o sin errores)")
     } catch (err) {
-      console.error("❌ Error cargando datos:", err)
-      const errorMessage = err instanceof Error ? err.message : "Error desconocido al cargar los datos"
-      setError(errorMessage)
+      console.error("❌ Error general cargando datos:", err)
+      // No establecer error que impida el renderizado
+      console.log("⚠️ Continuando con datos por defecto debido a errores")
     } finally {
       setLoading(false)
     }
@@ -348,25 +354,23 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
     )
   }
 
-  if (error) {
-    return (
-      <div className="text-center space-y-4 p-8">
-        <div className="text-red-600 text-lg font-semibold">Error</div>
-        <div className="text-red-500 max-w-md mx-auto">{error}</div>
-        <Button onClick={() => loadDataForWeek(startDate)} variant="outline">
-          Reintentar
-        </Button>
-        <div className="text-sm text-muted-foreground mt-4">
-          Si el problema persiste, verifica tu conexión a internet y las variables de entorno de Supabase.
-        </div>
-      </div>
-    )
-  }
-
+  // Siempre renderizar el componente, incluso si hay errores
   const menuTitle = weeklyMenu?.name || `Nuevo Menú - ${formatDateRange(startDate)}`
 
   return (
     <div className="space-y-6">
+      {/* Mostrar advertencia si hay problemas de conexión */}
+      {error && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex">
+            <div className="text-yellow-600 text-sm">
+              ⚠️ Algunos datos no se pudieron cargar correctamente. Puedes seguir usando el planificador, pero algunas
+              funciones pueden estar limitadas.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header con navegación de semanas */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
@@ -440,9 +444,18 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
                           {/* Selector para añadir/cambiar recetas */}
                           <Select
                             onValueChange={(recipeId) => addRecipeToMenu(dayIndex, mealType, dishOrder, recipeId)}
+                            disabled={recipes.length === 0}
                           >
                             <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder={existingItem ? "Cambiar receta" : "Añadir receta"} />
+                              <SelectValue
+                                placeholder={
+                                  recipes.length === 0
+                                    ? "No hay recetas"
+                                    : existingItem
+                                      ? "Cambiar receta"
+                                      : "Añadir receta"
+                                }
+                              />
                             </SelectTrigger>
                             <SelectContent>
                               {recipes.map((recipe) => (
@@ -496,12 +509,10 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
             <CardTitle>No hay recetas disponibles</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground mb-4">
               Necesitas crear algunas recetas antes de poder planificar tu menú semanal.
             </p>
-            <Button className="mt-4" onClick={() => (window.location.href = "/recipes/add")}>
-              Crear primera receta
-            </Button>
+            <Button onClick={() => (window.location.href = "/recipes/add")}>Crear primera receta</Button>
           </CardContent>
         </Card>
       )}
