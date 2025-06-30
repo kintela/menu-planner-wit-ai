@@ -5,7 +5,7 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import WeeklyMenuView from "@/components/weekly-menu-view"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle } from "lucide-react"
 import Link from "next/link"
 import type { MenuItem, Recipe, WeeklyMenu } from "@/lib/types"
@@ -361,7 +361,12 @@ export default function WeeklyMenuPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="animate-pulse">
           <div className="h-8 bg-gray-200 rounded w-64 mb-4"></div>
-          <div className="h-96 bg-gray-200 rounded"></div>
+          <div className="h-4 bg-gray-200 rounded w-96 mb-8"></div>
+          <div className="grid gap-4">
+            {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+              <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -371,17 +376,15 @@ export default function WeeklyMenuPage() {
   if (!user) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <Card className="max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle>Acceso Requerido</CardTitle>
-            <CardDescription>Necesitas iniciar sesión para ver tu menú semanal</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/login">
-              <Button className="w-full">Iniciar Sesión</Button>
-            </Link>
-          </CardContent>
-        </Card>
+        <div className="text-center space-y-6">
+          <h1 className="text-3xl font-bold">Menú Semanal</h1>
+          <p className="text-lg text-muted-foreground">
+            Necesitas iniciar sesión para acceder al planificador de menús semanales
+          </p>
+          <Link href="/login">
+            <Button size="lg">Iniciar Sesión</Button>
+          </Link>
+        </div>
       </div>
     )
   }
@@ -392,7 +395,12 @@ export default function WeeklyMenuPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="animate-pulse">
           <div className="h-8 bg-gray-200 rounded w-64 mb-4"></div>
-          <div className="h-96 bg-gray-200 rounded"></div>
+          <div className="h-4 bg-gray-200 rounded w-96 mb-8"></div>
+          <div className="grid gap-4">
+            {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+              <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -433,6 +441,12 @@ export default function WeeklyMenuPage() {
   // Show the weekly menu view
   return (
     <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Menú Semanal</h1>
+        <p className="text-muted-foreground">
+          Planifica tus comidas para toda la semana y mantén una alimentación organizada
+        </p>
+      </div>
       <WeeklyMenuView />
     </div>
   )
