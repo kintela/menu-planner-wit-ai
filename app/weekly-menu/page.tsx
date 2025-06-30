@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
 import { SimpleNavigation } from "@/components/simple-navigation"
 import { WeeklyMenuView } from "@/components/weekly-menu-view"
 import { supabase } from "@/lib/supabase/client"
@@ -288,51 +286,28 @@ export default function WeeklyMenuPage() {
   }
 
   // Don't render anything until mounted to prevent hydration mismatch
-  if (!mounted) {
+  if (!mounted || authLoading) {
     return (
-      <div className="container mx-auto px-4 py-8" suppressHydrationWarning>
-        <SimpleNavigation />
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-64 mb-4"></div>
-          <div className="h-96 bg-gray-200 rounded"></div>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     )
   }
 
-  // Show loading while auth is loading
-  if (authLoading) {
-    return (
-      <div className="min-h-screen">
-        <SimpleNavigation />
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      </div>
-    )
-  }
-
-  // Show login required if no user
   if (!user) {
     return (
-      <div className="min-h-screen">
-        <SimpleNavigation />
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center space-y-6">
-            <h1 className="text-3xl font-bold">Planificador de Menús Semanales</h1>
-            <p className="text-lg text-muted-foreground">
-              Necesitas iniciar sesión para acceder al planificador de menús
-            </p>
-            <Link href="/login">
-              <Button size="lg">Iniciar Sesión</Button>
-            </Link>
-          </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Acceso requerido</h2>
+          <p className="text-gray-600 mb-4">Necesitas iniciar sesión para acceder al planificador de menús.</p>
+          <a href="/login" className="text-blue-600 hover:underline">
+            Iniciar sesión
+          </a>
         </div>
       </div>
     )
   }
 
-  // Show the weekly menu view
   return (
     <div className="min-h-screen bg-gray-50">
       <SimpleNavigation />
