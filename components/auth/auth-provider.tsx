@@ -9,21 +9,43 @@ interface AuthContextType {
   user: User | null
   loading: boolean
   error: Error | null
+  isPreview: boolean
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   error: null,
+  isPreview: false,
 })
+
+// Check if we're in a preview environment
+function isPreviewEnvironment() {
+  if (typeof window === "undefined") return false
+  return (
+    window.location.hostname.includes("v0.dev") ||
+    window.location.hostname.includes("vusercontent.net") ||
+    window.location.hostname.includes("vercel.app")
+  )
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [isPreview] = useState(() => isPreviewEnvironment())
   const [supabase] = useState(() => createClient())
 
   useEffect(() => {
+    // In preview mode, simulate no user and finish loading
+    if (isPreview) {
+      console.log("🔍 Preview mode - skipping authentication")
+      setUser(null)
+      setLoading(false)
+      setError(null)
+      return
+    }
+
     // Función para inicializar la sesión
     const initSession = async () => {
       try {
@@ -78,9 +100,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabase])
+  }, [supabase, isPreview])
 
-  return <AuthContext.Provider value={{ user, loading, error }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, loading, error, isPreview }}>{children}</AuthContext.Provider>
 }
 
 export const useAuth = () => {
