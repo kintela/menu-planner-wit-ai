@@ -23,3 +23,4 @@ export function getSupabaseClient() {
 }
 
 export { createClient }
+export default supabase

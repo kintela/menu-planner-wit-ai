@@ -19,24 +19,13 @@ export default function LoginPage() {
     }
   }, [user, loading, redirectTo, router])
 
-  if (loading) {
+  if (loading || user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Verificando autenticación...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p className="text-lg font-medium">¡Ya estás autenticado!</p>
-          <p className="text-sm text-muted-foreground">Redirigiendo...</p>
+          <p className="text-lg font-medium">{loading ? "Verificando autenticación..." : "¡Ya estás autenticado!"}</p>
+          {user && <p className="text-sm text-muted-foreground">Redirigiendo...</p>}
         </div>
       </div>
     )

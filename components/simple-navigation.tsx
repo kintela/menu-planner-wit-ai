@@ -136,7 +136,7 @@ export default function SimpleNavigation() {
     )
   }
 
-  const displayName = user ? getDisplayName(userProfile, user.email) : ""
+  const displayName = user ? getDisplayName(userProfile, user.email || "") : ""
 
   return (
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
