@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { X, Calendar, ChevronLeft, ChevronRight } from "lucide-react"
+import { Calendar, ChevronLeft, ChevronRight } from "lucide-react"
 import type { Recipe, MenuItem, WeeklyMenu } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 
@@ -450,42 +450,24 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
                         <div key={dishOrder} className="space-y-1">
                           <div className="text-xs text-muted-foreground">{dishLabel}</div>
 
-                          {/* Receta existente */}
-                          {existingItem && (
-                            <div
-                              className={`flex items-center justify-between p-2 rounded-lg text-sm ${
-                                mealType === "lunch" ? "bg-orange-50" : "bg-blue-50"
-                              }`}
-                            >
-                              <span className="truncate">{existingItem.recipe.name}</span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeRecipeFromMenu(existingItem.id)}
-                                className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          )}
-
-                          {/* Selector para añadir/cambiar recetas */}
                           <Select
-                            onValueChange={(recipeId) => addRecipeToMenu(dayIndex, mealType, dishOrder, recipeId)}
+                            value={existingItem?.recipe_id || "default"}
+                            onValueChange={(recipeId) => {
+                              if (recipeId === "default") {
+                                if (existingItem) {
+                                  removeRecipeFromMenu(existingItem.id)
+                                }
+                              } else {
+                                addRecipeToMenu(dayIndex, mealType, dishOrder, recipeId)
+                              }
+                            }}
                             disabled={recipes.length === 0}
                           >
                             <SelectTrigger className="h-8 text-xs">
-                              <SelectValue
-                                placeholder={
-                                  recipes.length === 0
-                                    ? "No hay recetas"
-                                    : existingItem
-                                      ? "Cambiar receta"
-                                      : "Añadir receta"
-                                }
-                              />
+                              <SelectValue placeholder={recipes.length === 0 ? "No hay recetas" : "Añadir receta"} />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="default">Añadir receta</SelectItem>
                               {recipes.map((recipe) => (
                                 <SelectItem key={recipe.id} value={recipe.id}>
                                   {recipe.name}
