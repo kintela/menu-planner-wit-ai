@@ -4,12 +4,12 @@ import LoginForm from "@/components/auth/login-form"
 import { supabase } from "@/lib/supabase/client"
 import jest from "jest" // Import jest to fix the undeclared variable error
 
-// Mock next/navigation
+// Mock Next.js router
 jest.mock("next/navigation", () => ({
   useRouter: jest.fn(),
 }))
 
-// Mock supabase
+// Mock Supabase
 jest.mock("@/lib/supabase/client", () => ({
   supabase: {
     auth: {
@@ -20,10 +20,13 @@ jest.mock("@/lib/supabase/client", () => ({
 }))
 
 // Mock window.location
+const mockLocation = {
+  href: "",
+  search: "",
+}
+
 Object.defineProperty(window, "location", {
-  value: {
-    search: "",
-  },
+  value: mockLocation,
   writable: true,
 })
 
@@ -35,16 +38,13 @@ describe("LoginForm Redirect", () => {
     ;(useRouter as jest.Mock).mockReturnValue({
       push: mockPush,
     })
+    mockLocation.href = ""
+    mockLocation.search = ""
   })
 
-  it("should redirect to weekly-menu after successful login when redirect param is present", async () => {
-    // Mock URL with redirect parameter
-    Object.defineProperty(window, "location", {
-      value: {
-        search: "?redirect=/weekly-menu",
-      },
-      writable: true,
-    })
+  it("should redirect to /weekly-menu when redirect parameter is present", async () => {
+    // Simular URL con parámetro redirect
+    mockLocation.search = "?redirect=/weekly-menu"
 
     // Mock successful login
     ;(supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({
@@ -53,7 +53,7 @@ describe("LoginForm Redirect", () => {
 
     render(<LoginForm />)
 
-    // Fill in form
+    // Llenar formulario
     fireEvent.change(screen.getByLabelText(/email/i), {
       target: { value: "test@example.com" },
     })
@@ -61,27 +61,15 @@ describe("LoginForm Redirect", () => {
       target: { value: "password123" },
     })
 
-    // Submit form
+    // Enviar formulario
     fireEvent.click(screen.getByRole("button", { name: /iniciar sesión/i }))
 
-    // Wait for redirect
-    await waitFor(
-      () => {
-        expect(mockPush).toHaveBeenCalledWith("/weekly-menu")
-      },
-      { timeout: 200 },
-    )
+    await waitFor(() => {
+      expect(mockLocation.href).toBe("/weekly-menu")
+    })
   })
 
-  it("should redirect to home when no redirect param is present", async () => {
-    // Mock URL without redirect parameter
-    Object.defineProperty(window, "location", {
-      value: {
-        search: "",
-      },
-      writable: true,
-    })
-
+  it("should redirect to / when no redirect parameter is present", async () => {
     // Mock successful login
     ;(supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({
       error: null,
@@ -89,7 +77,7 @@ describe("LoginForm Redirect", () => {
 
     render(<LoginForm />)
 
-    // Fill in form
+    // Llenar formulario
     fireEvent.change(screen.getByLabelText(/email/i), {
       target: { value: "test@example.com" },
     })
@@ -97,27 +85,23 @@ describe("LoginForm Redirect", () => {
       target: { value: "password123" },
     })
 
-    // Submit form
+    // Enviar formulario
     fireEvent.click(screen.getByRole("button", { name: /iniciar sesión/i }))
 
-    // Wait for redirect
-    await waitFor(
-      () => {
-        expect(mockPush).toHaveBeenCalledWith("/")
-      },
-      { timeout: 200 },
-    )
+    await waitFor(() => {
+      expect(mockLocation.href).toBe("/")
+    })
   })
 
-  it("should handle login errors without redirecting", async () => {
-    // Mock login error
+  it("should not redirect when login fails", async () => {
+    // Mock failed login
     ;(supabase.auth.signInWithPassword as jest.Mock).mockResolvedValue({
       error: { message: "Invalid credentials" },
     })
 
     render(<LoginForm />)
 
-    // Fill in form
+    // Llenar formulario
     fireEvent.change(screen.getByLabelText(/email/i), {
       target: { value: "test@example.com" },
     })
@@ -125,15 +109,36 @@ describe("LoginForm Redirect", () => {
       target: { value: "wrongpassword" },
     })
 
-    // Submit form
+    // Enviar formulario
     fireEvent.click(screen.getByRole("button", { name: /iniciar sesión/i }))
 
-    // Wait for error message
     await waitFor(() => {
-      expect(screen.getByText("Invalid credentials")).toBeInTheDocument()
+      expect(screen.getByText(/invalid credentials/i)).toBeInTheDocument()
     })
 
-    // Should not redirect on error
-    expect(mockPush).not.toHaveBeenCalled()
+    // No debería haber redirección
+    expect(mockLocation.href).toBe("")
+  })
+
+  it("should render login form correctly", () => {
+    render(<LoginForm />)
+
+    expect(screen.getByText(/iniciar sesión/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/contraseña/i)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /iniciar sesión/i })).toBeInTheDocument()
+  })
+
+  it("should toggle between login and signup modes", () => {
+    render(<LoginForm />)
+
+    // Inicialmente en modo login
+    expect(screen.getByText(/iniciar sesión/i)).toBeInTheDocument()
+
+    // Cambiar a modo registro
+    fireEvent.click(screen.getByText(/¿no tienes cuenta\? crear una nueva/i))
+
+    expect(screen.getByText(/crear cuenta/i)).toBeInTheDocument()
+    expect(screen.getByText(/mínimo 6 caracteres/i)).toBeInTheDocument()
   })
 })

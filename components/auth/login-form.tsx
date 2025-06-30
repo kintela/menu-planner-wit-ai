@@ -45,10 +45,8 @@ export default function LoginForm() {
         if (error) {
           setError(error.message)
         } else {
-          // Esperar un poco para asegurar que la sesión se establezca
-          setTimeout(() => {
-            router.push(redirectTo)
-          }, 100)
+          // Usar window.location.href para forzar la navegación
+          window.location.href = redirectTo
         }
       } else {
         // Registrarse
