@@ -5,8 +5,8 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import WeeklyMenuView from "@/components/weekly-menu-view"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { AlertCircle, User } from "lucide-react"
 import Link from "next/link"
 import type { MenuItem, Recipe, WeeklyMenu } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
@@ -358,16 +358,8 @@ export default function WeeklyMenuPage() {
   // Show loading while auth is loading
   if (authLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-64 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-96 mb-8"></div>
-          <div className="grid gap-4">
-            {[1, 2, 3, 4, 5, 6, 7].map((i) => (
-              <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
-            ))}
-          </div>
-        </div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     )
   }
@@ -375,16 +367,21 @@ export default function WeeklyMenuPage() {
   // Show login required if no user
   if (!user) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center space-y-6">
-          <h1 className="text-3xl font-bold">Menú Semanal</h1>
-          <p className="text-lg text-muted-foreground">
-            Necesitas iniciar sesión para acceder al planificador de menús semanales
-          </p>
-          <Link href="/login">
-            <Button size="lg">Iniciar Sesión</Button>
-          </Link>
-        </div>
+      <div className="max-w-md mx-auto mt-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <User className="h-5 w-5" />
+              <span>Acceso Requerido</span>
+            </CardTitle>
+            <CardDescription>Necesitas iniciar sesión para acceder al planificador de menús semanales.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/login">
+              <Button className="w-full">Iniciar Sesión</Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     )
   }
