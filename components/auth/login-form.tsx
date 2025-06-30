@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -16,8 +16,17 @@ export default function LoginForm() {
   const [error, setError] = useState("")
   const [isLogin, setIsLogin] = useState(true)
   const [success, setSuccess] = useState("")
+  const [redirectTo, setRedirectTo] = useState("/")
   const router = useRouter()
-  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    // Obtener el parámetro redirect de la URL
+    const urlParams = new URLSearchParams(window.location.search)
+    const redirect = urlParams.get("redirect")
+    if (redirect) {
+      setRedirectTo(redirect)
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,9 +45,10 @@ export default function LoginForm() {
         if (error) {
           setError(error.message)
         } else {
-          // Redirigir a la ruta original o a la página principal
-          const redirectTo = searchParams.get("redirect") || "/"
-          router.push(redirectTo)
+          // Esperar un poco para asegurar que la sesión se establezca
+          setTimeout(() => {
+            router.push(redirectTo)
+          }, 100)
         }
       } else {
         // Registrarse
