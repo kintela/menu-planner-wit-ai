@@ -10,7 +10,7 @@ import { Calendar, ChefHat, Plus } from "lucide-react"
 
 interface Recipe {
   id: string
-  title: string
+  name: string
   description?: string
   category?: string
 }
@@ -27,18 +27,21 @@ const DAYS_OF_WEEK = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sá
 
 const MEAL_TYPES = ["Comida", "Cena"]
 
-export default function WeeklyMenuView() {
+export function WeeklyMenuView() {
   const { user, loading } = useAuth()
   const [menuPlans, setMenuPlans] = useState<MenuPlan[]>([])
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (user) {
       loadMenuPlans()
       loadRecipes()
+    } else if (!loading) {
+      setIsLoading(false)
     }
-  }, [user])
+  }, [user, loading])
 
   const loadMenuPlans = async () => {
     try {
@@ -46,7 +49,7 @@ export default function WeeklyMenuView() {
         .from("menu_plans")
         .select(`
           *,
-          recipe:recipes(id, title, description, category)
+          recipe:recipes(id, name, description, category)
         `)
         .eq("user_id", user?.id)
 
@@ -54,23 +57,49 @@ export default function WeeklyMenuView() {
       setMenuPlans(data || [])
     } catch (error) {
       console.error("Error loading menu plans:", error)
-    } finally {
-      setIsLoading(false)
+      setError("Error al cargar los planes de menú")
     }
   }
 
   const loadRecipes = async () => {
     try {
-      const { data, error } = await supabase
+      // Try different possible column names
+      let query = supabase
         .from("recipes")
-        .select("id, title, description, category")
+        .select("id, name, description, category")
         .eq("user_id", user?.id)
-        .order("title")
+        .order("name")
+
+      let { data, error } = await query
+
+      // If 'name' column doesn't exist, try 'title'
+      if (error && error.message.includes("column") && error.message.includes("name")) {
+        query = supabase
+          .from("recipes")
+          .select("id, title, description, category")
+          .eq("user_id", user?.id)
+          .order("title")
+
+        const result = await query
+        data = result.data
+        error = result.error
+
+        // Map title to name for consistency
+        if (data) {
+          data = data.map((recipe) => ({
+            ...recipe,
+            name: recipe.title || recipe.name,
+          }))
+        }
+      }
 
       if (error) throw error
       setRecipes(data || [])
     } catch (error) {
       console.error("Error loading recipes:", error)
+      setError("Error al cargar las recetas")
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -107,6 +136,15 @@ export default function WeeklyMenuView() {
         <Link href="/login">
           <Button>Iniciar Sesión</Button>
         </Link>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-red-500 mb-4">{error}</div>
+        <Button onClick={() => window.location.reload()}>Reintentar</Button>
       </div>
     )
   }
@@ -150,7 +188,7 @@ export default function WeeklyMenuView() {
                         <h4 className="font-medium mb-2">{mealType}</h4>
                         {menuItem?.recipe ? (
                           <div className="space-y-2">
-                            <p className="font-medium">{menuItem.recipe.title}</p>
+                            <p className="font-medium">{menuItem.recipe.name}</p>
                             {menuItem.recipe.description && (
                               <p className="text-sm text-gray-600">{menuItem.recipe.description}</p>
                             )}
