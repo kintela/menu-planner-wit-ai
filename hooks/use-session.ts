@@ -1,22 +1,10 @@
 "use client"
 
-import type React from "react"
-
-import { createContext, useContext, useEffect, useState } from "react"
-import type { User } from "@supabase/supabase-js"
+import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase/client"
+import type { User } from "@supabase/supabase-js"
 
-interface SessionContextType {
-  user: User | null
-  loading: boolean
-}
-
-const SessionContext = createContext<SessionContextType>({
-  user: null,
-  loading: true,
-})
-
-export function SessionProvider({ children }: { children: React.ReactNode }) {
+export function useSession() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -38,13 +26,5 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  return <SessionContext.Provider value={{ user, loading }}>{children}</SessionContext.Provider>
-}
-
-export const useSession = () => {
-  const context = useContext(SessionContext)
-  if (context === undefined) {
-    throw new Error("useSession must be used within a SessionProvider")
-  }
-  return context
+  return { user, loading }
 }

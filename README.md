@@ -1,22 +1,22 @@
 # Menu Planner with AI
 
-A weekly menu planning application with AI-powered recipe suggestions.
+A Next.js application for planning weekly menus with AI-powered recipe suggestions.
 
 ## Features
 
-- Weekly menu planning
-- Recipe management
-- AI-powered recipe suggestions
 - User authentication with Supabase
-- Responsive design
+- Recipe management
+- Weekly menu planning
+- AI-powered recipe suggestions
+- Category-based recipe filtering
 
 ## Tech Stack
 
-- Next.js 14
+- Next.js 14 (App Router)
 - TypeScript
-- Supabase
+- Supabase (Database & Auth)
 - Tailwind CSS
-- shadcn/ui
+- shadcn/ui components
 
 ## Getting Started
 
@@ -27,7 +27,8 @@ A weekly menu planning application with AI-powered recipe suggestions.
 
 ## Environment Variables
 
-\`\`\`
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-OPENAI_API_KEY=your_openai_api_key
+Required environment variables:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENAI_API_KEY`

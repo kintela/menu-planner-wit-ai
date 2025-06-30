@@ -5,7 +5,6 @@ import "./globals.css"
 import { AuthProvider } from "@/components/auth/auth-provider"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
-import { SimpleNavigation } from "@/components/simple-navigation"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -21,14 +20,11 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <AuthProvider>
-            <div className="min-h-screen bg-background">
-              <SimpleNavigation />
-              <main>{children}</main>
-            </div>
+            {children}
             <Toaster />
           </AuthProvider>
         </ThemeProvider>

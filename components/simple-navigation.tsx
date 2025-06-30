@@ -3,232 +3,76 @@
 import Link from "next/link"
 import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
-import { supabase } from "@/lib/supabase/client"
-import { useEffect, useState } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-
-import { ChefHat, Calendar, LogOut, History, Settings, Home } from "lucide-react"
-
-interface UserProfile {
-  role: string
-  full_name: string
-  first_name?: string
-  last_name?: string
-  alias?: string
-  avatar_url?: string
-}
+import { LogOut, Menu, Calendar } from "lucide-react"
 
 export function SimpleNavigation() {
-  const { user, loading, signOut } = useAuth()
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
-  const [avatarKey, setAvatarKey] = useState(Date.now())
+  const { user, profile, signOut } = useAuth()
 
-  const getDisplayName = (profile: UserProfile | null, email: string): string => {
-    if (!profile) return email
-
-    if (profile.alias && profile.alias.trim() !== "") {
-      return profile.alias
+  const getInitials = (name?: string, email?: string) => {
+    if (name) {
+      return name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
     }
-
-    if (
-      profile.first_name &&
-      profile.last_name &&
-      profile.first_name.trim() !== "" &&
-      profile.last_name.trim() !== ""
-    ) {
-      return `${profile.first_name} ${profile.last_name}`
+    if (email) {
+      return email.slice(0, 2).toUpperCase()
     }
-
-    if (profile.full_name && profile.full_name.trim() !== "") {
-      return profile.full_name
-    }
-
-    return email
+    return "U"
   }
-
-  const loadUserProfile = async (userId: string) => {
-    try {
-      const { data: profile, error } = await supabase
-        .from("user_profiles")
-        .select("role, full_name, first_name, last_name, alias, avatar_url")
-        .eq("id", userId)
-        .single()
-
-      if (error) {
-        return null
-      }
-
-      return profile
-    } catch (error) {
-      return null
-    }
-  }
-
-  const getAvatarUrl = (profile: UserProfile | null) => {
-    if (profile?.avatar_url) {
-      // Si el avatar_url ya es una URL completa, la usamos tal como está
-      if (profile.avatar_url.startsWith("http")) {
-        return profile.avatar_url
-      }
-      // Si no, construimos la URL del bucket de Supabase
-      return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${profile.avatar_url}`
-    }
-    return null
-  }
-
-  const getInitials = (email: string) => {
-    return email.split("@")[0].slice(0, 2).toUpperCase()
-  }
-
-  useEffect(() => {
-    async function getUser() {
-      try {
-        if (user) {
-          const profile = await loadUserProfile(user.id)
-          if (profile) {
-            setUserProfile(profile)
-          }
-        }
-      } catch (error) {
-        console.error("Error getting user for navigation:", error)
-      }
-    }
-
-    getUser()
-
-    const handleProfileUpdate = async (event: Event) => {
-      setAvatarKey(Date.now())
-
-      if (user) {
-        const profile = await loadUserProfile(user.id)
-        if (profile) {
-          setUserProfile(profile)
-        }
-      }
-    }
-
-    window.addEventListener("avatar_updated", handleProfileUpdate)
-
-    return () => {
-      window.removeEventListener("avatar_updated", handleProfileUpdate)
-    }
-  }, [user])
-
-  const canViewMenuItem = (menuItem: string) => {
-    if (!user || !userProfile) {
-      if (menuItem === "categories" || menuItem === "history") {
-        return false
-      }
-      return true
-    }
-
-    if (userProfile.role === "user_restricted") {
-      if (menuItem === "categories" || menuItem === "history") {
-        return false
-      }
-    }
-
-    return true
-  }
-
-  if (loading) {
-    return (
-      <nav className="border-b bg-white">
-        <div className="container mx-auto px-4">
-          <div className="flex h-16 items-center justify-between">
-            <div className="animate-pulse flex space-x-4">
-              <div className="h-4 bg-gray-200 rounded w-20"></div>
-              <div className="h-4 bg-gray-200 rounded w-20"></div>
-              <div className="h-4 bg-gray-200 rounded w-20"></div>
-            </div>
-            <div className="animate-pulse">
-              <div className="h-8 bg-gray-200 rounded w-24"></div>
-            </div>
-          </div>
-        </div>
-      </nav>
-    )
-  }
-
-  const displayName = user ? getDisplayName(userProfile, user.email || "") : ""
-  const avatarUrl = getAvatarUrl(userProfile)
 
   return (
-    <nav className="border-b bg-white">
+    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center space-x-6">
-            <Link href="/" className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 transition-colors">
-              <Home className="h-4 w-4" />
-              <span>Inicio</span>
+            <Link href="/" className="flex items-center space-x-2">
+              <Menu className="h-6 w-6" />
+              <span className="font-bold text-xl">Menu Planner</span>
             </Link>
 
-            <Link
-              href="/recipes"
-              className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 transition-colors"
-            >
-              <ChefHat className="h-4 w-4" />
-              <span>Recetas</span>
-            </Link>
-
-            <Link
-              href="/weekly-menu"
-              className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 transition-colors"
-            >
-              <Calendar className="h-4 w-4" />
-              <span>Menú Semanal</span>
-            </Link>
-
-            {canViewMenuItem("categories") && (
-              <Link
-                href="/categories"
-                className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 transition-colors"
-              >
-                <Settings className="h-4 w-4" />
-                <span>Categorías</span>
-              </Link>
-            )}
-
-            {canViewMenuItem("history") && (
-              <Link
-                href="/history"
-                className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 transition-colors"
-              >
-                <History className="h-4 w-4" />
-                <span>Historial</span>
-              </Link>
+            {user && (
+              <div className="hidden md:flex items-center space-x-4">
+                <Link href="/recipes" className="text-sm font-medium hover:text-primary">
+                  Recetas
+                </Link>
+                <Link href="/weekly-menu" className="text-sm font-medium hover:text-primary flex items-center gap-1">
+                  <Calendar className="h-4 w-4" />
+                  Menú Semanal
+                </Link>
+              </div>
             )}
           </div>
 
           <div className="flex items-center space-x-4">
             {user ? (
-              <>
+              <div className="flex items-center space-x-3">
                 <div className="flex items-center space-x-2">
-                  <Avatar className="w-8 h-8">
-                    <AvatarImage src={avatarUrl || undefined} alt="Avatar" key={`avatar-${avatarKey}-${avatarUrl}`} />
-                    <AvatarFallback className="text-xs bg-blue-100 text-blue-800">
-                      {getInitials(user.email || "U")}
-                    </AvatarFallback>
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage
+                      src={profile?.avatar_url || undefined}
+                      alt={profile?.full_name || user.email || "User"}
+                    />
+                    <AvatarFallback>{getInitials(profile?.full_name, user.email)}</AvatarFallback>
                   </Avatar>
-                  <span className="text-sm font-medium text-blue-600">{displayName}</span>
-                  {userProfile?.role === "admin" && (
-                    <span className="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded">Admin</span>
-                  )}
+                  <span className="text-sm font-medium hidden sm:inline">{profile?.full_name || user.email}</span>
                 </div>
-                <Button
-                  onClick={signOut}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center space-x-2 text-red-600 border-red-200 hover:bg-red-50 bg-transparent"
-                >
+                <Button variant="ghost" size="sm" onClick={signOut} className="flex items-center gap-1">
                   <LogOut className="h-4 w-4" />
-                  <span>Cerrar Sesión</span>
+                  <span className="hidden sm:inline">Salir</span>
                 </Button>
-              </>
+              </div>
             ) : (
-              <Link href="/login">
-                <Button size="sm">Iniciar Sesión</Button>
-              </Link>
+              <div className="flex items-center space-x-2">
+                <Link href="/login">
+                  <Button variant="ghost" size="sm">
+                    Iniciar Sesión
+                  </Button>
+                </Link>
+              </div>
             )}
           </div>
         </div>
