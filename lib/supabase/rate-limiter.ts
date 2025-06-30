@@ -2,8 +2,8 @@
  * Utilidad para manejar rate limiting en Supabase
  */
 
-// Contador de solicitudes por endpoint
-const requestCounts: Record<string, { count: number; resetTime: number }> = {}
+// Estado de rate limiting por endpoint
+const rateLimitState: Record<string, { lastRequest: number; requestCount: number; isBlocked: boolean }> = {}
 
 // Tiempo de ventana para contar solicitudes (ms)
 const WINDOW_SIZE = 10000 // 10 segundos
@@ -33,19 +33,32 @@ export function shouldRateLimit(endpoint: string): boolean {
   })
 
   // Inicializar o resetear contador si es necesario
-  if (!requestCounts[key] || now > requestCounts[key].resetTime) {
-    requestCounts[key] = {
-      count: 1,
-      resetTime: now + WINDOW_SIZE,
+  if (!rateLimitState[key]) {
+    rateLimitState[key] = {
+      lastRequest: now,
+      requestCount: 1,
+      isBlocked: false,
     }
     return false
   }
 
+  const state = rateLimitState[key]
+
+  // Resetear contador cada minuto
+  if (now - state.lastRequest > 60000) {
+    state.requestCount = 0
+    state.isBlocked = false
+  }
+
   // Incrementar contador
-  requestCounts[key].count++
+  state.requestCount++
 
   // Comprobar si excede el límite
-  return requestCounts[key].count > limit
+  const shouldLimit = state.requestCount > limit
+  if (shouldLimit) {
+    state.isBlocked = true
+  }
+  return shouldLimit
 }
 
 /**
@@ -58,7 +71,7 @@ export function calculateBackoff(attempt: number, baseDelay = 1000): number {
   return expBackoff + jitter
 }
 
-interface RateLimiterOptions {
+interface RateLimitOptions {
   endpoint: string
   maxRetries?: number
   baseDelay?: number
@@ -67,22 +80,67 @@ interface RateLimiterOptions {
 type QueryFunction<T> = () => Promise<T>
 
 // Simple rate limiter for v0 environment
-export async function safeQuery<T>(queryFn: QueryFunction<T>, options: RateLimiterOptions): Promise<T> {
-  const { maxRetries = 3, baseDelay = 1000 } = options
+export async function safeQuery<T>(queryFn: QueryFunction<T>, options: RateLimitOptions): Promise<T> {
+  const { endpoint, maxRetries = 3, baseDelay = 1000 } = options
+
+  // Inicializar estado si no existe
+  if (!rateLimitState[endpoint]) {
+    rateLimitState[endpoint] = {
+      lastRequest: 0,
+      requestCount: 0,
+      isBlocked: false,
+    }
+  }
+
+  const state = rateLimitState[endpoint]
+  const now = Date.now()
+
+  // Resetear contador cada minuto
+  if (now - state.lastRequest > 60000) {
+    state.requestCount = 0
+    state.isBlocked = false
+  }
+
+  // Verificar si estamos bloqueados
+  if (state.isBlocked) {
+    console.warn(`Rate limit activo para ${endpoint}, usando delay`)
+    await new Promise((resolve) => setTimeout(resolve, baseDelay))
+  }
 
   let lastError: any
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const result = await queryFn()
-      return result
-    } catch (error) {
-      lastError = error
-
-      if (attempt < maxRetries) {
-        const delay = baseDelay * Math.pow(2, attempt)
-        console.log(`⏳ Retry ${attempt + 1}/${maxRetries} after ${delay}ms for ${options.endpoint}`)
+      // Añadir delay entre intentos
+      if (attempt > 0) {
+        const delay = baseDelay * Math.pow(2, attempt - 1)
+        console.log(`Reintento ${attempt} para ${endpoint} en ${delay}ms`)
         await new Promise((resolve) => setTimeout(resolve, delay))
+      }
+
+      state.lastRequest = now
+      state.requestCount++
+
+      const result = await queryFn()
+
+      // Resetear estado en caso de éxito
+      if (state.requestCount > 5) {
+        state.isBlocked = false
+      }
+
+      return result
+    } catch (error: any) {
+      lastError = error
+      console.warn(`Error en intento ${attempt + 1} para ${endpoint}:`, error)
+
+      // Si es un error de rate limiting, marcar como bloqueado
+      if (error?.message?.includes("rate") || error?.status === 429) {
+        state.isBlocked = true
+      }
+
+      // Si es el último intento, lanzar el error
+      if (attempt === maxRetries) {
+        break
       }
     }
   }
