@@ -48,21 +48,12 @@ export default function WeeklyMenuPage() {
 
   const loadRecipes = async () => {
     try {
-      const { data, error } = await supabase
-        .from("recipes")
-        .select("*")
-        .or(`user_id.eq.${user?.id},is_public.eq.true`)
-        .order("name")
+      const { data, error } = await supabase.from("recipes").select("*").eq("user_id", user?.id).order("name")
 
       if (error) throw error
       setRecipes(data || [])
     } catch (error) {
       console.error("Error loading recipes:", error)
-      // toast({
-      //   title: "Error",
-      //   description: "No se pudieron cargar las recetas",
-      //   variant: "destructive",
-      // })
     }
   }
 
@@ -128,11 +119,6 @@ export default function WeeklyMenuPage() {
       }
     } catch (error) {
       console.error("Error loading weekly menu:", error)
-      // toast({
-      //   title: "Error",
-      //   description: "No se pudo cargar el menú semanal",
-      //   variant: "destructive",
-      // })
     } finally {
       setLoading(false)
     }
@@ -184,18 +170,8 @@ export default function WeeklyMenuPage() {
           [mealType]: [...prev[dayIndex][mealType], recipe],
         },
       }))
-
-      // toast({
-      //   title: "Receta añadida",
-      //   description: `${recipe.name} añadida al ${mealType === "lunch" ? "almuerzo" : "cena"} del ${DAYS[dayIndex]}`,
-      // })
     } catch (error) {
       console.error("Error adding recipe to menu:", error)
-      // toast({
-      //   title: "Error",
-      //   description: "No se pudo añadir la receta al menú",
-      //   variant: "destructive",
-      // })
     }
   }
 
@@ -225,18 +201,8 @@ export default function WeeklyMenuPage() {
           [mealType]: prev[dayIndex][mealType].filter((_, index) => index !== recipeIndex),
         },
       }))
-
-      // toast({
-      //   title: "Receta eliminada",
-      //   description: `${recipe.name} eliminada del menú`,
-      // })
     } catch (error) {
       console.error("Error removing recipe from menu:", error)
-      // toast({
-      //   title: "Error",
-      //   description: "No se pudo eliminar la receta del menú",
-      //   variant: "destructive",
-      // })
     }
   }
 
@@ -250,17 +216,8 @@ export default function WeeklyMenuPage() {
       if (error) throw error
 
       setCurrentMenu((prev) => (prev ? { ...prev, is_saved: true } : null))
-      // toast({
-      //   title: "Menú guardado",
-      //   description: "El menú semanal ha sido guardado exitosamente",
-      // })
     } catch (error) {
       console.error("Error saving menu:", error)
-      // toast({
-      //   title: "Error",
-      //   description: "No se pudo guardar el menú",
-      //   variant: "destructive",
-      // })
     } finally {
       setSaving(false)
     }
