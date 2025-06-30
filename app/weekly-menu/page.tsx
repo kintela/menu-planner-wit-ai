@@ -23,6 +23,11 @@ export default function WeeklyMenuPage() {
   const { toast } = useToast()
 
   const loadDataForWeek = async (weekStartDate: string) => {
+    if (!user) {
+      console.log("No user found, skipping data load")
+      return
+    }
+
     try {
       console.log("🔄 Cargando datos del menú semanal para fecha:", weekStartDate)
       console.log("🔍 Usuario para búsqueda:", user?.id)
@@ -33,15 +38,18 @@ export default function WeeklyMenuPage() {
       const endDate = endOfWeek.toISOString().split("T")[0]
 
       // Buscar menú semanal existente para la semana específica
-      const { data: weeklyMenuData } = await supabase
+      const { data: weeklyMenuData, error: menuError } = await supabase
         .from("weekly_menus")
         .select("*")
         .eq("start_date", weekStartDate)
         .eq("end_date", endDate)
-
         .eq("user_id", user?.id)
-
         .maybeSingle()
+
+      if (menuError) {
+        console.error("Error fetching weekly menu:", menuError)
+        throw menuError
+      }
 
       console.log("📅 Menú semanal encontrado:", weeklyMenuData)
       setWeeklyMenu(weeklyMenuData)
@@ -49,7 +57,7 @@ export default function WeeklyMenuPage() {
       // Obtener items del menú si existe
       let menuItemsData: MenuItem[] = []
       if (weeklyMenuData) {
-        const { data: items } = await supabase
+        const { data: items, error: itemsError } = await supabase
           .from("menu_items")
           .select(`
             *,
@@ -59,6 +67,11 @@ export default function WeeklyMenuPage() {
           .order("day_of_week")
           .order("meal_type")
           .order("dish_order")
+
+        if (itemsError) {
+          console.error("Error fetching menu items:", itemsError)
+          throw itemsError
+        }
 
         if (items) {
           menuItemsData = items as unknown as MenuItem[]
@@ -70,7 +83,13 @@ export default function WeeklyMenuPage() {
 
       // Obtener todas las recetas (solo una vez)
       if (recipes.length === 0) {
-        const { data: recipesData } = await supabase.from("recipes").select("*").order("name")
+        const { data: recipesData, error: recipesError } = await supabase.from("recipes").select("*").order("name")
+
+        if (recipesError) {
+          console.error("Error fetching recipes:", recipesError)
+          throw recipesError
+        }
+
         setRecipes(recipesData || [])
         console.log("📝 Recetas cargadas:", recipesData?.length || 0, "recetas")
       }
@@ -85,8 +104,15 @@ export default function WeeklyMenuPage() {
   const loadData = async () => {
     try {
       setLoading(true)
+      setError(null)
+
+      if (!user) {
+        console.log("No user authenticated, skipping data load")
+        setLoading(false)
+        return
+      }
+
       console.log("🔄 Cargando datos del menú semanal para usuario:", user?.email)
-      const supabase = getSupabaseClient()
 
       // Calcular fechas de la semana actual
       const today = new Date()
@@ -111,14 +137,21 @@ export default function WeeklyMenuPage() {
   }
 
   const loadMenuHistory = async () => {
+    if (!user) return
+
     try {
       const supabase = getSupabaseClient()
 
-      const { data: historyData } = await supabase
+      const { data: historyData, error } = await supabase
         .from("weekly_menus")
         .select("*")
         .eq("user_id", user?.id)
         .order("start_date", { ascending: false })
+
+      if (error) {
+        console.error("Error loading menu history:", error)
+        return
+      }
 
       setMenuHistory(historyData || [])
     } catch (err) {
@@ -127,23 +160,34 @@ export default function WeeklyMenuPage() {
   }
 
   useEffect(() => {
-    if (authLoading) return
+    console.log("Auth loading:", authLoading, "User:", user?.email)
+
+    if (authLoading) {
+      console.log("Still loading auth, waiting...")
+      return
+    }
 
     if (!user) {
+      console.log("No user found, stopping loading")
       setLoading(false)
       return
     }
 
+    console.log("User found, loading data...")
     loadData()
     loadMenuHistory()
   }, [user, authLoading])
 
   const handleDataUpdate = () => {
     console.log("🔄 Recargando datos...")
-    loadDataForWeek(startDate)
+    if (startDate && user) {
+      loadDataForWeek(startDate)
+    }
   }
 
   const handleWeekChange = async (newStartDate: string) => {
+    if (!user) return
+
     setLoading(true)
     setStartDate(newStartDate)
 
@@ -214,8 +258,13 @@ export default function WeeklyMenuPage() {
 
         // Cargar las recetas si no están cargadas
         if (recipes.length === 0) {
-          const { data: recipesData } = await supabase.from("recipes").select("*").order("name")
-          setRecipes(recipesData || [])
+          const { data: recipesData, error: recipesError } = await supabase.from("recipes").select("*").order("name")
+
+          if (recipesError) {
+            console.error("Error loading recipes:", recipesError)
+          } else {
+            setRecipes(recipesData || [])
+          }
         }
 
         console.log("✅ Nuevo menú semanal creado:", newMenu.name)
@@ -238,6 +287,8 @@ export default function WeeklyMenuPage() {
   }
 
   const handleMenuSelect = async (selectedMenu: WeeklyMenu) => {
+    if (!user) return
+
     setLoading(true)
     try {
       const supabase = getSupabaseClient()
@@ -247,7 +298,7 @@ export default function WeeklyMenuPage() {
       setStartDate(selectedMenu.start_date)
 
       // Load menu items for the selected menu
-      const { data: items } = await supabase
+      const { data: items, error } = await supabase
         .from("menu_items")
         .select(`
           *,
@@ -257,6 +308,11 @@ export default function WeeklyMenuPage() {
         .order("day_of_week")
         .order("meal_type")
         .order("dish_order")
+
+      if (error) {
+        console.error("Error loading menu items:", error)
+        throw error
+      }
 
       if (items) {
         setMenuItems(items as unknown as MenuItem[])
@@ -277,18 +333,20 @@ export default function WeeklyMenuPage() {
     }
   }
 
-  if (authLoading || loading) {
+  // Show loading while auth is loading
+  if (authLoading) {
     return (
       <div className="container py-10">
         <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Cargando...</span>
+          <span className="ml-2">Cargando autenticación...</span>
         </div>
       </div>
     )
   }
 
+  // Show login required if no user
   if (!user) {
     return (
       <div className="container py-10">
@@ -318,6 +376,20 @@ export default function WeeklyMenuPage() {
     )
   }
 
+  // Show loading while data is loading
+  if (loading) {
+    return (
+      <div className="container py-10">
+        <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <span className="ml-2">Cargando datos del menú...</span>
+        </div>
+      </div>
+    )
+  }
+
+  // Show error if there's an error
   if (error) {
     return (
       <div className="container py-10">
@@ -332,7 +404,14 @@ export default function WeeklyMenuPage() {
           <CardContent className="space-y-4">
             <p className="text-red-700 dark:text-red-300">{error}</p>
             <div className="flex gap-2">
-              <Button onClick={() => window.location.reload()}>Reintentar</Button>
+              <Button
+                onClick={() => {
+                  setError(null)
+                  loadData()
+                }}
+              >
+                Reintentar
+              </Button>
               <Button asChild variant="outline">
                 <Link href="/">Volver al Inicio</Link>
               </Button>
@@ -343,6 +422,7 @@ export default function WeeklyMenuPage() {
     )
   }
 
+  // Show the weekly menu view
   return (
     <div className="container py-10">
       <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
