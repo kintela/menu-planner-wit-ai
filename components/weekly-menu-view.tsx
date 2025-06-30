@@ -463,7 +463,17 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
                             }}
                             disabled={recipes.length === 0}
                           >
-                            <SelectTrigger className="h-8 text-xs">
+                            <SelectTrigger
+                              className={`h-8 text-xs ${
+                                existingItem
+                                  ? mealType === "lunch"
+                                    ? dishOrder === 0
+                                      ? "bg-orange-100 border-orange-300 text-orange-800"
+                                      : "bg-amber-100 border-amber-300 text-amber-800"
+                                    : "bg-blue-100 border-blue-300 text-blue-800"
+                                  : "bg-gray-50"
+                              }`}
+                            >
                               <SelectValue placeholder={recipes.length === 0 ? "No hay recetas" : "Añadir receta"} />
                             </SelectTrigger>
                             <SelectContent>
