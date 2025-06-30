@@ -88,58 +88,36 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
         throw menuError
       }
 
-      let currentMenu = weeklyMenuData
+      // Si no existe el menú, no crearlo automáticamente, solo mostrar vacío
+      if (weeklyMenuData) {
+        setWeeklyMenu(weeklyMenuData)
 
-      // Si no existe el menú, crearlo
-      if (!currentMenu) {
-        const formatDateToDDMMYYYY = (dateString: string): string => {
-          const date = new Date(dateString)
-          return date.toLocaleDateString("es-ES")
+        // Cargar items del menú
+        const { data: items, error: itemsError } = await supabase
+          .from("menu_items")
+          .select(`
+            *,
+            recipe:recipe_id (*)
+          `)
+          .eq("weekly_menu_id", weeklyMenuData.id)
+          .order("day_of_week")
+          .order("meal_type")
+          .order("dish_order")
+
+        if (itemsError) {
+          console.error("Error fetching menu items:", itemsError)
+          throw itemsError
         }
 
-        const { data: newMenu, error: createError } = await supabase
-          .from("weekly_menus")
-          .insert({
-            name: `Menú del ${formatDateToDDMMYYYY(weekStartDate)} al ${formatDateToDDMMYYYY(endDate)}`,
-            start_date: weekStartDate,
-            end_date: endDate,
-            user_id: userId,
-            is_saved: false,
-          })
-          .select()
-          .single()
-
-        if (createError) {
-          console.error("Error creating menu:", createError)
-          throw createError
-        }
-
-        currentMenu = newMenu
-        console.log("✅ Nuevo menú creado:", currentMenu.name)
+        setMenuItems((items as unknown as MenuItemWithRecipe[]) || [])
+      } else {
+        // No hay menú para esta semana, mostrar vacío
+        setWeeklyMenu(null)
+        setMenuItems([])
+        console.log("📝 No hay menú para esta semana, mostrando vacío")
       }
 
-      setWeeklyMenu(currentMenu)
-
-      // Cargar items del menú
-      const { data: items, error: itemsError } = await supabase
-        .from("menu_items")
-        .select(`
-          *,
-          recipe:recipe_id (*)
-        `)
-        .eq("weekly_menu_id", currentMenu.id)
-        .order("day_of_week")
-        .order("meal_type")
-        .order("dish_order")
-
-      if (itemsError) {
-        console.error("Error fetching menu items:", itemsError)
-        throw itemsError
-      }
-
-      setMenuItems((items as unknown as MenuItemWithRecipe[]) || [])
-
-      // Cargar recetas disponibles (sin filtro is_public)
+      // Cargar recetas disponibles
       const { data: recipesData, error: recipesError } = await supabase.from("recipes").select("*").order("name")
 
       if (recipesError) {
@@ -186,14 +164,46 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
     )
   }
 
+  const createWeeklyMenuIfNeeded = async () => {
+    if (weeklyMenu) return weeklyMenu.id
+
+    const endOfWeek = new Date(startDate)
+    endOfWeek.setDate(endOfWeek.getDate() + 6)
+    const endDate = endOfWeek.toISOString().split("T")[0]
+
+    const formatDateToDDMMYYYY = (dateString: string): string => {
+      const date = new Date(dateString)
+      return date.toLocaleDateString("es-ES")
+    }
+
+    const { data: newMenu, error: createError } = await supabase
+      .from("weekly_menus")
+      .insert({
+        name: `Menú del ${formatDateToDDMMYYYY(startDate)} al ${formatDateToDDMMYYYY(endDate)}`,
+        start_date: startDate,
+        end_date: endDate,
+        user_id: userId,
+        is_saved: false,
+      })
+      .select()
+      .single()
+
+    if (createError) {
+      console.error("Error creating menu:", createError)
+      throw createError
+    }
+
+    setWeeklyMenu(newMenu)
+    console.log("✅ Nuevo menú creado:", newMenu.name)
+    return newMenu.id
+  }
+
   const addRecipeToMenu = async (
     dayIndex: number,
     mealType: "lunch" | "dinner",
     dishOrder: number,
     recipeId: string,
   ) => {
-    if (!weeklyMenu) return
-
     try {
       // Verificar si ya existe una receta en esta posición
       const existingItems = getMenuItemsForDayAndMeal(dayIndex, mealType, dishOrder)
@@ -202,10 +212,13 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
         await removeRecipeFromMenu(existingItems[0].id)
       }
 
+      // Crear menú si no existe
+      const menuId = await createWeeklyMenuIfNeeded()
+
       const { data: newItem, error } = await supabase
         .from("menu_items")
         .insert({
-          weekly_menu_id: weeklyMenu.id,
+          weekly_menu_id: menuId,
           recipe_id: recipeId,
           day_of_week: dayIndex,
           meal_type: mealType,
@@ -269,7 +282,14 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
   }
 
   const saveMenu = async () => {
-    if (!weeklyMenu) return
+    if (!weeklyMenu) {
+      toast({
+        title: "No hay menú",
+        description: "Añade algunas recetas antes de guardar el menú",
+        variant: "destructive",
+      })
+      return
+    }
 
     try {
       setSaving(true)
@@ -323,6 +343,8 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
     )
   }
 
+  const menuTitle = weeklyMenu?.name || `Nuevo Menú - ${formatDateRange(startDate)}`
+
   return (
     <div className="space-y-6">
       {/* Header con navegación de semanas */}
@@ -333,7 +355,7 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
           </Button>
 
           <div className="text-center">
-            <h1 className="text-2xl font-bold">{weeklyMenu?.name}</h1>
+            <h1 className="text-2xl font-bold">{menuTitle}</h1>
             <p className="text-sm text-muted-foreground flex items-center gap-1">
               <Calendar className="h-4 w-4" />
               {formatDateRange(startDate)}
