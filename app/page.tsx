@@ -35,58 +35,47 @@ export default function HomePage() {
         </p>
       </div>
 
-      {!user ? (
-        <div className="text-center mb-12">
-          <Link href="/login">
-            <Button size="lg" className="mr-4">
-              Iniciar Sesión
-            </Button>
-          </Link>
-          <p className="text-sm text-muted-foreground mt-4">Inicia sesión para comenzar a planificar tus menús</p>
-        </div>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-2 max-w-4xl mx-auto">
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader className="text-center">
-              <CardTitle className="flex items-center justify-center gap-2 text-xl">
-                <Calendar className="h-6 w-6 text-blue-600" />
-                Planificar Menús
-              </CardTitle>
-              <CardDescription className="text-base">
-                Crea y organiza tus menús semanales de forma intuitiva
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <Link href="/weekly-menu">
-                <Button className="w-full bg-gray-900 hover:bg-gray-800 text-white py-3">Ir al Planificador</Button>
-              </Link>
-            </CardContent>
-          </Card>
+      <div className="grid gap-6 md:grid-cols-2 max-w-4xl mx-auto">
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader className="text-center">
+            <CardTitle className="flex items-center justify-center gap-2 text-xl">
+              <Calendar className="h-6 w-6 text-blue-600" />
+              Planificar Menús
+            </CardTitle>
+            <CardDescription className="text-base">
+              Crea y organiza tus menús semanales de forma intuitiva
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <Link href="/weekly-menu">
+              <Button className="w-full bg-gray-900 hover:bg-gray-800 text-white py-3">Ir al Planificador</Button>
+            </Link>
+          </CardContent>
+        </Card>
 
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader className="text-center">
-              <CardTitle className="flex items-center justify-center gap-2 text-xl">
-                <BookOpen className="h-6 w-6 text-green-600" />
-                Gestionar Recetas
-              </CardTitle>
-              <CardDescription className="text-base">
-                Explora, añade y organiza todas tus recetas favoritas
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Link href="/recipes">
-                <Button className="w-full bg-gray-900 hover:bg-gray-800 text-white py-3">Ver Recetas</Button>
-              </Link>
-              <Link href="/recipes/add">
-                <Button variant="outline" className="w-full py-3 flex items-center justify-center gap-2 bg-transparent">
-                  <Plus className="h-4 w-4" />
-                  Añadir Receta
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader className="text-center">
+            <CardTitle className="flex items-center justify-center gap-2 text-xl">
+              <BookOpen className="h-6 w-6 text-green-600" />
+              Gestionar Recetas
+            </CardTitle>
+            <CardDescription className="text-base">
+              Explora, añade y organiza todas tus recetas favoritas
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Link href="/recipes">
+              <Button className="w-full bg-gray-900 hover:bg-gray-800 text-white py-3">Ver Recetas</Button>
+            </Link>
+            <Link href="/recipes/add">
+              <Button variant="outline" className="w-full py-3 flex items-center justify-center gap-2 bg-transparent">
+                <Plus className="h-4 w-4" />
+                Añadir Receta
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
