@@ -62,6 +62,16 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
     })}`
   }
 
+  // Función para mapear entre valores del componente y valores de la BD
+  const mapMealTypeToDb = (mealType: "lunch" | "dinner"): string => {
+    return mealType === "lunch" ? "comida" : "cena"
+  }
+
+  // Función para mapear desde valores de la BD a valores del componente
+  const mapMealTypeFromDb = (dbMealType: string): "lunch" | "dinner" => {
+    return dbMealType === "comida" ? "lunch" : "dinner"
+  }
+
   const loadDataForWeek = async (weekStartDate: string) => {
     console.log("🔄 Iniciando carga de datos para la semana:", weekStartDate)
 
@@ -143,6 +153,15 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
               const itemsData = (itemsResponse.data as unknown as MenuItemWithRecipe[]) || []
               setMenuItems(itemsData)
               console.log(`✅ ${itemsData.length} items del menú cargados`)
+              console.log(
+                "📋 Items cargados:",
+                itemsData.map((item) => ({
+                  day: item.day_of_week,
+                  meal: item.meal_type,
+                  dish: item.dish_order,
+                  recipe: item.recipe?.name,
+                })),
+              )
             }
           } catch (itemsError) {
             console.warn("⚠️ Excepción al cargar items del menú:", itemsError)
@@ -199,9 +218,19 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
   }
 
   const getMenuItemsForDayAndMeal = (dayIndex: number, mealType: "lunch" | "dinner", dishOrder: number) => {
-    return menuItems.filter(
-      (item) => item.day_of_week === dayIndex && item.meal_type === mealType && item.dish_order === dishOrder,
+    // Mapear el mealType del componente al valor de la BD para hacer la comparación
+    const dbMealType = mapMealTypeToDb(mealType)
+
+    const items = menuItems.filter(
+      (item) => item.day_of_week === dayIndex && item.meal_type === dbMealType && item.dish_order === dishOrder,
     )
+
+    console.log(
+      `🔍 Buscando items para día ${dayIndex}, meal ${mealType} (${dbMealType}), dish ${dishOrder}:`,
+      items.length,
+    )
+
+    return items
   }
 
   const createWeeklyMenuIfNeeded = async () => {
@@ -258,7 +287,7 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
       const menuId = await createWeeklyMenuIfNeeded()
 
       // Mapear meal_type a los valores correctos de la base de datos (español)
-      const dbMealType = mealType === "lunch" ? "comida" : "cena"
+      const dbMealType = mapMealTypeToDb(mealType)
 
       console.log("📝 Insertando menu item con valores en español:", {
         weekly_menu_id: menuId,
@@ -296,7 +325,7 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
 
       setMenuItems((prev) => [
         ...prev.filter(
-          (item) => !(item.day_of_week === dayIndex && item.meal_type === mealType && item.dish_order === dishOrder),
+          (item) => !(item.day_of_week === dayIndex && item.meal_type === dbMealType && item.dish_order === dishOrder),
         ),
         newItem as unknown as MenuItemWithRecipe,
       ])
