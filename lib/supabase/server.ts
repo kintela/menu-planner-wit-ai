@@ -1,26 +1,28 @@
-// Servidor Supabase con fallback
-const createMockServerClient = () => ({
-  auth: {
-    getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-    getUser: () => Promise.resolve({ data: { user: null }, error: null }),
-  },
-  from: (table: string) => ({
-    select: (columns?: string) => ({
-      eq: (column: string, value: any) => ({
-        order: (column: string, options?: any) => Promise.resolve({ data: [], error: null }),
-        single: () => Promise.resolve({ data: null, error: null }),
+// Mock server client for v0 environment
+const createMockServerClient = () => {
+  return {
+    auth: {
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+    },
+    from: (table: string) => ({
+      select: () => ({
+        eq: () => ({
+          order: () => Promise.resolve({ data: [], error: null }),
+          single: () => Promise.resolve({ data: null, error: null }),
+        }),
+        order: () => Promise.resolve({ data: [], error: null }),
       }),
-      order: (column: string, options?: any) => Promise.resolve({ data: [], error: null }),
+      insert: () => Promise.resolve({ data: null, error: null }),
+      update: () => ({
+        eq: () => Promise.resolve({ data: null, error: null }),
+      }),
+      delete: () => ({
+        eq: () => Promise.resolve({ data: null, error: null }),
+      }),
     }),
-    insert: (data: any) => Promise.resolve({ data: null, error: null }),
-    update: (data: any) => ({
-      eq: (column: string, value: any) => Promise.resolve({ data: null, error: null }),
-    }),
-    delete: () => ({
-      eq: (column: string, value: any) => Promise.resolve({ data: null, error: null }),
-    }),
-  }),
-})
+  }
+}
 
 export const createClient = () => {
   try {
@@ -38,20 +40,20 @@ export const createClient = () => {
           try {
             cookieStore.set({ name, value, ...options })
           } catch (error) {
-            // Ignorar errores en Server Components
+            // Ignore errors in Server Components
           }
         },
         remove(name: string, options: any) {
           try {
             cookieStore.set({ name, value: "", ...options })
           } catch (error) {
-            // Ignorar errores en Server Components
+            // Ignore errors in Server Components
           }
         },
       },
     })
   } catch (error) {
-    console.warn("Server Supabase no disponible, usando cliente mock")
+    console.warn("Server Supabase not available, using mock client")
     return createMockServerClient()
   }
 }
