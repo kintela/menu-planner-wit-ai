@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
 import { useEffect, useState } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { User } from "lucide-react" // Import User icon
 
-import { ChefHat, Calendar, LogOut, Menu, X, History, Settings, Home, UserIcon, LogIn } from "lucide-react"
+import { ChefHat, Calendar, LogOut, Menu, X, History, Settings, Home, LogIn } from "lucide-react"
 
 interface UserProfile {
   role: string
@@ -357,7 +358,7 @@ export default function SimpleNavigation() {
                   className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <UserIcon className="h-5 w-5" />
+                  <User className="h-5 w-5" />
                   <span>Mi Perfil</span>
                 </Link>
               </Button>
@@ -369,7 +370,7 @@ export default function SimpleNavigation() {
                   className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-red-50 w-full text-left"
                 >
                   <LogOut className="h-5 w-5" />
-                  <span className="sr-only">Cerrar Sesión</span>
+                  <span>Cerrar Sesión</span>
                 </Button>
               )}
               {!user && (
@@ -379,6 +380,7 @@ export default function SimpleNavigation() {
                     className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
                     onClick={() => setMobileMenuOpen(false)}
                   >
+                    <LogIn className="h-4 w-4" />
                     <span>Iniciar Sesión</span>
                   </Link>
                 </Button>

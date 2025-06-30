@@ -5,8 +5,8 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import WeeklyMenuView from "@/components/weekly-menu-view"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, Loader2 } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { AlertCircle } from "lucide-react"
 import Link from "next/link"
 import type { MenuItem, Recipe, WeeklyMenu } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
@@ -346,11 +346,10 @@ export default function WeeklyMenuPage() {
   // Don't render anything until mounted to prevent hydration mismatch
   if (!mounted) {
     return (
-      <div className="container py-10" suppressHydrationWarning>
-        <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Cargando...</span>
+      <div className="container mx-auto px-4 py-8" suppressHydrationWarning>
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-64 mb-4"></div>
+          <div className="h-96 bg-gray-200 rounded"></div>
         </div>
       </div>
     )
@@ -359,11 +358,10 @@ export default function WeeklyMenuPage() {
   // Show loading while auth is loading
   if (authLoading) {
     return (
-      <div className="container py-10">
-        <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Cargando autenticación...</span>
+      <div className="container mx-auto px-4 py-8">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-64 mb-4"></div>
+          <div className="h-96 bg-gray-200 rounded"></div>
         </div>
       </div>
     )
@@ -372,27 +370,16 @@ export default function WeeklyMenuPage() {
   // Show login required if no user
   if (!user) {
     return (
-      <div className="container py-10">
-        <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
-        <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800">
+      <div className="container mx-auto px-4 py-8">
+        <Card className="max-w-md mx-auto">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-yellow-600">
-              <AlertCircle className="h-5 w-5" />
-              Acceso Restringido
-            </CardTitle>
+            <CardTitle>Acceso Requerido</CardTitle>
+            <CardDescription>Necesitas iniciar sesión para ver tu menú semanal</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-yellow-700 dark:text-yellow-300">
-              Necesitas iniciar sesión para acceder al planificador de menú semanal.
-            </p>
-            <div className="flex gap-2">
-              <Button asChild>
-                <Link href="/login?redirect=/weekly-menu">Iniciar Sesión</Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link href="/">Volver al Inicio</Link>
-              </Button>
-            </div>
+          <CardContent>
+            <Link href="/login">
+              <Button className="w-full">Iniciar Sesión</Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
@@ -402,11 +389,10 @@ export default function WeeklyMenuPage() {
   // Show loading while data is loading
   if (loading) {
     return (
-      <div className="container py-10">
-        <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Cargando datos del menú...</span>
+      <div className="container mx-auto px-4 py-8">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-64 mb-4"></div>
+          <div className="h-96 bg-gray-200 rounded"></div>
         </div>
       </div>
     )
@@ -415,8 +401,7 @@ export default function WeeklyMenuPage() {
   // Show error if there's an error
   if (error) {
     return (
-      <div className="container py-10">
-        <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
+      <div className="container mx-auto px-4 py-8">
         <Card className="border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-600">
@@ -447,8 +432,11 @@ export default function WeeklyMenuPage() {
 
   // Show the weekly menu view
   return (
-    <div className="container py-10">
-      <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight mb-2">Menú Semanal</h1>
+        <p className="text-muted-foreground">Planifica tus comidas y cenas para toda la semana</p>
+      </div>
       <WeeklyMenuView />
     </div>
   )
