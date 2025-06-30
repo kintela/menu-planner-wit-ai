@@ -88,11 +88,12 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
         throw menuError
       }
 
-      // Si no existe el menú, no crearlo automáticamente, solo mostrar vacío
-      if (weeklyMenuData) {
-        setWeeklyMenu(weeklyMenuData)
+      // Inicializar estados
+      setWeeklyMenu(weeklyMenuData)
+      setMenuItems([])
 
-        // Cargar items del menú
+      // Solo cargar items del menú si existe el menú
+      if (weeklyMenuData) {
         const { data: items, error: itemsError } = await supabase
           .from("menu_items")
           .select(`
@@ -110,14 +111,12 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
         }
 
         setMenuItems((items as unknown as MenuItemWithRecipe[]) || [])
+        console.log("✅ Menú y items cargados correctamente")
       } else {
-        // No hay menú para esta semana, mostrar vacío
-        setWeeklyMenu(null)
-        setMenuItems([])
         console.log("📝 No hay menú para esta semana, mostrando vacío")
       }
 
-      // Cargar recetas disponibles
+      // Cargar recetas disponibles (siempre, independientemente del menú)
       const { data: recipesData, error: recipesError } = await supabase.from("recipes").select("*").order("name")
 
       if (recipesError) {
