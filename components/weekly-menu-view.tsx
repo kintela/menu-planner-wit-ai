@@ -123,3 +123,5 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
     </div>
   )
 }
+
+export default WeeklyMenuView

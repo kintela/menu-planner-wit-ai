@@ -7,9 +7,7 @@ export interface Recipe {
   prep_time?: number
   cook_time?: number
   servings?: number
-  difficulty?: string
   category?: string
-  image_url?: string
   user_id?: string
   created_at?: string
   updated_at?: string
@@ -22,40 +20,29 @@ export interface WeeklyMenu {
   end_date: string
   user_id: string
   is_saved: boolean
-  created_at: string
-  updated_at: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface MenuItem {
   id: string
   weekly_menu_id: string
   recipe_id: string
-  day_of_week: number
+  day_of_week: string
   meal_type: string
-  dish_order: number
+  dish_order?: number
   recipe?: Recipe
+  created_at?: string
+  updated_at?: string
 }
 
-export interface UserProfile {
+export interface User {
   id: string
   email: string
-  full_name?: string
-  first_name?: string
-  last_name?: string
-  alias?: string
-  avatar_url?: string
-  role: UserRole
-  created_at: string
-  updated_at: string
-}
-
-export type UserRole = "admin" | "user" | "user_restricted"
-
-export interface Category {
-  id: string
-  name: string
-  description?: string
-  user_id?: string
-  created_at: string
-  updated_at: string
+  user_metadata?: {
+    avatar_url?: string
+    full_name?: string
+    name?: string
+    picture?: string
+  }
 }
