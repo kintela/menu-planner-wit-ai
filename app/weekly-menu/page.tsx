@@ -4,8 +4,8 @@ import { useEffect, useState } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { supabase } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, User } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { AlertCircle } from "lucide-react"
 import Link from "next/link"
 import type { MenuItem, Recipe, WeeklyMenu } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
@@ -359,21 +359,16 @@ export default function WeeklyMenuPage() {
   // Show login required if no user
   if (!user) {
     return (
-      <div className="max-w-md mx-auto mt-8">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <User className="h-5 w-5" />
-              <span>Acceso Requerido</span>
-            </CardTitle>
-            <CardDescription>Necesitas iniciar sesión para acceder al planificador de menús semanales.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/login">
-              <Button className="w-full">Iniciar Sesión</Button>
-            </Link>
-          </CardContent>
-        </Card>
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center space-y-6">
+          <h1 className="text-3xl font-bold">Planificador de Menús Semanales</h1>
+          <p className="text-lg text-muted-foreground">
+            Necesitas iniciar sesión para acceder al planificador de menús
+          </p>
+          <Link href="/login">
+            <Button size="lg">Iniciar Sesión</Button>
+          </Link>
+        </div>
       </div>
     )
   }
