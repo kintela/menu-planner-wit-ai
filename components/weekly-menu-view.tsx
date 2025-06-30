@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { X, Save, Calendar, ChevronLeft, ChevronRight } from "lucide-react"
+import { X, Calendar, ChevronLeft, ChevronRight } from "lucide-react"
 import type { Recipe, MenuItem, WeeklyMenu } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 
@@ -36,7 +36,6 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
   const [weeklyMenu, setWeeklyMenu] = useState<WeeklyMenu | null>(null)
   const [menuItems, setMenuItems] = useState<MenuItemWithRecipe[]>([])
   const [startDate, setStartDate] = useState<string>("")
-  const [saving, setSaving] = useState(false)
   const [hasConnectionIssues, setHasConnectionIssues] = useState(false)
   const { toast } = useToast()
 
@@ -342,44 +341,6 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
     }
   }
 
-  const saveMenu = async () => {
-    if (!weeklyMenu) {
-      toast({
-        title: "No hay menú",
-        description: "Añade algunas recetas antes de guardar el menú",
-        variant: "destructive",
-      })
-      return
-    }
-
-    try {
-      setSaving(true)
-
-      const { error } = await supabase.from("weekly_menus").update({ is_saved: true }).eq("id", weeklyMenu.id)
-
-      if (error) {
-        console.error("Error saving menu:", error)
-        throw error
-      }
-
-      setWeeklyMenu((prev) => (prev ? { ...prev, is_saved: true } : null))
-
-      toast({
-        title: "Menú guardado",
-        description: "El menú semanal se ha guardado correctamente",
-      })
-    } catch (error) {
-      console.error("Error saving menu:", error)
-      toast({
-        title: "Error",
-        description: "No se pudo guardar el menú",
-        variant: "destructive",
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
-
   // Mostrar loading solo por máximo 3 segundos
   if (loading) {
     return (
@@ -415,7 +376,7 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
       )}
 
       {/* Header con navegación de semanas */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
         <div className="flex items-center space-x-4">
           <Button variant="outline" size="sm" onClick={() => changeWeek("prev")}>
             <ChevronLeft className="h-4 w-4" />
@@ -433,11 +394,6 @@ export function WeeklyMenuView({ userId }: WeeklyMenuViewProps) {
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-
-        <Button onClick={saveMenu} disabled={saving || weeklyMenu?.is_saved} className="flex items-center gap-2">
-          <Save className="h-4 w-4" />
-          {saving ? "Guardando..." : weeklyMenu?.is_saved ? "Guardado" : "Guardar Menú"}
-        </Button>
       </div>
 
       {/* Grid de días */}
