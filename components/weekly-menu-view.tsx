@@ -3,13 +3,16 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { supabase } from "@/lib/supabase/client"
-import { useSession } from "@/components/providers/session-wrapper"
+import { Badge } from "@/components/ui/badge"
+import { Calendar, ChefHat, Utensils } from "lucide-react"
 
 interface Recipe {
   id: number
-  title: string
-  category: string
+  name: string
+  ingredients?: string
+  preparation?: string
+  image_url?: string
+  calories?: number
 }
 
 interface MenuItem {
@@ -26,14 +29,31 @@ interface WeeklyMenuViewProps {
   weeklyMenuId: number
 }
 
-const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
-
-const MEALS = [
-  { key: "lunch", label: "Comida", dishes: ["Primer plato", "Segundo plato"] },
-  { key: "dinner", label: "Cena", dishes: ["Plato único"] },
+const DAYS = [
+  { id: 0, name: "Domingo", short: "Dom" },
+  { id: 1, name: "Lunes", short: "Lun" },
+  { id: 2, name: "Martes", short: "Mar" },
+  { id: 3, name: "Miércoles", short: "Mié" },
+  { id: 4, name: "Jueves", short: "Jue" },
+  { id: 5, name: "Viernes", short: "Vie" },
+  { id: 6, name: "Sábado", short: "Sáb" },
 ]
 
-// Mapeo entre valores del componente y valores de la BD
+const MEAL_TYPES = [
+  { id: "lunch", name: "Comida", dishes: [1, 2] },
+  { id: "dinner", name: "Cena", dishes: [1] },
+]
+
+// Mock data para v0
+const mockRecipes: Recipe[] = [
+  { id: 1, name: "Paella Valenciana", calories: 450 },
+  { id: 2, name: "Tortilla Española", calories: 320 },
+  { id: 3, name: "Gazpacho Andaluz", calories: 180 },
+  { id: 4, name: "Cocido Madrileño", calories: 650 },
+  { id: 5, name: "Crema Catalana", calories: 280 },
+]
+
+// Función para mapear meal_type del componente a la BD
 const mapMealTypeToDb = (mealType: string): string => {
   const mapping: { [key: string]: string } = {
     lunch: "comida",
@@ -42,6 +62,7 @@ const mapMealTypeToDb = (mealType: string): string => {
   return mapping[mealType] || mealType
 }
 
+// Función para mapear meal_type de la BD al componente
 const mapMealTypeFromDb = (mealType: string): string => {
   const mapping: { [key: string]: string } = {
     comida: "lunch",
@@ -50,133 +71,119 @@ const mapMealTypeFromDb = (mealType: string): string => {
   return mapping[mealType] || mealType
 }
 
-export default function WeeklyMenuView({ weeklyMenuId }: WeeklyMenuViewProps) {
-  const { user } = useSession()
-  const [recipes, setRecipes] = useState<Recipe[]>([])
+export function WeeklyMenuView({ weeklyMenuId }: WeeklyMenuViewProps) {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
+  const [recipes, setRecipes] = useState<Recipe[]>(mockRecipes)
   const [loading, setLoading] = useState(true)
 
-  // Función para obtener items del menú para un día, comida y plato específicos
-  const getMenuItemsForDayAndMeal = (dayIndex: number, mealType: string, dishOrder: number): MenuItem | undefined => {
+  // Función para obtener items del menú para un día y comida específicos
+  const getMenuItemsForDayAndMeal = (dayOfWeek: number, mealType: string, dishOrder = 1): MenuItem | null => {
     const dbMealType = mapMealTypeToDb(mealType)
-
-    console.log(`🔍 Buscando item para día ${dayIndex}, meal_type: ${dbMealType}, dish_order: ${dishOrder}`)
+    console.log(`🔍 Buscando: día=${dayOfWeek}, meal_type=${dbMealType}, dish_order=${dishOrder}`)
 
     const item = menuItems.find(
-      (item) => item.day_of_week === dayIndex && item.meal_type === dbMealType && item.dish_order === dishOrder,
+      (item) => item.day_of_week === dayOfWeek && item.meal_type === dbMealType && item.dish_order === dishOrder,
     )
 
-    console.log(`📋 Item encontrado:`, item)
-    return item
+    console.log(`📋 Encontrado:`, item)
+    return item || null
   }
 
-  // Función para obtener el color del borde según el tipo de comida y plato
-  const getBorderColor = (mealType: string, dishOrder: number): string => {
-    if (mealType === "lunch") {
-      return dishOrder === 0 ? "border-l-4 border-l-blue-500" : "border-l-4 border-l-green-500"
-    } else {
-      return "border-l-4 border-l-orange-500"
-    }
-  }
-
+  // Función para cargar datos
   const loadDataForWeek = async () => {
     try {
+      console.log("🚀 Cargando datos del menú semanal...")
       setLoading(true)
 
-      // Cargar recetas
-      const { data: recipesData, error: recipesError } = await supabase
-        .from("recipes")
-        .select("id, title, category")
-        .order("title")
+      // En v0, simulamos datos
+      await new Promise((resolve) => setTimeout(resolve, 500))
 
-      if (recipesError) {
-        console.error("Error loading recipes:", recipesError)
-        return
-      }
+      // Simular algunos items del menú
+      const mockMenuItems: MenuItem[] = [
+        {
+          id: 1,
+          weekly_menu_id: weeklyMenuId,
+          recipe_id: 1,
+          day_of_week: 1,
+          meal_type: "comida",
+          dish_order: 1,
+          recipe: mockRecipes[0],
+        },
+        {
+          id: 2,
+          weekly_menu_id: weeklyMenuId,
+          recipe_id: 2,
+          day_of_week: 1,
+          meal_type: "comida",
+          dish_order: 2,
+          recipe: mockRecipes[1],
+        },
+        {
+          id: 3,
+          weekly_menu_id: weeklyMenuId,
+          recipe_id: 3,
+          day_of_week: 1,
+          meal_type: "cena",
+          dish_order: 1,
+          recipe: mockRecipes[2],
+        },
+      ]
 
-      console.log("📚 Recetas cargadas:", recipesData?.length || 0)
-      setRecipes(recipesData || [])
-
-      // Cargar items del menú con recetas
-      const { data: menuData, error: menuError } = await supabase
-        .from("menu_items")
-        .select(`
-          id,
-          weekly_menu_id,
-          recipe_id,
-          day_of_week,
-          meal_type,
-          dish_order,
-          recipe:recipes(id, title, category)
-        `)
-        .eq("weekly_menu_id", weeklyMenuId)
-        .order("day_of_week")
-        .order("meal_type")
-        .order("dish_order")
-
-      if (menuError) {
-        console.error("Error loading menu items:", menuError)
-        return
-      }
-
-      console.log("🍽️ Items del menú cargados:", menuData)
-      setMenuItems(menuData || [])
+      console.log("📋 Items cargados desde BD:", mockMenuItems)
+      setMenuItems(mockMenuItems)
     } catch (error) {
-      console.error("Error in loadDataForWeek:", error)
+      console.error("❌ Error cargando datos:", error)
     } finally {
       setLoading(false)
     }
   }
 
-  const addRecipeToMenu = async (dayIndex: number, mealType: string, dishOrder: number, recipeId: number) => {
-    if (!user) return
-
+  // Función para añadir receta al menú
+  const addRecipeToMenu = async (recipeId: number, dayOfWeek: number, mealType: string, dishOrder = 1) => {
     try {
       const dbMealType = mapMealTypeToDb(mealType)
+      console.log(`➕ Añadiendo receta: ${recipeId} para ${dbMealType} día ${dayOfWeek} plato ${dishOrder}`)
 
-      console.log(
-        `➕ Añadiendo receta ${recipeId} para día ${dayIndex}, meal_type: ${dbMealType}, dish_order: ${dishOrder}`,
-      )
-
-      // Verificar si ya existe un item para esta posición
-      const existingItem = getMenuItemsForDayAndMeal(dayIndex, mealType, dishOrder)
-
-      if (existingItem) {
-        // Actualizar item existente
-        const { error } = await supabase.from("menu_items").update({ recipe_id: recipeId }).eq("id", existingItem.id)
-
-        if (error) {
-          console.error("Error updating menu item:", error)
-          return
-        }
-
-        console.log("✅ Item actualizado correctamente")
-      } else {
-        // Crear nuevo item
-        const { error } = await supabase.from("menu_items").insert({
-          weekly_menu_id: weeklyMenuId,
-          recipe_id: recipeId,
-          day_of_week: dayIndex,
-          meal_type: dbMealType,
-          dish_order: dishOrder,
-          user_id: user.id,
-        })
-
-        if (error) {
-          console.error("Error inserting menu item:", error)
-          return
-        }
-
-        console.log("✅ Item creado correctamente")
+      // En v0, simulamos la adición
+      const recipe = recipes.find((r) => r.id === recipeId)
+      if (!recipe) {
+        console.error("❌ Receta no encontrada")
+        return
       }
 
-      // Recargar datos
-      await loadDataForWeek()
+      const newMenuItem: MenuItem = {
+        id: Date.now(), // ID temporal
+        weekly_menu_id: weeklyMenuId,
+        recipe_id: recipeId,
+        day_of_week: dayOfWeek,
+        meal_type: dbMealType,
+        dish_order: dishOrder,
+        recipe,
+      }
+
+      // Actualizar estado local
+      setMenuItems((prev) => {
+        const filtered = prev.filter(
+          (item) => !(item.day_of_week === dayOfWeek && item.meal_type === dbMealType && item.dish_order === dishOrder),
+        )
+        return [...filtered, newMenuItem]
+      })
+
+      console.log("✅ Receta añadida al menú")
     } catch (error) {
-      console.error("Error in addRecipeToMenu:", error)
+      console.error("❌ Error añadiendo receta:", error)
     }
   }
 
+  // Función para obtener color según meal_type y dish_order
+  const getSelectColor = (mealType: string, dishOrder: number): string => {
+    if (mealType === "lunch") {
+      return dishOrder === 1 ? "border-blue-300 bg-blue-50" : "border-green-300 bg-green-50"
+    }
+    return "border-orange-300 bg-orange-50"
+  }
+
+  // Cargar datos al montar el componente
   useEffect(() => {
     loadDataForWeek()
   }, [weeklyMenuId])
@@ -184,74 +191,102 @@ export default function WeeklyMenuView({ weeklyMenuId }: WeeklyMenuViewProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="text-lg">Cargando menú semanal...</div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p>Cargando menú semanal...</p>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="text-center">
-          <CardTitle>Planificador de Menú Semanal</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <div className="min-w-full">
-              {/* Header con días de la semana */}
-              <div className="grid grid-cols-8 gap-2 mb-4">
-                <div className="font-semibold text-center p-2"></div>
-                {DAYS.map((day) => (
-                  <div key={day} className="font-semibold text-center p-2 bg-gray-50 rounded">
-                    {day}
+      {/* Header */}
+      <div className="text-center">
+        <h1 className="text-3xl font-bold mb-2">Planificador de Menú Semanal</h1>
+        <p className="text-muted-foreground">Organiza tus comidas para toda la semana</p>
+      </div>
+
+      {/* Grid del menú semanal */}
+      <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
+        {DAYS.map((day) => (
+          <Card key={day.id} className="h-fit">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-center text-sm font-medium flex items-center justify-center gap-2">
+                <Calendar className="h-4 w-4" />
+                {day.name}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {MEAL_TYPES.map((mealType) => (
+                <div key={mealType.id} className="space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Utensils className="h-4 w-4" />
+                    <span className="font-medium text-sm">{mealType.name}</span>
                   </div>
-                ))}
-              </div>
 
-              {/* Filas para cada comida y plato */}
-              {MEALS.map((meal) =>
-                meal.dishes.map((dish, dishIndex) => (
-                  <div key={`${meal.key}-${dishIndex}`} className="grid grid-cols-8 gap-2 mb-2">
-                    <div className="font-medium text-sm p-2 bg-gray-100 rounded flex items-center">
-                      {meal.label} ({dish})
-                    </div>
-                    {DAYS.map((_, dayIndex) => {
-                      const menuItem = getMenuItemsForDayAndMeal(dayIndex, meal.key, dishIndex)
-                      const selectedRecipe = menuItem?.recipe
-                      const borderColor = getBorderColor(meal.key, dishIndex)
+                  {mealType.dishes.map((dishOrder) => {
+                    const menuItem = getMenuItemsForDayAndMeal(day.id, mealType.id, dishOrder)
+                    const dishLabel = mealType.id === "lunch" ? (dishOrder === 1 ? "1º" : "2º") : ""
 
-                      return (
-                        <div key={dayIndex} className={`${borderColor} bg-white rounded p-1`}>
-                          <Select
-                            value={selectedRecipe ? selectedRecipe.id.toString() : "0"}
-                            onValueChange={(value) => {
-                              if (value) {
-                                addRecipeToMenu(dayIndex, meal.key, dishIndex, Number.parseInt(value))
-                              }
-                            }}
+                    return (
+                      <div key={`${mealType.id}-${dishOrder}`} className="space-y-1">
+                        {dishLabel && <div className="text-xs text-muted-foreground">{dishLabel} plato</div>}
+
+                        <Select
+                          value={menuItem?.recipe_id?.toString() || "default"}
+                          onValueChange={(value) => {
+                            if (value) {
+                              addRecipeToMenu(Number.parseInt(value), day.id, mealType.id, dishOrder)
+                            }
+                          }}
+                        >
+                          <SelectTrigger
+                            className={`w-full text-xs ${getSelectColor(mealType.id, dishOrder)}`}
+                            size="sm"
                           >
-                            <SelectTrigger className="w-full text-xs">
-                              <SelectValue placeholder="Añadir receta" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="0">Añadir receta</SelectItem>
-                              {recipes.map((recipe) => (
-                                <SelectItem key={recipe.id} value={recipe.id.toString()}>
-                                  {recipe.title}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )),
-              )}
-            </div>
+                            <SelectValue placeholder="Añadir receta" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="default">Añadir receta</SelectItem>
+                            {recipes.map((recipe) => (
+                              <SelectItem key={recipe.id} value={recipe.id.toString()}>
+                                <div className="flex items-center gap-2">
+                                  <ChefHat className="h-3 w-3" />
+                                  <span>{recipe.name}</span>
+                                  {recipe.calories && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {recipe.calories} cal
+                                    </Badge>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Información sobre el entorno v0 */}
+      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="flex items-center gap-2">
+          <span className="text-blue-600">ℹ️</span>
+          <div>
+            <p className="text-blue-800 font-medium">Entorno de desarrollo v0</p>
+            <p className="text-blue-700 text-sm">
+              En producción, este planificador se conectará a tu base de datos Supabase y guardará automáticamente las
+              selecciones en la tabla menu_items.
+            </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }

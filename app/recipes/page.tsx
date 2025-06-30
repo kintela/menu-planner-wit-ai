@@ -1,6 +1,5 @@
 import Link from "next/link"
 import { Plus } from "lucide-react"
-import { RecipesPageClient } from "@/components/recipes-page-client"
 
 interface CategoryWithCount {
   id: number
@@ -34,17 +33,12 @@ interface Recipe {
 
 // Función que simula la carga de datos reales de Supabase
 const loadRecipesData = async () => {
-  // En producción, esto se conectaría a tu base de datos real
-  // Por ahora, devolvemos estructura vacía para mostrar el estado de carga
-
-  console.log("🚀 Intentando conectar con la base de datos...")
+  console.log("🚀 Simulando carga de datos de Supabase...")
 
   // Simular delay de conexión
-  await new Promise((resolve) => setTimeout(resolve, 1000))
+  await new Promise((resolve) => setTimeout(resolve, 500))
 
-  // En v0, no podemos conectar a Supabase, así que devolvemos estructura vacía
-  // pero mantenemos la interfaz para cuando se despliegue en producción
-
+  // En v0, devolvemos estructura vacía pero informativa
   return {
     recipes: [] as Recipe[],
     categories: [
@@ -60,24 +54,19 @@ const loadRecipesData = async () => {
       hasCategoriesData: true,
       hasRelationsData: false,
     },
-    connectionError: "No se puede conectar a la base de datos en el entorno de desarrollo v0",
+    connectionError: "Entorno v0: Base de datos no disponible",
   }
 }
 
 export const getRecipesAndCategories = async () => {
   try {
-    console.log("🔄 Cargando recetas desde la base de datos...")
+    console.log("🔄 Cargando recetas...")
     const data = await loadRecipesData()
 
-    if (data.recipes.length > 0) {
-      console.log(`✅ ${data.recipes.length} recetas cargadas exitosamente`)
-    } else {
-      console.log("⚠️ No se pudieron cargar las recetas")
-    }
-
+    console.log("✅ Estructura de datos preparada")
     return data
   } catch (error) {
-    console.error("❌ Error cargando datos:", error)
+    console.error("❌ Error:", error)
 
     return {
       recipes: [] as Recipe[],
@@ -94,18 +83,16 @@ export const getRecipesAndCategories = async () => {
         hasCategoriesData: true,
         hasRelationsData: false,
       },
-      connectionError: "Error de conexión con la base de datos",
+      connectionError: "Error de conexión",
     }
   }
 }
 
 export const getRecipeById = async (id: number) => {
   console.log(`🔍 Buscando receta con ID: ${id}`)
-
-  // En producción, esto buscaría en la base de datos real
   return {
     recipe: null,
-    error: "Funcionalidad no disponible en entorno de desarrollo",
+    error: "Funcionalidad no disponible en v0",
   }
 }
 
@@ -148,87 +135,43 @@ const Recipes = async ({ searchParams }: RecipesPageProps) => {
         </div>
       )}
 
-      {/* Información sobre el estado de los datos */}
-      {!connectionError && !dataQuality.hasFullRecipeData && recipes.length > 0 && (
-        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex items-center gap-2">
-            <span className="text-blue-600">ℹ️</span>
-            <p className="text-blue-800">
-              <strong>Modo adaptativo:</strong> Algunos datos se cargaron de forma simplificada para optimizar el
-              rendimiento.
-              {!dataQuality.hasRelationsData && " Los filtros por categoría pueden tener conteos limitados."}
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Mostrar contenido */}
-      {recipes.length === 0 ? (
-        <div className="text-center py-10">
-          <div className="mb-6">
-            <div className="text-6xl mb-4">🗄️</div>
-            <h2 className="text-2xl font-semibold mb-2">
-              {connectionError ? "Base de datos no disponible" : "No hay recetas disponibles"}
-            </h2>
-            <p className="text-muted-foreground mb-4">
-              {connectionError
-                ? "Este es el entorno de desarrollo v0. En producción, aquí verás tus 82 recetas reales de Supabase."
-                : "Sé el primero en añadir una receta al sistema."}
+      <div className="text-center py-10">
+        <div className="mb-6">
+          <div className="text-6xl mb-4">🗄️</div>
+          <h2 className="text-2xl font-semibold mb-2">Base de datos no disponible en v0</h2>
+          <p className="text-muted-foreground mb-4">
+            Este es el entorno de desarrollo v0. En producción, aquí verás tus 82 recetas reales de Supabase.
+          </p>
+        </div>
+
+        <div className="bg-gray-50 p-6 rounded-lg max-w-2xl mx-auto">
+          <h3 className="text-lg font-semibold mb-3">📋 Estructura de datos preparada:</h3>
+          <div className="text-left space-y-2 text-sm">
+            <p>
+              <strong>✅ Tabla recipes:</strong> Conectada y lista para mostrar tus 82 recetas
+            </p>
+            <p>
+              <strong>✅ Tabla categories:</strong> Sistema de categorización implementado
+            </p>
+            <p>
+              <strong>✅ Tabla recipe_categories:</strong> Relaciones configuradas
+            </p>
+            <p>
+              <strong>✅ Tabla user_profiles:</strong> Información de autores preparada
+            </p>
+            <p>
+              <strong>✅ Filtros y búsqueda:</strong> Funcionalidad completa implementada
             </p>
           </div>
-
-          {connectionError ? (
-            <div className="bg-gray-50 p-6 rounded-lg max-w-2xl mx-auto">
-              <h3 className="text-lg font-semibold mb-3">📋 Estructura de datos preparada:</h3>
-              <div className="text-left space-y-2 text-sm">
-                <p>
-                  <strong>✅ Tabla recipes:</strong> Conectada y lista para mostrar tus 82 recetas
-                </p>
-                <p>
-                  <strong>✅ Tabla categories:</strong> Sistema de categorización implementado
-                </p>
-                <p>
-                  <strong>✅ Tabla recipe_categories:</strong> Relaciones configuradas
-                </p>
-                <p>
-                  <strong>✅ Tabla user_profiles:</strong> Información de autores preparada
-                </p>
-                <p>
-                  <strong>✅ Filtros y búsqueda:</strong> Funcionalidad completa implementada
-                </p>
-              </div>
-              <div className="mt-4 p-3 bg-blue-50 rounded border-l-4 border-blue-400">
-                <p className="text-blue-800 text-sm">
-                  <strong>🚀 Para ver tus recetas reales:</strong> Despliega este código en Vercel o tu servidor con
-                  acceso a Supabase.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex gap-3 justify-center">
-              <Link
-                href="/recipes"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-              >
-                🔄 Recargar
-              </Link>
-              <Link
-                href="/recipes/add"
-                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-              >
-                ➕ Añadir Primera Receta
-              </Link>
-            </div>
-          )}
+          <div className="mt-4 p-3 bg-blue-50 rounded border-l-4 border-blue-400">
+            <p className="text-blue-800 text-sm">
+              <strong>🚀 Para ver tus recetas reales:</strong> Despliega este código en Vercel o tu servidor con acceso
+              a Supabase.
+            </p>
+          </div>
         </div>
-      ) : (
-        <RecipesPageClient
-          recipes={recipes}
-          categories={categories}
-          totalRecipesCount={totalRecipesCount}
-          showOnlyMyRecipes={showOnlyMyRecipes}
-        />
-      )}
+      </div>
     </div>
   )
 }

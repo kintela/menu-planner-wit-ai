@@ -2,9 +2,6 @@
 
 import { useState, useMemo } from "react"
 import { RecipeCard } from "./recipe-card"
-import { CategorySelector } from "./category-selector"
-import { RecipeSearch } from "./recipe-search"
-import { MyRecipesFilter } from "./my-recipes-filter"
 
 interface Recipe {
   id: number
@@ -72,9 +69,8 @@ export function RecipesPageClient({
       )
     }
 
-    // Filtrar por "mis recetas" (simulado)
+    // Filtrar por "mis recetas"
     if (showMyRecipes) {
-      // En producción, esto filtraría por user_id del usuario actual
       filtered = filtered.filter((recipe) => recipe.user_id === "current-user")
     }
 
@@ -92,15 +88,40 @@ export function RecipesPageClient({
       {/* Controles de filtrado */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-col gap-4 md:flex-row md:items-center">
-          <CategorySelector
-            categories={categories}
-            selectedCategory={selectedCategory}
-            onCategoryChange={setSelectedCategory}
-          />
-          <MyRecipesFilter showMyRecipes={showMyRecipes} onToggle={setShowMyRecipes} />
+          {/* Selector de categorías */}
+          <select
+            value={selectedCategory || ""}
+            onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : null)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Todas las categorías</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name} ({category.recipeCount})
+              </option>
+            ))}
+          </select>
+
+          {/* Filtro mis recetas */}
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={showMyRecipes}
+              onChange={(e) => setShowMyRecipes(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm">Solo mis recetas</span>
+          </label>
         </div>
 
-        <RecipeSearch searchTerm={searchTerm} onSearchChange={setSearchTerm} />
+        {/* Búsqueda */}
+        <input
+          type="search"
+          placeholder="Buscar recetas..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
       </div>
 
       {/* Botón limpiar filtros */}
