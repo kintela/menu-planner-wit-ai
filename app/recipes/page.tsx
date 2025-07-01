@@ -20,12 +20,14 @@ interface Recipe {
   user_profiles?: {
     full_name: string
     first_name: string
+    last_name: string
+    alias: string
+    avatar_url: string
+    email: string
   }
-  recipe_categories?: {
-    categories: {
-      id: number
-      name: string
-    }
+  categories?: {
+    id: number
+    name: string
   }[]
 }
 
@@ -48,26 +50,14 @@ async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; ca
 
       const supabase = createClient()
 
-      // Cargar recetas reales de tu base de datos
+      // Cargar recetas sin la relación problemática
       const { data: recipes, error: recipesError } = await supabase
         .from("recipes")
-        .select(`
-          *,
-          user_profiles!recipes_user_id_fkey (
-            full_name,
-            first_name
-          ),
-          recipe_categories (
-            categories (
-              id,
-              name
-            )
-          )
-        `)
+        .select("*")
         .order("created_at", { ascending: false })
         .limit(100)
 
-      // Cargar categorías reales
+      // Cargar categorías
       const { data: categories, error: categoriesError } = await supabase.from("categories").select("*").order("name")
 
       if (recipesError) {
@@ -80,10 +70,50 @@ async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; ca
         throw categoriesError
       }
 
-      console.log(`✅ Cargadas ${recipes?.length || 0} recetas reales y ${categories?.length || 0} categorías`)
+      // Cargar perfiles de usuario por separado si hay recetas
+      let recipesWithProfiles = recipes || []
+      if (recipes && recipes.length > 0) {
+        const userIds = [...new Set(recipes.map((r) => r.user_id))]
+
+        const { data: profiles } = await supabase.from("user_profiles").select("*").in("id", userIds)
+
+        // Combinar recetas con perfiles
+        recipesWithProfiles = recipes.map((recipe) => ({
+          ...recipe,
+          user_profiles: profiles?.find((p) => p.id === recipe.user_id),
+        }))
+      }
+
+      // Cargar categorías de recetas por separado
+      if (recipes && recipes.length > 0) {
+        const recipeIds = recipes.map((r) => r.id)
+
+        const { data: recipeCategories } = await supabase
+          .from("recipe_categories")
+          .select(`
+            recipe_id,
+            categories (
+              id,
+              name
+            )
+          `)
+          .in("recipe_id", recipeIds)
+
+        // Combinar recetas con categorías
+        recipesWithProfiles = recipesWithProfiles.map((recipe) => ({
+          ...recipe,
+          categories:
+            recipeCategories
+              ?.filter((rc) => rc.recipe_id === recipe.id)
+              ?.map((rc) => rc.categories)
+              ?.filter(Boolean) || [],
+        }))
+      }
+
+      console.log(`✅ Cargadas ${recipesWithProfiles.length} recetas reales y ${categories?.length || 0} categorías`)
 
       return {
-        recipes: recipes || [],
+        recipes: recipesWithProfiles,
         categories: categories || [],
       }
     } catch (error) {
@@ -111,7 +141,7 @@ export default async function RecipesPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Mis Recetas</h1>
+        <h1 className="text-3xl font-bold">Recetas</h1>
         <Link
           href="/recipes/add"
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"

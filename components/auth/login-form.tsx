@@ -3,23 +3,24 @@
 import type React from "react"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { createClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
 
-export default function LoginForm() {
+export function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState("")
+  const router = useRouter()
+  const { toast } = useToast()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setMessage("")
 
     try {
       const supabase = createClient()
@@ -28,64 +29,61 @@ export default function LoginForm() {
         password,
       })
 
-      if (error) {
-        setMessage(error.message)
-      } else {
-        setMessage("¡Inicio de sesión exitoso!")
-        // Redireccionar será manejado por el middleware
-      }
-    } catch (error) {
-      setMessage("Error inesperado")
+      if (error) throw error
+
+      toast({
+        title: "¡Bienvenido!",
+        description: "Has iniciado sesión correctamente",
+      })
+
+      router.push("/")
+      router.refresh()
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Error al iniciar sesión",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Iniciar Sesión</CardTitle>
-          <CardDescription>Accede a tu cuenta para ver tus recetas</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
-
-            {message && (
-              <Alert>
-                <AlertDescription>{message}</AlertDescription>
-              </Alert>
-            )}
-
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader>
+        <CardTitle>Iniciar Sesión</CardTitle>
+        <CardDescription>Accede a tu cuenta para gestionar tus recetas</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">Contraseña</Label>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={loading}
+            />
+          </div>
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

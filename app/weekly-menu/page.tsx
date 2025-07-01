@@ -38,8 +38,8 @@ async function getRecipes(): Promise<Recipe[]> {
   }
 }
 
-export default async function WeeklyMenuPage() {
-  const recipes = await getRecipes()
+export default function WeeklyMenuPage() {
+  const recipes = getRecipes()
   const { user, loading: authLoading } = useAuth()
   const [mounted, setMounted] = useState(false)
   const [currentWeek, setCurrentWeek] = useState(new Date())
@@ -134,7 +134,7 @@ export default async function WeeklyMenuPage() {
   const addRecipeToMenu = async (dayIndex: number, mealType: "lunch" | "dinner", recipeId: string) => {
     if (!user) return
 
-    const recipe = recipes.find((r) => r.id === recipeId)
+    const recipe = await recipes.find((r) => r.id === recipeId)
     if (!recipe) return
 
     try {
@@ -260,7 +260,7 @@ export default async function WeeklyMenuPage() {
   // Don't render anything until mounted to prevent hydration mismatch
   if (!mounted || authLoading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gray-50">
         <SimpleNavigation />
         <div className="flex items-center justify-center min-h-[70vh]">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -271,13 +271,13 @@ export default async function WeeklyMenuPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gray-50">
         <SimpleNavigation />
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-md mx-auto">
             <div className="text-center mb-8">
               <h1 className="text-3xl font-bold mb-4">Necesitas iniciar sesión</h1>
-              <p className="text-muted-foreground">Para acceder al planificador de menús necesitas tener una cuenta.</p>
+              <p className="text-gray-600">Para acceder al planificador de menús necesitas tener una cuenta.</p>
             </div>
             <LoginForm />
           </div>
@@ -288,18 +288,11 @@ export default async function WeeklyMenuPage() {
 
   // Show the weekly menu view
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gray-50">
       <SimpleNavigation />
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Planificador de Menú Semanal</h1>
-          <p className="text-gray-600">Organiza tus comidas de la semana seleccionando recetas para cada día</p>
-        </div>
-
-        <Suspense fallback={<div className="text-center py-8">Cargando planificador...</div>}>
-          <WeeklyMenuView recipes={recipes} userId={user.id} />
-        </Suspense>
-      </div>
+      <Suspense fallback={<div className="text-center py-8">Cargando planificador...</div>}>
+        <WeeklyMenuView recipes={recipes} userId={user.id} />
+      </Suspense>
     </div>
   )
 }

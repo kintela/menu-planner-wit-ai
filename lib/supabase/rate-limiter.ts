@@ -35,10 +35,6 @@ class RateLimiter {
       await new Promise((resolve) => setTimeout(resolve, Math.min(waitTime, 5000)))
     }
   }
-
-  reset(key: string): void {
-    this.limits.delete(key)
-  }
 }
 
 export const rateLimiter = new RateLimiter()

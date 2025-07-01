@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Search, Filter, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import RecipeCard from "./recipe-card"
+import { Search, X } from "lucide-react"
+import RecipeCard from "@/components/recipe-card"
 
 interface Recipe {
   id: number
@@ -22,12 +23,14 @@ interface Recipe {
   user_profiles?: {
     full_name: string
     first_name: string
+    last_name: string
+    alias: string
+    avatar_url: string
+    email: string
   }
-  recipe_categories?: {
-    categories: {
-      id: number
-      name: string
-    }
+  categories?: {
+    id: number
+    name: string
   }[]
 }
 
@@ -42,118 +45,101 @@ interface RecipesPageClientProps {
 }
 
 export default function RecipesPageClient({ initialRecipes, categories }: RecipesPageClientProps) {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedCategories, setSelectedCategories] = useState<number[]>([])
-  const [showFilters, setShowFilters] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [selectedCategory, setSelectedCategory] = useState<string>("all")
+  const [showMyRecipes, setShowMyRecipes] = useState(false)
 
   // Filtrar recetas
   const filteredRecipes = useMemo(() => {
     return initialRecipes.filter((recipe) => {
       // Filtro de búsqueda
       const matchesSearch =
-        searchTerm === "" ||
-        recipe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        recipe.ingredients.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        recipe.preparation.toLowerCase().includes(searchTerm.toLowerCase())
+        searchQuery === "" ||
+        recipe.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        recipe.ingredients.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        recipe.preparation.toLowerCase().includes(searchQuery.toLowerCase())
 
-      // Filtro de categorías
+      // Filtro de categoría
       const matchesCategory =
-        selectedCategories.length === 0 ||
-        recipe.recipe_categories?.some((rc) => selectedCategories.includes(rc.categories.id))
+        selectedCategory === "all" || recipe.categories?.some((cat) => cat.id.toString() === selectedCategory)
 
       return matchesSearch && matchesCategory
     })
-  }, [initialRecipes, searchTerm, selectedCategories])
+  }, [initialRecipes, searchQuery, selectedCategory])
+
+  // Limpiar filtros
+  const clearFilters = () => {
+    setSearchQuery("")
+    setSelectedCategory("all")
+    setShowMyRecipes(false)
+  }
 
   // Contar recetas por categoría
   const categoriesWithCount = useMemo(() => {
     return categories.map((category) => ({
       ...category,
-      count: initialRecipes.filter((recipe) => recipe.recipe_categories?.some((rc) => rc.categories.id === category.id))
-        .length,
+      count: initialRecipes.filter((recipe) => recipe.categories?.some((cat) => cat.id === category.id)).length,
     }))
   }, [categories, initialRecipes])
 
-  const toggleCategory = (categoryId: number) => {
-    setSelectedCategories((prev) =>
-      prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId],
-    )
-  }
-
-  const clearFilters = () => {
-    setSearchTerm("")
-    setSelectedCategories([])
-  }
-
-  const hasActiveFilters = searchTerm !== "" || selectedCategories.length > 0
-
   return (
     <div className="space-y-6">
-      {/* Barra de búsqueda y filtros */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <Input
-            type="text"
-            placeholder="Buscar recetas por nombre, ingredientes o preparación..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-2">
-          <Filter className="h-4 w-4" />
-          Filtros
-          {selectedCategories.length > 0 && (
-            <Badge variant="secondary" className="ml-1">
-              {selectedCategories.length}
-            </Badge>
-          )}
-        </Button>
-      </div>
+      {/* Filtros */}
+      <div className="bg-white p-4 rounded-lg border space-y-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          {/* Búsqueda */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Buscar recetas, ingredientes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
 
-      {/* Panel de filtros */}
-      {showFilters && (
-        <div className="bg-gray-50 p-4 rounded-lg border">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-medium">Filtrar por categoría</h3>
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                <X className="h-4 w-4 mr-1" />
-                Limpiar filtros
-              </Button>
+          {/* Filtro por categoría */}
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Todas las categorías" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las categorías</SelectItem>
+              {categoriesWithCount.map((category) => (
+                <SelectItem key={category.id} value={category.id.toString()}>
+                  {category.name} ({category.count})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Botón limpiar filtros */}
+          {(searchQuery || selectedCategory !== "all") && (
+            <Button variant="outline" onClick={clearFilters}>
+              <X className="h-4 w-4 mr-2" />
+              Limpiar
+            </Button>
+          )}
+        </div>
+
+        {/* Filtros activos */}
+        {(searchQuery || selectedCategory !== "all") && (
+          <div className="flex flex-wrap gap-2">
+            {searchQuery && <Badge variant="secondary">Búsqueda: "{searchQuery}"</Badge>}
+            {selectedCategory !== "all" && (
+              <Badge variant="secondary">
+                Categoría: {categories.find((c) => c.id.toString() === selectedCategory)?.name}
+              </Badge>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">
-            {categoriesWithCount.map((category) => (
-              <Button
-                key={category.id}
-                variant={selectedCategories.includes(category.id) ? "default" : "outline"}
-                size="sm"
-                onClick={() => toggleCategory(category.id)}
-                className="flex items-center gap-1"
-              >
-                {category.name}
-                <Badge variant="secondary" className="ml-1">
-                  {category.count}
-                </Badge>
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Estadísticas */}
-      <div className="flex items-center justify-between text-sm text-gray-600">
-        <span>
+      <div className="flex justify-between items-center">
+        <p className="text-gray-600">
           Mostrando {filteredRecipes.length} de {initialRecipes.length} recetas
-        </span>
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>
-            <X className="h-4 w-4 mr-1" />
-            Limpiar filtros
-          </Button>
-        )}
+        </p>
       </div>
 
       {/* Grid de recetas */}
@@ -161,11 +147,12 @@ export default function RecipesPageClient({ initialRecipes, categories }: Recipe
         <div className="text-center py-12">
           <div className="text-4xl mb-4">🔍</div>
           <h3 className="text-xl font-semibold mb-2">No se encontraron recetas</h3>
-          <p className="text-gray-600">
-            {hasActiveFilters
-              ? "Intenta ajustar tus filtros de búsqueda"
-              : "Aún no tienes recetas. ¡Añade tu primera receta!"}
+          <p className="text-gray-600 mb-4">
+            {searchQuery || selectedCategory !== "all"
+              ? "Intenta ajustar los filtros de búsqueda"
+              : "No tienes recetas guardadas aún"}
           </p>
+          {(searchQuery || selectedCategory !== "all") && <Button onClick={clearFilters}>Limpiar filtros</Button>}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

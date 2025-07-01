@@ -1,314 +1,377 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Plus, X, Calendar, TrendingUp } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Calendar, Clock, Users, Flame, RotateCcw } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
 
 interface Recipe {
   id: number
   name: string
   calories?: number
+  prep_time?: number
+  servings?: number
   image_url?: string
 }
 
-interface MenuEntry {
-  day: string
-  mealType: "lunch" | "dinner"
-  recipe: Recipe | null
+interface MenuItem {
+  id?: string
+  recipe_id: number | null
+  recipe?: Recipe
 }
 
-interface WeeklyMenuViewProps {
-  recipes: Recipe[]
+interface DayMenu {
+  comida: MenuItem[]
+  cena: MenuItem[]
 }
 
-const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
-const MEAL_TYPES = [
-  { key: "lunch" as const, label: "Comida", color: "border-blue-300 bg-blue-50" },
-  { key: "dinner" as const, label: "Cena", color: "border-orange-300 bg-orange-50" },
+interface WeeklyMenu {
+  [key: string]: DayMenu
+}
+
+const DAYS = [
+  { key: "lunes", label: "Lunes" },
+  { key: "martes", label: "Martes" },
+  { key: "miercoles", label: "Miércoles" },
+  { key: "jueves", label: "Jueves" },
+  { key: "viernes", label: "Viernes" },
+  { key: "sabado", label: "Sábado" },
+  { key: "domingo", label: "Domingo" },
 ]
 
-export default function WeeklyMenuView({ recipes }: WeeklyMenuViewProps) {
-  const [menu, setMenu] = useState<MenuEntry[]>([])
-  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null)
-  const [selectedSlot, setSelectedSlot] = useState<{ day: string; mealType: "lunch" | "dinner" } | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+const MEAL_TYPES = [
+  { key: "comida", label: "Comida", color: "border-blue-300 bg-blue-50" },
+  { key: "cena", label: "Cena", color: "border-orange-300 bg-orange-50" },
+]
+
+export default function WeeklyMenuView() {
+  const [menu, setMenu] = useState<WeeklyMenu>({})
+  const [recipes, setRecipes] = useState<Recipe[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const { toast } = useToast()
 
   // Inicializar menú vacío
   useEffect(() => {
-    const initialMenu: MenuEntry[] = []
+    const initialMenu: WeeklyMenu = {}
     DAYS.forEach((day) => {
-      MEAL_TYPES.forEach((mealType) => {
-        initialMenu.push({
-          day,
-          mealType: mealType.key,
-          recipe: null,
-        })
-      })
+      initialMenu[day.key] = {
+        comida: [{ recipe_id: null }, { recipe_id: null }],
+        cena: [{ recipe_id: null }],
+      }
     })
     setMenu(initialMenu)
+    loadRecipes()
   }, [])
 
-  // Cargar menú existente
-  useEffect(() => {
-    loadExistingMenu()
-  }, [])
-
-  const loadExistingMenu = async () => {
+  const loadRecipes = async () => {
     try {
       const supabase = createClient()
-      const { data, error } = await supabase.from("weekly_menu").select(`
-          day,
-          meal_type,
-          recipes (
-            id,
-            name,
-            calories,
-            image_url
-          )
-        `)
+      const { data, error } = await supabase
+        .from("recipes")
+        .select("id, name, calories, prep_time, servings, image_url")
+        .order("name")
 
       if (error) throw error
-
-      if (data) {
-        setMenu((prevMenu) =>
-          prevMenu.map((entry) => {
-            const existing = data.find(
-              (d) => d.day === entry.day && d.meal_type === (entry.mealType === "lunch" ? "comida" : "cena"),
-            )
-            return existing ? { ...entry, recipe: existing.recipes } : entry
-          }),
-        )
-      }
+      setRecipes(data || [])
     } catch (error) {
-      console.error("Error cargando menú:", error)
+      console.error("Error cargando recetas:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las recetas",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
     }
   }
 
-  const addRecipeToMenu = async (day: string, mealType: "lunch" | "dinner", recipe: Recipe) => {
-    setIsLoading(true)
+  const addRecipeToMenu = async (day: string, mealType: string, dishIndex: number, recipeId: number) => {
+    const recipe = recipes.find((r) => r.id === recipeId)
+    if (!recipe) return
+
     try {
+      setSaving(true)
       const supabase = createClient()
 
-      // Mapear tipos de comida al español para la base de datos
-      const mealTypeSpanish = mealType === "lunch" ? "comida" : "cena"
+      // Mapear mealType al valor de la base de datos
+      const dbMealType = mealType === "comida" ? "lunch" : "dinner"
 
-      console.log(`Añadiendo receta ${recipe.name} para ${day} - ${mealTypeSpanish}`)
-
-      const { error } = await supabase.from("weekly_menu").upsert(
-        {
-          day,
-          meal_type: mealTypeSpanish,
-          recipe_id: recipe.id,
-        },
-        {
-          onConflict: "day,meal_type",
-        },
-      )
+      const { data, error } = await supabase
+        .from("menu_items")
+        .insert({
+          weekly_menu_id: "default-menu",
+          recipe_id: recipeId,
+          day_of_week: DAYS.findIndex((d) => d.key === day),
+          meal_type: dbMealType,
+          dish_order: dishIndex,
+        })
+        .select()
 
       if (error) {
         console.error("Error guardando en base de datos:", error)
         throw error
       }
 
+      console.log("✅ Receta guardada en base de datos:", data)
+
       // Actualizar estado local
-      setMenu((prevMenu) =>
-        prevMenu.map((entry) => (entry.day === day && entry.mealType === mealType ? { ...entry, recipe } : entry)),
-      )
+      setMenu((prev) => ({
+        ...prev,
+        [day]: {
+          ...prev[day],
+          [mealType]: prev[day][mealType].map((item, index) =>
+            index === dishIndex ? { ...item, recipe_id: recipeId, recipe } : item,
+          ),
+        },
+      }))
 
-      console.log(`✅ Receta guardada exitosamente`)
+      toast({
+        title: "Receta añadida",
+        description: `${recipe.name} añadida al ${mealType} del ${DAYS.find((d) => d.key === day)?.label}`,
+      })
     } catch (error) {
-      console.error("Error añadiendo receta al menú:", error)
+      console.error("Error añadiendo receta:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo añadir la receta al menú",
+        variant: "destructive",
+      })
     } finally {
-      setIsLoading(false)
-      setSelectedSlot(null)
-      setSelectedRecipe(null)
+      setSaving(false)
     }
   }
 
-  const removeRecipeFromMenu = async (day: string, mealType: "lunch" | "dinner") => {
-    setIsLoading(true)
-    try {
-      const supabase = createClient()
-      const mealTypeSpanish = mealType === "lunch" ? "comida" : "cena"
-
-      const { error } = await supabase.from("weekly_menu").delete().eq("day", day).eq("meal_type", mealTypeSpanish)
-
-      if (error) throw error
-
-      setMenu((prevMenu) =>
-        prevMenu.map((entry) =>
-          entry.day === day && entry.mealType === mealType ? { ...entry, recipe: null } : entry,
+  const removeRecipeFromMenu = (day: string, mealType: string, dishIndex: number) => {
+    setMenu((prev) => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [mealType]: prev[day][mealType].map((item, index) =>
+          index === dishIndex ? { recipe_id: null, recipe: undefined } : item,
         ),
-      )
-    } catch (error) {
-      console.error("Error eliminando receta del menú:", error)
-    } finally {
-      setIsLoading(false)
-    }
+      },
+    }))
+
+    toast({
+      title: "Receta eliminada",
+      description: "Receta eliminada del menú",
+    })
   }
 
+  const clearMenu = () => {
+    const clearedMenu: WeeklyMenu = {}
+    DAYS.forEach((day) => {
+      clearedMenu[day.key] = {
+        comida: [{ recipe_id: null }, { recipe_id: null }],
+        cena: [{ recipe_id: null }],
+      }
+    })
+    setMenu(clearedMenu)
+    toast({
+      title: "Menú limpiado",
+      description: "Se ha limpiado todo el menú semanal",
+    })
+  }
+
+  // Calcular estadísticas
   const getMenuStats = () => {
-    const totalCalories = menu.reduce((sum, entry) => sum + (entry.recipe?.calories || 0), 0)
-    const filledSlots = menu.filter((entry) => entry.recipe !== null).length
-    const totalSlots = menu.length
-    const avgCaloriesPerDay = totalCalories / 7
+    let totalCalories = 0
+    let totalDishes = 0
+    let completedDays = 0
+
+    DAYS.forEach((day) => {
+      const dayMenu = menu[day.key]
+      if (!dayMenu) return
+
+      let dayDishes = 0
+      let dayCalories = 0
+
+      MEAL_TYPES.forEach((mealType) => {
+        dayMenu[mealType.key]?.forEach((item) => {
+          if (item.recipe) {
+            totalDishes++
+            dayDishes++
+            if (item.recipe.calories) {
+              totalCalories += item.recipe.calories
+              dayCalories += item.recipe.calories
+            }
+          }
+        })
+      })
+
+      if (dayDishes >= 2) completedDays++ // Al menos comida y cena
+    })
 
     return {
       totalCalories,
-      filledSlots,
-      totalSlots,
-      avgCaloriesPerDay: Math.round(avgCaloriesPerDay),
-      completionPercentage: Math.round((filledSlots / totalSlots) * 100),
+      totalDishes,
+      completedDays,
+      avgCaloriesPerDay: totalDishes > 0 ? Math.round(totalCalories / 7) : 0,
     }
   }
 
   const stats = getMenuStats()
 
-  return (
-    <div className="space-y-6">
-      {/* Estadísticas del menú */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            Resumen del Menú Semanal
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{stats.totalCalories}</div>
-              <div className="text-sm text-gray-600">Calorías totales</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{stats.avgCaloriesPerDay}</div>
-              <div className="text-sm text-gray-600">Promedio/día</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">
-                {stats.filledSlots}/{stats.totalSlots}
-              </div>
-              <div className="text-sm text-gray-600">Comidas planificadas</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">{stats.completionPercentage}%</div>
-              <div className="text-sm text-gray-600">Completado</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p>Cargando planificador...</p>
+        </div>
+      </div>
+    )
+  }
 
-      {/* Planificador semanal */}
-      <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
-        {DAYS.map((day) => (
-          <Card key={day} className="h-fit">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-center text-sm font-medium flex items-center justify-center gap-2">
-                <Calendar className="h-4 w-4" />
-                {day}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {MEAL_TYPES.map((mealType) => {
-                const entry = menu.find((e) => e.day === day && e.mealType === mealType.key)
-                return (
-                  <div key={mealType.key} className={`p-3 rounded-lg border-2 ${mealType.color}`}>
-                    <div className="text-xs font-medium text-gray-700 mb-2">{mealType.label}</div>
-                    {entry?.recipe ? (
-                      <div className="space-y-2">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-medium truncate">{entry.recipe.name}</h4>
-                            {entry.recipe.calories && (
-                              <Badge variant="secondary" className="text-xs mt-1">
-                                {entry.recipe.calories} cal
-                              </Badge>
-                            )}
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeRecipeFromMenu(day, mealType.key)}
-                            disabled={isLoading}
-                            className="ml-2 h-6 w-6 p-0"
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedSlot({ day, mealType: mealType.key })}
-                        className="w-full h-16 border-2 border-dashed border-gray-300 hover:border-gray-400"
-                        disabled={isLoading}
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        Añadir
-                      </Button>
-                    )}
-                  </div>
-                )
-              })}
-            </CardContent>
-          </Card>
-        ))}
+  return (
+    <div className="container mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Planificador Semanal</h1>
+          <p className="text-gray-600">Organiza tus comidas para toda la semana</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={clearMenu}>
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Limpiar
+          </Button>
+        </div>
       </div>
 
-      {/* Modal de selección de recetas */}
-      {selectedSlot && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-2xl max-h-[80vh] overflow-hidden">
+      {/* Estadísticas */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-blue-600">{stats.completedDays}</div>
+            <div className="text-sm text-gray-600">Días completos</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-green-600">{stats.totalDishes}</div>
+            <div className="text-sm text-gray-600">Platos planificados</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-orange-600">{stats.totalCalories}</div>
+            <div className="text-sm text-gray-600">Calorías totales</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-purple-600">{stats.avgCaloriesPerDay}</div>
+            <div className="text-sm text-gray-600">Cal/día promedio</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Planificador */}
+      <div className="grid gap-6">
+        {DAYS.map((day) => (
+          <Card key={day.key}>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>
-                  Seleccionar receta para {selectedSlot.day} -{" "}
-                  {MEAL_TYPES.find((mt) => mt.key === selectedSlot.mealType)?.label}
-                </span>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedSlot(null)}>
-                  <X className="h-4 w-4" />
-                </Button>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                {day.label}
               </CardTitle>
             </CardHeader>
-            <CardContent className="overflow-y-auto">
-              <div className="grid grid-cols-1 gap-3">
-                {recipes.map((recipe) => (
-                  <div
-                    key={recipe.id}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
-                    onClick={() => addRecipeToMenu(selectedSlot.day, selectedSlot.mealType, recipe)}
-                  >
-                    <div className="flex items-center gap-3">
-                      {recipe.image_url ? (
-                        <img
-                          src={recipe.image_url || "/placeholder.svg"}
-                          alt={recipe.name}
-                          className="w-12 h-12 object-cover rounded"
-                        />
-                      ) : (
-                        <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">🍽️</div>
-                      )}
-                      <div>
-                        <h4 className="font-medium">{recipe.name}</h4>
-                        {recipe.calories && (
-                          <Badge variant="secondary" className="text-xs">
-                            {recipe.calories} cal
-                          </Badge>
-                        )}
-                      </div>
+            <CardContent>
+              <div className="grid md:grid-cols-2 gap-6">
+                {MEAL_TYPES.map((mealType) => (
+                  <div key={mealType.key} className={`p-4 rounded-lg border-2 ${mealType.color}`}>
+                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                      {mealType.key === "comida" ? <Users className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                      {mealType.label}
+                    </h4>
+                    <div className="space-y-3">
+                      {menu[day.key]?.[mealType.key]?.map((item, dishIndex) => (
+                        <div key={dishIndex} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">
+                              {mealType.key === "comida" ? `${dishIndex + 1}º Plato` : "Plato único"}
+                            </span>
+                            {item.recipe && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeRecipeFromMenu(day.key, mealType.key, dishIndex)}
+                              >
+                                ×
+                              </Button>
+                            )}
+                          </div>
+                          {item.recipe ? (
+                            <div className="bg-white p-3 rounded border">
+                              <div className="flex items-center gap-3">
+                                {item.recipe.image_url && (
+                                  <img
+                                    src={item.recipe.image_url || "/placeholder.svg"}
+                                    alt={item.recipe.name}
+                                    className="w-12 h-12 object-cover rounded"
+                                  />
+                                )}
+                                <div className="flex-1">
+                                  <h5 className="font-medium">{item.recipe.name}</h5>
+                                  <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
+                                    {item.recipe.calories && (
+                                      <span className="flex items-center gap-1">
+                                        <Flame className="h-3 w-3" />
+                                        {item.recipe.calories} cal
+                                      </span>
+                                    )}
+                                    {item.recipe.prep_time && (
+                                      <span className="flex items-center gap-1">
+                                        <Clock className="h-3 w-3" />
+                                        {item.recipe.prep_time} min
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <Select
+                              onValueChange={(value) =>
+                                addRecipeToMenu(day.key, mealType.key, dishIndex, Number.parseInt(value))
+                              }
+                              disabled={saving}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar receta..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {recipes.map((recipe) => (
+                                  <SelectItem key={recipe.id} value={recipe.id.toString()}>
+                                    <div className="flex items-center gap-2">
+                                      <span>{recipe.name}</span>
+                                      {recipe.calories && (
+                                        <Badge variant="outline" className="text-xs">
+                                          {recipe.calories} cal
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                    <Button size="sm">Seleccionar</Button>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   )
 }

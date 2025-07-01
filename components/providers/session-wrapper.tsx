@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client"
 
 interface User {
   id: string
-  email?: string
+  email: string
 }
 
 interface SessionContextType {
@@ -20,11 +20,7 @@ const SessionContext = createContext<SessionContextType>({
   loading: true,
 })
 
-export function useSession() {
-  return useContext(SessionContext)
-}
-
-export default function SessionWrapper({ children }: { children: React.ReactNode }) {
+export function SessionWrapper({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -33,7 +29,7 @@ export default function SessionWrapper({ children }: { children: React.ReactNode
 
     // Obtener sesión inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
+      setUser(session?.user ? { id: session.user.id, email: session.user.email || "" } : null)
       setLoading(false)
     })
 
@@ -41,7 +37,7 @@ export default function SessionWrapper({ children }: { children: React.ReactNode
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+      setUser(session?.user ? { id: session.user.id, email: session.user.email || "" } : null)
       setLoading(false)
     })
 
@@ -49,4 +45,12 @@ export default function SessionWrapper({ children }: { children: React.ReactNode
   }, [])
 
   return <SessionContext.Provider value={{ user, loading }}>{children}</SessionContext.Provider>
+}
+
+export const useSession = () => {
+  const context = useContext(SessionContext)
+  if (context === undefined) {
+    throw new Error("useSession must be used within a SessionWrapper")
+  }
+  return context
 }

@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Clock, User, Zap, ExternalLink, Play } from "lucide-react"
+import { Clock, User, Zap, ExternalLink, Play, Eye, Pencil } from "lucide-react"
 
 interface Recipe {
   id: number
@@ -22,12 +22,14 @@ interface Recipe {
   user_profiles?: {
     full_name: string
     first_name: string
+    last_name: string
+    alias: string
+    avatar_url: string
+    email: string
   }
-  recipe_categories?: {
-    categories: {
-      id: number
-      name: string
-    }
+  categories?: {
+    id: number
+    name: string
   }[]
 }
 
@@ -47,8 +49,14 @@ export default function RecipeCard({ recipe }: RecipeCardProps) {
   }
 
   const getAuthorName = () => {
+    if (recipe.user_profiles?.alias) {
+      return recipe.user_profiles.alias
+    }
     if (recipe.user_profiles?.full_name) {
       return recipe.user_profiles.full_name
+    }
+    if (recipe.user_profiles?.first_name && recipe.user_profiles?.last_name) {
+      return `${recipe.user_profiles.first_name} ${recipe.user_profiles.last_name}`
     }
     if (recipe.user_profiles?.first_name) {
       return recipe.user_profiles.first_name
@@ -82,6 +90,24 @@ export default function RecipeCard({ recipe }: RecipeCardProps) {
             </Badge>
           )}
         </div>
+
+        {/* Botones de acción en la imagen */}
+        <div className="absolute top-2 right-2 flex gap-1">
+          {recipe.video_url && (
+            <Button variant="secondary" size="sm" asChild>
+              <a href={recipe.video_url} target="_blank" rel="noopener noreferrer">
+                <Play className="h-3 w-3" />
+              </a>
+            </Button>
+          )}
+          {recipe.source_url && (
+            <Button variant="secondary" size="sm" asChild>
+              <a href={recipe.source_url} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </Button>
+          )}
+        </div>
       </div>
 
       <CardContent className="flex-1 p-4">
@@ -89,11 +115,11 @@ export default function RecipeCard({ recipe }: RecipeCardProps) {
         <h3 className="font-semibold text-lg mb-2 line-clamp-2">{recipe.name}</h3>
 
         {/* Categorías */}
-        {recipe.recipe_categories && recipe.recipe_categories.length > 0 && (
+        {recipe.categories && recipe.categories.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-3">
-            {recipe.recipe_categories.map((rc, index) => (
-              <Badge key={index} variant="outline" className="text-xs">
-                {rc.categories.name}
+            {recipe.categories.map((category) => (
+              <Badge key={category.id} variant="outline" className="text-xs">
+                {category.name}
               </Badge>
             ))}
           </div>
@@ -120,29 +146,19 @@ export default function RecipeCard({ recipe }: RecipeCardProps) {
         <p className="text-xs text-gray-400">Creada el {formatDate(recipe.created_at)}</p>
       </CardContent>
 
-      <CardFooter className="p-4 pt-0 flex gap-2">
-        <Button asChild className="flex-1">
-          <Link href={`/recipes/${recipe.id}`}>Ver Receta</Link>
+      <CardFooter className="p-4 pt-0 grid grid-cols-2 gap-2">
+        <Button asChild size="sm">
+          <Link href={`/recipes/${recipe.id}`}>
+            <Eye className="h-4 w-4 mr-1" />
+            Ver
+          </Link>
         </Button>
-
-        {/* Botones adicionales */}
-        <div className="flex gap-1">
-          {recipe.video_url && (
-            <Button variant="outline" size="sm" asChild>
-              <a href={recipe.video_url} target="_blank" rel="noopener noreferrer">
-                <Play className="h-4 w-4" />
-              </a>
-            </Button>
-          )}
-
-          {recipe.source_url && (
-            <Button variant="outline" size="sm" asChild>
-              <a href={recipe.source_url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            </Button>
-          )}
-        </div>
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/recipes/${recipe.id}/edit`}>
+            <Pencil className="h-4 w-4 mr-1" />
+            Editar
+          </Link>
+        </Button>
       </CardFooter>
     </Card>
   )

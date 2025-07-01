@@ -78,6 +78,8 @@ export async function POST(request: NextRequest) {
       console.log("✅ Cuerpo de la petición recibido:", {
         ingredients: body.ingredients?.join(", "),
         preferences: body.preferences,
+        dietary_restrictions: body.dietary_restrictions,
+        cuisine_type: body.cuisine_type,
       })
     } catch (error) {
       console.error("❌ Error al parsear el cuerpo de la petición:", error)
@@ -90,7 +92,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { ingredients, preferences } = body
+    const { ingredients, preferences, dietary_restrictions, cuisine_type } = body
 
     // Validar parámetros requeridos
     if (!ingredients || ingredients.length === 0) {
@@ -128,29 +130,21 @@ export async function POST(request: NextRequest) {
 
     // Preparar el prompt
     const prompt = `
-Genera 3 sugerencias de recetas basadas en estos ingredientes: ${ingredients.join(", ")}.
-${preferences ? `Preferencias adicionales: ${preferences}` : ""}
+Genera 3 sugerencias de recetas basadas en:
+- Ingredientes: ${ingredients.join(", ")}
+- Preferencias: ${preferences || "ninguna especificada"}
+- Restricciones dietéticas: ${dietary_restrictions || "ninguna"}
+- Tipo de cocina: ${cuisine_type || "cualquiera"}
 
 Para cada receta, proporciona:
-- Nombre de la receta
-- Lista de ingredientes (incluyendo los proporcionados)
-- Instrucciones paso a paso
-- Tiempo de preparación estimado
-- Calorías aproximadas por porción
+1. Nombre de la receta
+2. Lista de ingredientes
+3. Instrucciones paso a paso
+4. Tiempo de preparación estimado
+5. Número de porciones
+6. Calorías aproximadas por porción
 
-Formato de respuesta en JSON:
-{
-  "recipes": [
-    {
-      "name": "Nombre de la receta",
-      "ingredients": ["ingrediente 1", "ingrediente 2"],
-      "instructions": ["paso 1", "paso 2"],
-      "prepTime": "30 minutos",
-      "calories": 350
-    }
-  ]
-}
-`
+Responde en formato JSON con un array de objetos "recipes".`
 
     console.log("🚀 Enviando petición a OpenAI...")
 
@@ -175,7 +169,7 @@ Formato de respuesta en JSON:
           },
         ],
         temperature: 0.7,
-        max_tokens: 1200,
+        max_tokens: 1500,
       }),
     }
 
@@ -309,7 +303,8 @@ Formato de respuesta en JSON:
             name: `Plato con ${ingredients.join(", ")}`,
             ingredients: ingredients,
             instructions: ["Preparar según las instrucciones generadas por IA"],
-            prepTime: "30 minutos",
+            prep_time: 30,
+            servings: 4,
             calories: 300,
           },
         ],
@@ -337,7 +332,8 @@ Formato de respuesta en JSON:
         typeof recipe.name === "string" &&
         Array.isArray(recipe.ingredients) &&
         Array.isArray(recipe.instructions) &&
-        typeof recipe.prepTime === "string" &&
+        typeof recipe.prep_time === "number" &&
+        typeof recipe.servings === "number" &&
         typeof recipe.calories === "number" &&
         recipe.name.trim() &&
         recipe.ingredients.length > 0 &&
