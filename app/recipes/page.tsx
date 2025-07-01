@@ -21,16 +21,17 @@ interface Recipe {
     full_name: string
     first_name: string
   }
-  categories?: {
-    id: number
-    name: string
+  recipe_categories?: {
+    categories: {
+      id: number
+      name: string
+    }
   }[]
 }
 
 interface Category {
   id: number
   name: string
-  recipeCount: number
 }
 
 async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; categories: Category[] }> {
@@ -55,6 +56,12 @@ async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; ca
           user_profiles!recipes_user_id_fkey (
             full_name,
             first_name
+          ),
+          recipe_categories (
+            categories (
+              id,
+              name
+            )
           )
         `)
         .order("created_at", { ascending: false })
@@ -64,10 +71,7 @@ async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; ca
       const categoriesResult = await supabase.from("categories").select("*").order("name")
 
       const recipes = recipesResult.data || []
-      const categories = (categoriesResult.data || []).map((cat: any) => ({
-        ...cat,
-        recipeCount: 0,
-      }))
+      const categories = categoriesResult.data || []
 
       console.log(`✅ Cargadas ${recipes.length} recetas y ${categories.length} categorías`)
 
@@ -83,11 +87,11 @@ async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; ca
         return {
           recipes: [],
           categories: [
-            { id: 1, name: "Desayuno", recipeCount: 0 },
-            { id: 2, name: "Almuerzo", recipeCount: 0 },
-            { id: 3, name: "Cena", recipeCount: 0 },
-            { id: 4, name: "Postre", recipeCount: 0 },
-            { id: 5, name: "Snacks", recipeCount: 0 },
+            { id: 1, name: "Desayuno" },
+            { id: 2, name: "Almuerzo" },
+            { id: 3, name: "Cena" },
+            { id: 4, name: "Postre" },
+            { id: 5, name: "Snacks" },
           ],
         }
       }

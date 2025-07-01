@@ -11,69 +11,44 @@ interface RateLimitEntry {
 }
 
 class RateLimiter {
-  private limits: Map<string, RateLimitEntry> = new Map()
-  private config: RateLimitConfig = {
-    maxRequests: 10,
-    windowMs: 60000, // 1 minuto
-    retryAfterMs: 5000, // 5 segundos
-  }
+  private requests: Map<string, number[]> = new Map()
+  private readonly maxRequests = 10
+  private readonly windowMs = 60000 // 1 minuto
 
   async checkLimit(key: string): Promise<boolean> {
     const now = Date.now()
-    const entry = this.limits.get(key)
+    const requests = this.requests.get(key) || []
 
-    if (!entry) {
-      this.limits.set(key, {
-        count: 1,
-        resetTime: now + this.config.windowMs,
-        lastRequest: now,
-      })
-      return true
-    }
+    // Limpiar requests antiguos
+    const validRequests = requests.filter((time) => now - time < this.windowMs)
 
-    // Reset si ha pasado la ventana de tiempo
-    if (now >= entry.resetTime) {
-      entry.count = 1
-      entry.resetTime = now + this.config.windowMs
-      entry.lastRequest = now
-      return true
-    }
-
-    // Verificar si excede el límite
-    if (entry.count >= this.config.maxRequests) {
+    if (validRequests.length >= this.maxRequests) {
       return false
     }
 
-    entry.count++
-    entry.lastRequest = now
+    validRequests.push(now)
+    this.requests.set(key, validRequests)
     return true
   }
 
   async waitForSlot(key: string): Promise<void> {
-    const entry = this.limits.get(key)
-    if (!entry) return
-
-    const waitTime = Math.max(0, entry.resetTime - Date.now())
-    if (waitTime > 0) {
-      await new Promise((resolve) => setTimeout(resolve, Math.min(waitTime, this.config.retryAfterMs)))
-    }
+    return new Promise((resolve) => {
+      setTimeout(resolve, 1000)
+    })
   }
 
   getRemainingRequests(key: string): number {
-    const entry = this.limits.get(key)
-    if (!entry) return this.config.maxRequests
-
+    const requests = this.requests.get(key) || []
     const now = Date.now()
-    if (now >= entry.resetTime) {
-      return this.config.maxRequests
-    }
-
-    return Math.max(0, this.config.maxRequests - entry.count)
+    const validRequests = requests.filter((time) => now - time < this.windowMs)
+    return Math.max(0, this.maxRequests - validRequests.length)
   }
 
   getResetTime(key: string): number {
-    const entry = this.limits.get(key)
-    return entry ? entry.resetTime : Date.now()
+    const requests = this.requests.get(key) || []
+    const now = Date.now()
+    const validRequests = requests.filter((time) => now - time < this.windowMs)
+    return validRequests.length >= this.maxRequests ? now + this.windowMs : now
   }
 }
 
