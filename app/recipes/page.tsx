@@ -1,7 +1,5 @@
-import { Suspense } from "react"
 import { createClient } from "@/lib/supabase/server"
-import { rateLimiter } from "@/lib/supabase/rate-limiter"
-import RecipesPageClient from "@/components/recipes-page-client"
+import { RecipesPageClient } from "@/components/recipes-page-client"
 
 interface Recipe {
   id: number
@@ -11,20 +9,16 @@ interface Recipe {
   image_url?: string
   calories?: number
   user_id: string
-  is_ai_generated: boolean
+  is_ai_generated?: boolean
   video_url?: string
   source_url?: string
   created_at: string
-  user_profiles?: {
-    full_name: string
-    first_name: string
-  }
-  recipe_categories?: {
-    categories: {
-      id: number
-      name: string
-    }
-  }[]
+}
+
+interface UserProfile {
+  id: string
+  full_name?: string
+  first_name?: string
 }
 
 interface Category {
@@ -32,66 +26,75 @@ interface Category {
   name: string
 }
 
-async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; categories: Category[] }> {
-  const cacheKey = "recipes-page"
+interface RecipeCategory {
+  recipe_id: number
+  category_id: number
+}
+
+async function getRecipesWithRetry(retries = 3): Promise<{
+  recipes: Recipe[]
+  categories: Category[]
+  profiles: UserProfile[]
+  recipeCategories: RecipeCategory[]
+}> {
+  const supabase = createClient()
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      console.log(`🔄 Intento ${attempt}/${retries} - Cargando recetas...`)
+      console.log(`Intento ${attempt}/${retries} - Cargando recetas...`)
 
-      if (!(await rateLimiter.checkLimit(cacheKey))) {
-        console.log("⏳ Rate limit alcanzado, esperando...")
-        await rateLimiter.waitForSlot(cacheKey)
-      }
-
-      const supabase = createClient()
-
-      // Cargar recetas con relaciones
+      // Cargar recetas
       const { data: recipes, error: recipesError } = await supabase
         .from("recipes")
-        .select(`
-          *,
-          user_profiles!recipes_user_id_fkey (
-            full_name,
-            first_name
-          ),
-          recipe_categories (
-            categories (
-              id,
-              name
-            )
-          )
-        `)
+        .select("*")
         .order("created_at", { ascending: false })
-        .limit(100)
+        .limit(50)
+
+      if (recipesError) throw recipesError
 
       // Cargar categorías
-      const { data: categories, error: categoriesError } = await supabase.from("categories").select("*").order("name")
+      const { data: categories, error: categoriesError } = await supabase.from("categories").select("*")
 
-      if (recipesError && categoriesError) {
-        throw new Error(`Recipes: ${recipesError.message}, Categories: ${categoriesError.message}`)
-      }
+      if (categoriesError) throw categoriesError
 
-      console.log(`✅ Cargadas ${recipes?.length || 0} recetas y ${categories?.length || 0} categorías`)
+      // Cargar perfiles de usuario únicos
+      const userIds = [...new Set(recipes?.map((r) => r.user_id) || [])]
+      const { data: profiles, error: profilesError } = await supabase
+        .from("user_profiles")
+        .select("id, full_name, first_name")
+        .in("id", userIds)
+
+      if (profilesError) throw profilesError
+
+      // Cargar relaciones receta-categoría
+      const recipeIds = recipes?.map((r) => r.id) || []
+      const { data: recipeCategories, error: recipeCategoriesError } = await supabase
+        .from("recipe_categories")
+        .select("recipe_id, category_id")
+        .in("recipe_id", recipeIds)
+
+      if (recipeCategoriesError) throw recipeCategoriesError
+
+      console.log(
+        `Cargadas ${recipes?.length || 0} recetas y ${categories?.length || 0} categorías en intento ${attempt}`,
+      )
 
       return {
         recipes: recipes || [],
         categories: categories || [],
+        profiles: profiles || [],
+        recipeCategories: recipeCategories || [],
       }
-    } catch (error) {
-      console.error(`❌ Error en intento ${attempt}:`, error)
+    } catch (error: any) {
+      console.error(`❌ Error en intento ${attempt}:`, error.message)
 
       if (attempt === retries) {
-        console.log("🔄 Usando datos de respaldo...")
+        console.error("❌ Todos los intentos fallaron, devolviendo datos vacíos")
         return {
           recipes: [],
-          categories: [
-            { id: 1, name: "Desayuno" },
-            { id: 2, name: "Almuerzo" },
-            { id: 3, name: "Cena" },
-            { id: 4, name: "Postre" },
-            { id: 5, name: "Snacks" },
-          ],
+          categories: [],
+          profiles: [],
+          recipeCategories: [],
         }
       }
 
@@ -100,24 +103,39 @@ async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; ca
     }
   }
 
-  return { recipes: [], categories: [] }
+  return {
+    recipes: [],
+    categories: [],
+    profiles: [],
+    recipeCategories: [],
+  }
 }
 
 export default async function RecipesPage() {
-  const { recipes, categories } = await getRecipesWithRetry()
+  try {
+    const { recipes, categories, profiles, recipeCategories } = await getRecipesWithRetry()
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Recetas</h1>
-        <a href="/recipes/add" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium">
-          + Añadir Receta
-        </a>
-      </div>
+    // Combinar datos para crear recetas enriquecidas
+    const enrichedRecipes = recipes.map((recipe) => {
+      const profile = profiles.find((p) => p.id === recipe.user_id)
+      const recipeCats = recipeCategories
+        .filter((rc) => rc.recipe_id === recipe.id)
+        .map((rc) => {
+          const category = categories.find((c) => c.id === rc.category_id)
+          return category ? { categories: category } : null
+        })
+        .filter(Boolean)
 
-      <Suspense fallback={<div className="text-center py-8">Cargando recetas...</div>}>
-        <RecipesPageClient initialRecipes={recipes} categories={categories} />
-      </Suspense>
-    </div>
-  )
+      return {
+        ...recipe,
+        user_profiles: profile,
+        recipe_categories: recipeCats,
+      }
+    })
+
+    return <RecipesPageClient initialRecipes={enrichedRecipes} initialCategories={categories} />
+  } catch (error: any) {
+    console.error("Error cargando recetas:", error.message)
+    return <RecipesPageClient initialRecipes={[]} initialCategories={[]} />
+  }
 }
