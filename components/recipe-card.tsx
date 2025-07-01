@@ -64,7 +64,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
               </Badge>
             )}
 
-            {/* Video Button - Top Right */}
+            {/* Video Button - Top Right - ÚNICO BOTÓN DE VIDEO */}
             {recipe.video_url && (
               <Button
                 variant="secondary"
@@ -120,7 +120,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
         </CardContent>
       </Card>
 
-      {/* Video Modal - Renderizado fuera del Card para evitar problemas de posicionamiento */}
+      {/* Video Modal - Solo se renderiza cuando hay video_url */}
       {recipe.video_url && (
         <VideoModal
           videoUrl={recipe.video_url}
