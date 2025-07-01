@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { SimpleNavigation } from "@/components/simple-navigation"
-import { WeeklyMenuView } from "@/components/weekly-menu-view"
+import WeeklyMenuView from "@/components/weekly-menu-view"
 import LoginForm from "@/components/auth/login-form"
 import { supabase } from "@/lib/supabase/client"
 import type { Recipe, WeeklyMenu, MenuItem } from "@/lib/types"
+import { Suspense } from "react"
+import { createClient } from "@/lib/supabase/server"
 
 const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
@@ -15,12 +17,33 @@ interface MenuDay {
   dinner: Recipe[]
 }
 
-export default function WeeklyMenuPage() {
+async function getRecipes(): Promise<Recipe[]> {
+  try {
+    const supabase = createClient()
+
+    const { data: recipes, error } = await supabase
+      .from("recipes")
+      .select("id, name, calories, image_url")
+      .order("name")
+
+    if (error) {
+      console.error("Error cargando recetas:", error)
+      return []
+    }
+
+    return recipes || []
+  } catch (error) {
+    console.error("Error:", error)
+    return []
+  }
+}
+
+export default async function WeeklyMenuPage() {
+  const recipes = await getRecipes()
   const { user, loading: authLoading } = useAuth()
   const [mounted, setMounted] = useState(false)
   const [currentWeek, setCurrentWeek] = useState(new Date())
   const [menu, setMenu] = useState<Record<number, MenuDay>>({})
-  const [recipes, setRecipes] = useState<Recipe[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [currentMenu, setCurrentMenu] = useState<WeeklyMenu | null>(null)
@@ -35,26 +58,9 @@ export default function WeeklyMenuPage() {
 
   useEffect(() => {
     if (user) {
-      loadRecipes()
-    }
-  }, [user])
-
-  useEffect(() => {
-    if (user) {
       loadWeeklyMenu()
     }
   }, [user, currentWeek])
-
-  const loadRecipes = async () => {
-    try {
-      const { data, error } = await supabase.from("recipes").select("*").eq("user_id", user?.id).order("name")
-
-      if (error) throw error
-      setRecipes(data || [])
-    } catch (error) {
-      console.error("Error loading recipes:", error)
-    }
-  }
 
   const loadWeeklyMenu = async () => {
     if (!user) return
@@ -285,7 +291,14 @@ export default function WeeklyMenuPage() {
     <div className="min-h-screen bg-background">
       <SimpleNavigation />
       <div className="container mx-auto px-4 py-8">
-        <WeeklyMenuView userId={user.id} />
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Planificador de Menú Semanal</h1>
+          <p className="text-gray-600">Organiza tus comidas de la semana seleccionando recetas para cada día</p>
+        </div>
+
+        <Suspense fallback={<div className="text-center py-8">Cargando planificador...</div>}>
+          <WeeklyMenuView recipes={recipes} userId={user.id} />
+        </Suspense>
       </div>
     </div>
   )

@@ -39,7 +39,7 @@ async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; ca
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      console.log(`🔄 Intento ${attempt}/${retries} - Cargando recetas...`)
+      console.log(`🔄 Intento ${attempt}/${retries} - Cargando recetas reales...`)
 
       if (!(await rateLimiter.checkLimit(cacheKey))) {
         console.log("⏳ Rate limit alcanzado, esperando...")
@@ -48,8 +48,8 @@ async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; ca
 
       const supabase = createClient()
 
-      // Cargar recetas
-      const recipesResult = await supabase
+      // Cargar recetas reales de tu base de datos
+      const { data: recipes, error: recipesError } = await supabase
         .from("recipes")
         .select(`
           *,
@@ -67,32 +67,33 @@ async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; ca
         .order("created_at", { ascending: false })
         .limit(100)
 
-      // Cargar categorías
-      const categoriesResult = await supabase.from("categories").select("*").order("name")
+      // Cargar categorías reales
+      const { data: categories, error: categoriesError } = await supabase.from("categories").select("*").order("name")
 
-      const recipes = recipesResult.data || []
-      const categories = categoriesResult.data || []
+      if (recipesError) {
+        console.error("Error cargando recetas:", recipesError)
+        throw recipesError
+      }
 
-      console.log(`✅ Cargadas ${recipes.length} recetas y ${categories.length} categorías`)
+      if (categoriesError) {
+        console.error("Error cargando categorías:", categoriesError)
+        throw categoriesError
+      }
+
+      console.log(`✅ Cargadas ${recipes?.length || 0} recetas reales y ${categories?.length || 0} categorías`)
 
       return {
-        recipes,
-        categories,
+        recipes: recipes || [],
+        categories: categories || [],
       }
     } catch (error) {
       console.error(`❌ Error en intento ${attempt}:`, error)
 
       if (attempt === retries) {
-        console.log("🔄 Usando datos de respaldo...")
+        console.log("🔄 No se pudieron cargar las recetas reales")
         return {
           recipes: [],
-          categories: [
-            { id: 1, name: "Desayuno" },
-            { id: 2, name: "Almuerzo" },
-            { id: 3, name: "Cena" },
-            { id: 4, name: "Postre" },
-            { id: 5, name: "Snacks" },
-          ],
+          categories: [],
         }
       }
 
@@ -110,7 +111,7 @@ export default async function RecipesPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Recetas</h1>
+        <h1 className="text-3xl font-bold">Mis Recetas</h1>
         <Link
           href="/recipes/add"
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"
@@ -120,9 +121,24 @@ export default async function RecipesPage() {
         </Link>
       </div>
 
-      <Suspense fallback={<div className="text-center py-8">Cargando recetas...</div>}>
-        <RecipesPageClient initialRecipes={recipes} categories={categories} />
-      </Suspense>
+      {recipes.length === 0 ? (
+        <div className="text-center py-12">
+          <div className="text-6xl mb-4">📝</div>
+          <h2 className="text-2xl font-bold mb-4">No tienes recetas aún</h2>
+          <p className="text-gray-600 mb-6">Comienza añadiendo tu primera receta para crear tu colección personal</p>
+          <Link
+            href="/recipes/add"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium inline-flex items-center gap-2"
+          >
+            <Plus className="h-5 w-5" />
+            Añadir Primera Receta
+          </Link>
+        </div>
+      ) : (
+        <Suspense fallback={<div className="text-center py-8">Cargando tus recetas...</div>}>
+          <RecipesPageClient initialRecipes={recipes} categories={categories} />
+        </Suspense>
+      )}
     </div>
   )
 }

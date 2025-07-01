@@ -1,3 +1,16 @@
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+
+// Configuración real de Supabase
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+
+// Cliente real de Supabase
+export const supabase = createSupabaseClient(supabaseUrl, supabaseAnonKey)
+
+export function createClient() {
+  return supabase
+}
+
 // Cliente Supabase con datos de ejemplo para v0
 const mockRecipes = [
   {
@@ -111,63 +124,3 @@ const mockCategories = [
   { id: 4, name: "Postre" },
   { id: 5, name: "Snacks" },
 ]
-
-export const supabase = {
-  from: (table: string) => ({
-    select: (columns?: string) => ({
-      eq: (column: string, value: any) => ({
-        single: () => Promise.resolve({ data: null, error: null }),
-        order: (column: string, options?: any) => ({
-          limit: (count: number) => {
-            if (table === "recipes") {
-              return Promise.resolve({ data: mockRecipes, error: null })
-            }
-            return Promise.resolve({ data: [], error: null })
-          },
-        }),
-        limit: (count: number) => {
-          if (table === "recipes") {
-            return Promise.resolve({ data: mockRecipes, error: null })
-          }
-          return Promise.resolve({ data: [], error: null })
-        },
-      }),
-      order: (column: string, options?: any) => ({
-        limit: (count: number) => {
-          if (table === "recipes") {
-            return Promise.resolve({ data: mockRecipes, error: null })
-          } else if (table === "categories") {
-            return Promise.resolve({ data: mockCategories, error: null })
-          }
-          return Promise.resolve({ data: [], error: null })
-        },
-      }),
-      limit: (count: number) => {
-        if (table === "recipes") {
-          return Promise.resolve({ data: mockRecipes, error: null })
-        } else if (table === "categories") {
-          return Promise.resolve({ data: mockCategories, error: null })
-        }
-        return Promise.resolve({ data: [], error: null })
-      },
-    }),
-    insert: (data: any) => Promise.resolve({ data: null, error: null }),
-    update: (data: any) => ({
-      eq: (column: string, value: any) => Promise.resolve({ data: null, error: null }),
-    }),
-    delete: () => ({
-      eq: (column: string, value: any) => Promise.resolve({ data: null, error: null }),
-    }),
-  }),
-  auth: {
-    getUser: () => Promise.resolve({ data: { user: null }, error: null }),
-    getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-    signInWithPassword: () => Promise.resolve({ data: null, error: null }),
-    signOut: () => Promise.resolve({ error: null }),
-  },
-}
-
-export function createClient() {
-  return supabase
-}

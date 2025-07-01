@@ -1,18 +1,18 @@
 "use client"
 
-import type { ReactNode } from "react"
+import type React from "react"
 
 import { createContext, useContext, useEffect, useState } from "react"
-import type { User } from "@supabase/supabase-js"
-import { supabase } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
+
+interface User {
+  id: string
+  email?: string
+}
 
 interface SessionContextType {
   user: User | null
   loading: boolean
-}
-
-interface SessionWrapperProps {
-  children: ReactNode
 }
 
 const SessionContext = createContext<SessionContextType>({
@@ -20,18 +20,24 @@ const SessionContext = createContext<SessionContextType>({
   loading: true,
 })
 
-export default function SessionWrapper({ children }: SessionWrapperProps) {
+export function useSession() {
+  return useContext(SessionContext)
+}
+
+export default function SessionWrapper({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session
+    const supabase = createClient()
+
+    // Obtener sesión inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       setLoading(false)
     })
 
-    // Listen for auth changes
+    // Escuchar cambios de autenticación
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -43,12 +49,4 @@ export default function SessionWrapper({ children }: SessionWrapperProps) {
   }, [])
 
   return <SessionContext.Provider value={{ user, loading }}>{children}</SessionContext.Provider>
-}
-
-export const useSession = () => {
-  const context = useContext(SessionContext)
-  if (context === undefined) {
-    throw new Error("useSession must be used within a SessionWrapper")
-  }
-  return context
 }

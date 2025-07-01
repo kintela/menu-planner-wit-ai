@@ -1,163 +1,149 @@
 "use client"
 
-import Image from "next/image"
+import { useState } from "react"
 import Link from "next/link"
-import { ChefHat, Flame, Users, User, Eye, Pencil } from "lucide-react"
-
-import { useRouter } from "next/navigation"
-
-import { useAuth } from "@/components/auth/auth-provider"
-
-import { cn } from "@/lib/utils"
+import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { DeleteRecipeButton } from "@/components/delete-recipe-button"
-import { VideoModal } from "@/components/video-modal"
-import { SourceLinkButton } from "@/components/source-link-button"
-import { getCaloriesPerServing, getCalorieLevel } from "@/lib/calories-calculator"
-import { StarRating } from "@/components/star-rating"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Clock, User, Zap, ExternalLink, Play } from "lucide-react"
 
-// Define the RecipeCardProps interface
-interface RecipeCardProps {
-  recipe: any
-  className?: string
+interface Recipe {
+  id: number
+  name: string
+  ingredients: string
+  preparation: string
+  image_url?: string
+  calories?: number
+  user_id: string
+  is_ai_generated: boolean
+  video_url?: string
+  source_url?: string
+  created_at: string
+  user_profiles?: {
+    full_name: string
+    first_name: string
+  }
+  recipe_categories?: {
+    categories: {
+      id: number
+      name: string
+    }
+  }[]
 }
 
-// Update the RecipeCard component to check if the user is the creator
-export function RecipeCard({ recipe, className }: RecipeCardProps) {
-  const router = useRouter()
-  const { user } = useAuth()
+interface RecipeCardProps {
+  recipe: Recipe
+}
 
-  // Usar la misma lógica que StarRating para verificar ownership
-  const isOwner = user && (user.id === recipe.user_id || user.email === recipe.user_id)
-  const canEdit = user && isOwner
+export default function RecipeCard({ recipe }: RecipeCardProps) {
+  const [imageError, setImageError] = useState(false)
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("es-ES", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
+  }
 
-
-  // Ahora solo usamos el campo calories
-  const caloriesPerServing = recipe.calories ? getCaloriesPerServing(recipe.calories) : null
-  const calorieLevel = caloriesPerServing ? getCalorieLevel(caloriesPerServing) : null
-
-  // Obtener la información del creador (puede venir de creator o user_profiles)
-  const creatorInfo = recipe.creator || recipe.user_profiles || null
-
-  // Función para manejar la eliminación de la receta
-  const handleDelete = () => {
-    // Refrescar la página para mostrar la lista actualizada
-    router.refresh()
+  const getAuthorName = () => {
+    if (recipe.user_profiles?.full_name) {
+      return recipe.user_profiles.full_name
+    }
+    if (recipe.user_profiles?.first_name) {
+      return recipe.user_profiles.first_name
+    }
+    return "Usuario"
   }
 
   return (
-    <TooltipProvider>
-      <Card className={cn("overflow-hidden flex flex-col h-full", className)}>
-        <div className="aspect-video relative">
-          {recipe.image_url ? (
-            <Image src={recipe.image_url || "/placeholder.svg"} alt={recipe.name} fill className="object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-muted">
-              <ChefHat className="h-12 w-12 text-muted-foreground" />
-            </div>
-          )}
+    <Card className="h-full flex flex-col hover:shadow-lg transition-shadow">
+      {/* Imagen */}
+      <div className="relative h-48 overflow-hidden rounded-t-lg">
+        {recipe.image_url && !imageError ? (
+          <img
+            src={recipe.image_url || "/placeholder.svg"}
+            alt={recipe.name}
+            className="w-full h-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
+            <div className="text-4xl">🍽️</div>
+          </div>
+        )}
+
+        {/* Badges superpuestos */}
+        <div className="absolute top-2 left-2 flex gap-1">
           {recipe.is_ai_generated && (
-            <Badge className="absolute top-2 right-2" variant="secondary">
-              Generado por IA
+            <Badge variant="secondary" className="bg-purple-100 text-purple-800">
+              <Zap className="h-3 w-3 mr-1" />
+              AI
             </Badge>
           )}
-          {/* Mostrar iconos de video y fuente */}
-          <div className="absolute top-2 left-2 flex gap-2">
-            {recipe.video_url && <VideoModal videoUrl={recipe.video_url} recipeName={recipe.name} />}
-          </div>
-          {recipe.source_url && <SourceLinkButton sourceUrl={recipe.source_url} recipeName={recipe.name} />}
+        </div>
+      </div>
 
-          {/* Información del creador en la esquina inferior derecha de la imagen */}
-          {creatorInfo && (
-            <div className="absolute bottom-2 right-2 flex items-center gap-1 text-xs bg-black/60 text-white backdrop-blur-sm rounded px-2 py-1 shadow-md">
-              {creatorInfo.avatar_url ? (
-                <Image
-                  src={creatorInfo.avatar_url || "/placeholder.svg"}
-                  alt="Avatar"
-                  width={12}
-                  height={12}
-                  className="h-3 w-3 rounded-full object-cover"
-                />
-              ) : (
-                <User className="h-3 w-3" />
-              )}
-              <span>
-                {creatorInfo.alias ||
-                  (creatorInfo.first_name && creatorInfo.last_name
-                    ? `${creatorInfo.first_name} ${creatorInfo.last_name}`
-                    : creatorInfo.full_name || creatorInfo.email)}
-              </span>
+      <CardContent className="flex-1 p-4">
+        {/* Título */}
+        <h3 className="font-semibold text-lg mb-2 line-clamp-2">{recipe.name}</h3>
+
+        {/* Categorías */}
+        {recipe.recipe_categories && recipe.recipe_categories.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {recipe.recipe_categories.map((rc, index) => (
+              <Badge key={index} variant="outline" className="text-xs">
+                {rc.categories.name}
+              </Badge>
+            ))}
+          </div>
+        )}
+
+        {/* Ingredientes (preview) */}
+        <p className="text-sm text-gray-600 mb-3 line-clamp-2">{recipe.ingredients}</p>
+
+        {/* Información adicional */}
+        <div className="flex items-center gap-4 text-xs text-gray-500 mb-3">
+          {recipe.calories && (
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {recipe.calories} cal
             </div>
           )}
+          <div className="flex items-center gap-1">
+            <User className="h-3 w-3" />
+            {getAuthorName()}
+          </div>
         </div>
 
-        <CardHeader className="pb-2">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <CardTitle className="whitespace-nowrap overflow-hidden text-ellipsis">{recipe.name}</CardTitle>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{recipe.name}</p>
-            </TooltipContent>
-          </Tooltip>
-          <CardDescription>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {recipe.categories?.map((category) => (
-                <Badge key={category.id} variant="outline" className="mr-1">
-                  {category.name}
-                </Badge>
-              ))}
-              {calorieLevel && (
-                <Badge variant="outline" className={cn("text-xs", calorieLevel.color)}>
-                  {calorieLevel.level}
-                </Badge>
-              )}
-            </div>
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex-grow pt-0">
-          {caloriesPerServing && (
-            <div className="flex items-center gap-1 text-sm mb-2">
-              <Flame className="h-4 w-4 text-orange-500" />
-              <span className={calorieLevel?.color}>{caloriesPerServing}</span>
-              <Users className="h-3 w-3 text-muted-foreground ml-1" />
-              <span className="text-xs text-muted-foreground">cal/ración</span>
-            </div>
-          )}
-          <StarRating recipeId={recipe.id} creatorId={recipe.user_id} />
-        </CardContent>
-        <CardFooter className="grid grid-cols-3 gap-2 mt-auto">
-          <Button asChild size="sm">
-            <Link href={`/recipes/${recipe.id}`}>
-              <Eye className="h-4 w-4" />
-            </Link>
-          </Button>
+        {/* Fecha */}
+        <p className="text-xs text-gray-400">Creada el {formatDate(recipe.created_at)}</p>
+      </CardContent>
 
-          {canEdit ? (
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/recipes/${recipe.id}/edit`}>
-                <Pencil className="h-4 w-4" />
-              </Link>
-            </Button>
-          ) : (
-            <Button variant="outline" disabled size="sm">
-              <Pencil className="h-4 w-4" />
+      <CardFooter className="p-4 pt-0 flex gap-2">
+        <Button asChild className="flex-1">
+          <Link href={`/recipes/${recipe.id}`}>Ver Receta</Link>
+        </Button>
+
+        {/* Botones adicionales */}
+        <div className="flex gap-1">
+          {recipe.video_url && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={recipe.video_url} target="_blank" rel="noopener noreferrer">
+                <Play className="h-4 w-4" />
+              </a>
             </Button>
           )}
 
-          <DeleteRecipeButton
-            recipeId={recipe.id}
-            recipeUserId={recipe.user_id}
-            recipeName={recipe.name}
-            onDelete={handleDelete}
-            iconOnly={true}
-          />
-        </CardFooter>
-      </Card>
-    </TooltipProvider>
+          {recipe.source_url && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={recipe.source_url} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            </Button>
+          )}
+        </div>
+      </CardFooter>
+    </Card>
   )
 }

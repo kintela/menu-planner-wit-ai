@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import type { NextRequest } from "next/server"
 
 // Configuración específica para producción
 export const runtime = "nodejs"
@@ -51,7 +52,7 @@ async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2)
   throw lastError!
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const startTime = Date.now()
   console.log("=== Iniciando generación de sugerencias ===", new Date().toISOString())
 
@@ -75,10 +76,8 @@ export async function POST(request: Request) {
     try {
       body = await request.json()
       console.log("✅ Cuerpo de la petición recibido:", {
-        searchQuery: body.searchQuery?.substring(0, 50) + "...",
-        mealType: body.mealType,
-        dishOrder: body.dishOrder,
-        dayName: body.dayName,
+        ingredients: body.ingredients?.join(", "),
+        preferences: body.preferences,
       })
     } catch (error) {
       console.error("❌ Error al parsear el cuerpo de la petición:", error)
@@ -91,15 +90,15 @@ export async function POST(request: Request) {
       )
     }
 
-    const { searchQuery, mealType, dishOrder, dayName } = body
+    const { ingredients, preferences } = body
 
     // Validar parámetros requeridos
-    if (!searchQuery || typeof searchQuery !== "string" || !searchQuery.trim()) {
-      console.error("❌ searchQuery faltante o inválido:", searchQuery)
+    if (!ingredients || ingredients.length === 0) {
+      console.error("❌ ingredients faltantes o inválidos:", ingredients)
       return NextResponse.json(
         {
-          error: "La búsqueda es requerida",
-          code: "MISSING_SEARCH_QUERY",
+          error: "Se requieren ingredientes",
+          code: "MISSING_INGREDIENTS",
         },
         { status: 400 },
       )
@@ -128,43 +127,30 @@ export async function POST(request: Request) {
     }
 
     // Preparar el prompt
-    const mealTypeText = mealType === "comida" ? "almuerzo" : "cena"
-    const dishOrderText = dishOrder === 1 ? "primer plato" : dishOrder === 2 ? "segundo plato" : "plato principal"
+    const prompt = `
+Genera 3 sugerencias de recetas basadas en estos ingredientes: ${ingredients.join(", ")}.
+${preferences ? `Preferencias adicionales: ${preferences}` : ""}
 
-    const prompt = `Eres un chef experto. Crea exactamente 3 recetas basadas en esta búsqueda: "${searchQuery}"
+Para cada receta, proporciona:
+- Nombre de la receta
+- Lista de ingredientes (incluyendo los proporcionados)
+- Instrucciones paso a paso
+- Tiempo de preparación estimado
+- Calorías aproximadas por porción
 
-Contexto:
-- Tipo de comida: ${mealTypeText}
-${dishOrder ? `- Tipo de plato: ${dishOrderText}` : ""}
-- Día: ${dayName}
-${existingTitles ? `- Evita nombres similares a: ${existingTitles.substring(0, 200)}` : ""}
-
-Responde ÚNICAMENTE con este JSON (sin texto adicional):
-
+Formato de respuesta en JSON:
 {
   "recipes": [
     {
-      "name": "Nombre corto y atractivo",
-      "description": "Descripción breve de máximo 80 caracteres",
-      "ingredients": "200g de ingrediente 1\\n1 taza de ingrediente 2\\n2 cucharadas de ingrediente 3",
-      "preparation": "Paso 1: Descripción clara\\nPaso 2: Descripción clara\\nPaso 3: Descripción clara"
-    },
-    {
-      "name": "Segundo plato",
-      "description": "Otra descripción breve",
-      "ingredients": "Ingredientes separados por \\n",
-      "preparation": "Pasos separados por \\n"
-    },
-    {
-      "name": "Tercer plato",
-      "description": "Tercera descripción",
-      "ingredients": "Más ingredientes con \\n",
-      "preparation": "Más pasos con \\n"
+      "name": "Nombre de la receta",
+      "ingredients": ["ingrediente 1", "ingrediente 2"],
+      "instructions": ["paso 1", "paso 2"],
+      "prepTime": "30 minutos",
+      "calories": 350
     }
   ]
 }
-
-IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
+`
 
     console.log("🚀 Enviando petición a OpenAI...")
 
@@ -320,10 +306,11 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
       return NextResponse.json({
         recipes: [
           {
-            name: `Plato con ${searchQuery}`,
-            description: "Receta deliciosa y fácil de preparar",
-            ingredients: `Ingrediente principal: ${searchQuery}\nAceite de oliva\nSal y pimienta\nAjo`,
-            preparation: "Paso 1: Preparar los ingredientes\nPaso 2: Cocinar a fuego medio\nPaso 3: Servir caliente",
+            name: `Plato con ${ingredients.join(", ")}`,
+            ingredients: ingredients,
+            instructions: ["Preparar según las instrucciones generadas por IA"],
+            prepTime: "30 minutos",
+            calories: 300,
           },
         ],
         fallback: true,
@@ -348,12 +335,13 @@ IMPORTANTE: Solo JSON válido, sin markdown, sin explicaciones.`
       const isValid =
         recipe &&
         typeof recipe.name === "string" &&
-        typeof recipe.description === "string" &&
-        typeof recipe.ingredients === "string" &&
-        typeof recipe.preparation === "string" &&
+        Array.isArray(recipe.ingredients) &&
+        Array.isArray(recipe.instructions) &&
+        typeof recipe.prepTime === "string" &&
+        typeof recipe.calories === "number" &&
         recipe.name.trim() &&
-        recipe.ingredients.trim() &&
-        recipe.preparation.trim()
+        recipe.ingredients.length > 0 &&
+        recipe.instructions.length > 0
 
       if (!isValid) {
         console.warn("⚠️ Receta inválida filtrada:", recipe)
