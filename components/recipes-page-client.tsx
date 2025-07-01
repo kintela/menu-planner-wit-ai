@@ -61,13 +61,6 @@ export default function RecipesPageClient({ initialRecipes, categories }: Recipe
   if (initialRecipes.length === 0) {
     return (
       <div className="text-center py-12">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
-          <h3 className="text-lg font-semibold text-yellow-800 mb-2">Entorno de desarrollo v0</h3>
-          <p className="text-yellow-700">
-            En producción, aquí verás tus {initialRecipes.length || 82} recetas reales de Supabase.
-          </p>
-        </div>
-
         <div className="max-w-md mx-auto">
           <h2 className="text-xl font-semibold mb-4">No hay recetas disponibles</h2>
           <p className="text-gray-600 mb-6">Comienza añadiendo tu primera receta para ver el contenido aquí.</p>
