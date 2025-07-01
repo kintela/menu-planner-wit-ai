@@ -5,7 +5,8 @@ import Link from "next/link"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Clock, User, Zap, ExternalLink, Play, Eye, Pencil } from "lucide-react"
+import { Clock, User, Zap, ExternalLink, Eye, Pencil } from "lucide-react"
+import { VideoModal } from "@/components/video-modal"
 
 interface Recipe {
   id: number
@@ -93,13 +94,7 @@ export default function RecipeCard({ recipe }: RecipeCardProps) {
 
         {/* Botones de acción en la imagen */}
         <div className="absolute top-2 right-2 flex gap-1">
-          {recipe.video_url && (
-            <Button variant="secondary" size="sm" asChild>
-              <a href={recipe.video_url} target="_blank" rel="noopener noreferrer">
-                <Play className="h-3 w-3" />
-              </a>
-            </Button>
-          )}
+          {recipe.video_url && <VideoModal videoUrl={recipe.video_url} recipeName={recipe.name} />}
           {recipe.source_url && (
             <Button variant="secondary" size="sm" asChild>
               <a href={recipe.source_url} target="_blank" rel="noopener noreferrer">
