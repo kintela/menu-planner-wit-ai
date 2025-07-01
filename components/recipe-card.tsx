@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ExternalLink, Play, Sparkles, User } from "lucide-react"
+import { ExternalLink, Video, Sparkles, User } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { VideoModal } from "@/components/video-modal"
@@ -54,7 +54,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
             className="absolute top-2 right-2 z-10 bg-black/70 hover:bg-black/90 text-white border-0"
             onClick={() => setIsVideoModalOpen(true)}
           >
-            <Play className="h-4 w-4" />
+            <Video className="h-4 w-4" />
           </Button>
         )}
 
