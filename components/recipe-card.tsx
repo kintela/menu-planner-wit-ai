@@ -1,12 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import Link from "next/link"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Users, Eye, ExternalLink } from "lucide-react"
-import Link from "next/link"
-import Image from "next/image"
+import { Eye, X } from "lucide-react"
 
 interface Recipe {
   id: number
@@ -42,105 +41,75 @@ interface RecipeCardProps {
 
 export function RecipeCard({ recipe }: RecipeCardProps) {
   const [showVideoModal, setShowVideoModal] = useState(false)
-  const [imageError, setImageError] = useState(false)
 
-  const creatorName =
-    recipe.user_profiles?.alias ||
-    recipe.user_profiles?.full_name ||
-    recipe.user_profiles?.first_name ||
-    "Usuario anónimo"
-
-  const categories = recipe.recipe_categories?.map((rc) => rc.categories) || []
+  const getVideoEmbedUrl = (url: string) => {
+    if (url.includes("youtube.com/watch?v=")) {
+      const videoId = url.split("v=")[1]?.split("&")[0]
+      return `https://www.youtube.com/embed/${videoId}`
+    }
+    if (url.includes("youtu.be/")) {
+      const videoId = url.split("youtu.be/")[1]?.split("?")[0]
+      return `https://www.youtube.com/embed/${videoId}`
+    }
+    return url
+  }
 
   return (
     <>
-      <Card className="h-full flex flex-col hover:shadow-lg transition-shadow">
-        <div className="relative">
-          {recipe.image_url && !imageError ? (
-            <div className="relative h-48 w-full">
-              <Image
-                src={recipe.image_url || "/placeholder.svg"}
-                alt={recipe.name}
-                fill
-                className="object-cover rounded-t-lg"
-                onError={() => setImageError(true)}
-              />
-              {recipe.video_url && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="absolute top-2 left-2 h-8 w-8 p-0"
-                  onClick={() => setShowVideoModal(true)}
-                >
-                  <Eye className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
+      <Card className="overflow-hidden hover:shadow-lg transition-shadow">
+        <div className="relative aspect-video bg-gray-200">
+          {recipe.image_url ? (
+            <img
+              src={recipe.image_url || "/placeholder.svg"}
+              alt={recipe.name}
+              className="w-full h-full object-cover"
+            />
           ) : (
-            <div className="h-48 bg-gray-200 rounded-t-lg flex items-center justify-center">
-              <span className="text-gray-500">Sin imagen</span>
-              {recipe.video_url && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="absolute top-2 left-2 h-8 w-8 p-0"
-                  onClick={() => setShowVideoModal(true)}
-                >
-                  <Eye className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
+            <div className="w-full h-full flex items-center justify-center text-gray-400">Sin imagen</div>
+          )}
+
+          {recipe.video_url && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="absolute top-2 left-2 h-8 w-8 p-0"
+              onClick={() => setShowVideoModal(true)}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
           )}
         </div>
 
-        <CardContent className="flex-1 p-4">
+        <CardContent className="p-4">
           <div className="flex items-start justify-between mb-2">
-            <h3 className="font-semibold text-lg line-clamp-2">{recipe.name}</h3>
+            <h3 className="font-semibold text-lg leading-tight">{recipe.name}</h3>
             {recipe.is_ai_generated && (
               <Badge variant="secondary" className="ml-2 text-xs">
-                IA
+                🤖 IA
               </Badge>
             )}
           </div>
 
-          <p className="text-sm text-gray-600 mb-3 line-clamp-2">{recipe.ingredients}</p>
+          <p className="text-gray-600 text-sm mb-3 line-clamp-2">{recipe.ingredients.substring(0, 100)}...</p>
 
-          <div className="flex flex-wrap gap-1 mb-3">
-            {categories.slice(0, 2).map((category) => (
-              <Badge key={category.id} variant="outline" className="text-xs">
-                {category.name}
-              </Badge>
-            ))}
-            {categories.length > 2 && (
-              <Badge variant="outline" className="text-xs">
-                +{categories.length - 2}
-              </Badge>
-            )}
-          </div>
+          {recipe.calories && <div className="text-sm text-gray-500 mb-3">🔥 {recipe.calories} calorías</div>}
 
-          <div className="flex items-center justify-between text-sm text-gray-500">
-            <span>Por {creatorName}</span>
-            {recipe.calories && (
-              <div className="flex items-center">
-                <Users className="h-4 w-4 mr-1" />
-                <span>{recipe.calories} cal</span>
+          <div className="flex items-center justify-between">
+            <Link href={`/recipes/${recipe.id}`} className="text-blue-600 hover:text-blue-800 font-medium text-sm">
+              Ver receta →
+            </Link>
+
+            {recipe.recipe_categories && recipe.recipe_categories.length > 0 && (
+              <div className="flex gap-1">
+                {recipe.recipe_categories.slice(0, 2).map((rc, index) => (
+                  <Badge key={index} variant="outline" className="text-xs">
+                    {rc.categories.name}
+                  </Badge>
+                ))}
               </div>
             )}
           </div>
         </CardContent>
-
-        <CardFooter className="p-4 pt-0 flex gap-2">
-          <Link href={`/recipes/${recipe.id}`} className="flex-1">
-            <Button variant="outline" className="w-full bg-transparent">
-              Ver Receta
-            </Button>
-          </Link>
-          {recipe.source_url && (
-            <Button variant="ghost" size="sm" onClick={() => window.open(recipe.source_url, "_blank")}>
-              <ExternalLink className="h-4 w-4" />
-            </Button>
-          )}
-        </CardFooter>
       </Card>
 
       {/* Video Modal */}
@@ -150,18 +119,16 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
             <div className="flex justify-between items-center p-4 border-b">
               <h3 className="text-lg font-semibold">{recipe.name}</h3>
               <Button variant="ghost" size="sm" onClick={() => setShowVideoModal(false)}>
-                ✕
+                <X className="h-4 w-4" />
               </Button>
             </div>
-            <div className="p-4">
-              <div className="aspect-video">
-                <iframe
-                  src={recipe.video_url}
-                  className="w-full h-full rounded"
-                  allowFullScreen
-                  title={`Video de ${recipe.name}`}
-                />
-              </div>
+            <div className="aspect-video">
+              <iframe
+                src={getVideoEmbedUrl(recipe.video_url)}
+                className="w-full h-full"
+                allowFullScreen
+                title={`Video de ${recipe.name}`}
+              />
             </div>
           </div>
         </div>
