@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { RecipeCard } from "@/components/recipe-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Search } from "lucide-react"
@@ -105,7 +104,33 @@ export function RecipesPageClient({ initialRecipes }: RecipesPageClientProps) {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredRecipes.map((recipe) => (
-              <RecipeCard key={recipe.id} recipe={recipe} />
+              <div key={recipe.id} className="bg-white rounded-lg shadow-md overflow-hidden">
+                <div className="aspect-video bg-gray-200 flex items-center justify-center">
+                  {recipe.image_url ? (
+                    <img
+                      src={recipe.image_url || "/placeholder.svg"}
+                      alt={recipe.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-gray-400">Sin imagen</span>
+                  )}
+                </div>
+                <div className="p-4">
+                  <h3 className="font-semibold text-lg mb-2">{recipe.name}</h3>
+                  <p className="text-gray-600 text-sm mb-3 line-clamp-2">{recipe.ingredients.substring(0, 100)}...</p>
+                  {recipe.calories && <div className="text-sm text-gray-500 mb-3">🔥 {recipe.calories} calorías</div>}
+                  <div className="flex justify-between items-center">
+                    <Link
+                      href={`/recipes/${recipe.id}`}
+                      className="text-blue-600 hover:text-blue-800 font-medium text-sm"
+                    >
+                      Ver receta →
+                    </Link>
+                    {recipe.video_url && <span className="text-xs bg-gray-100 px-2 py-1 rounded">📹 Video</span>}
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         )}

@@ -6,7 +6,6 @@ import { ChefHat, Flame, Users, User, Eye, Pencil } from "lucide-react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth/auth-provider"
-import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,7 +40,7 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
 
   return (
     <TooltipProvider>
-      <Card className={cn("overflow-hidden flex flex-col h-full", className)}>
+      <Card className={`overflow-hidden flex flex-col h-full ${className || ""}`}>
         <div className="aspect-video relative">
           {recipe.image_url ? (
             <Image src={recipe.image_url || "/placeholder.svg"} alt={recipe.name} fill className="object-cover" />
@@ -109,7 +108,7 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
                 </Badge>
               ))}
               {calorieLevel && (
-                <Badge variant="outline" className={cn("text-xs", calorieLevel.color)}>
+                <Badge variant="outline" className={`text-xs ${calorieLevel.color}`}>
                   {calorieLevel.level}
                 </Badge>
               )}
