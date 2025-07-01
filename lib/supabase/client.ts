@@ -114,35 +114,25 @@ const mockCategories = [
 
 export const supabase = {
   from: (table: string) => ({
-    select: (columns?: string) => {
-      const selectQuery = {
-        eq: (column: string, value: any) => ({
-          single: () => Promise.resolve({ data: null, error: null }),
-          order: (column: string, options?: any) => ({
-            limit: (count: number) => {
-              if (table === "recipes") {
-                return Promise.resolve({ data: mockRecipes, error: null })
-              }
-              return Promise.resolve({ data: [], error: null })
-            },
-          }),
-          limit: (count: number) => {
-            if (table === "recipes") {
-              return Promise.resolve({ data: mockRecipes, error: null })
-            }
-            return Promise.resolve({ data: [], error: null })
-          },
-        }),
+    select: (columns?: string) => ({
+      eq: (column: string, value: any) => ({
+        single: () => Promise.resolve({ data: null, error: null }),
         order: (column: string, options?: any) => ({
           limit: (count: number) => {
             if (table === "recipes") {
               return Promise.resolve({ data: mockRecipes, error: null })
-            } else if (table === "categories") {
-              return Promise.resolve({ data: mockCategories, error: null })
             }
             return Promise.resolve({ data: [], error: null })
           },
         }),
+        limit: (count: number) => {
+          if (table === "recipes") {
+            return Promise.resolve({ data: mockRecipes, error: null })
+          }
+          return Promise.resolve({ data: [], error: null })
+        },
+      }),
+      order: (column: string, options?: any) => ({
         limit: (count: number) => {
           if (table === "recipes") {
             return Promise.resolve({ data: mockRecipes, error: null })
@@ -151,17 +141,16 @@ export const supabase = {
           }
           return Promise.resolve({ data: [], error: null })
         },
-      }
-
-      // Para consultas directas sin encadenamiento
-      if (table === "recipes") {
-        return Promise.resolve({ data: mockRecipes, error: null })
-      } else if (table === "categories") {
-        return Promise.resolve({ data: mockCategories, error: null })
-      }
-
-      return selectQuery
-    },
+      }),
+      limit: (count: number) => {
+        if (table === "recipes") {
+          return Promise.resolve({ data: mockRecipes, error: null })
+        } else if (table === "categories") {
+          return Promise.resolve({ data: mockCategories, error: null })
+        }
+        return Promise.resolve({ data: [], error: null })
+      },
+    }),
     insert: (data: any) => Promise.resolve({ data: null, error: null }),
     update: (data: any) => ({
       eq: (column: string, value: any) => Promise.resolve({ data: null, error: null }),

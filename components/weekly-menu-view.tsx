@@ -5,25 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, ChefHat, Clock, Utensils, RotateCcw } from "lucide-react"
+import { Calendar, ChefHat, Utensils, BarChart3, Trash2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface Recipe {
   id: number
   name: string
+  calories?: number
   ingredients: string
   preparation: string
   image_url?: string
-  calories?: number
-  user_id: string
-  is_ai_generated: boolean
-  video_url?: string
-  source_url?: string
-  created_at: string
-  user_profiles?: {
-    full_name: string
-    first_name: string
-  }
 }
 
 interface MenuEntry {
@@ -36,7 +27,7 @@ interface WeeklyMenuViewProps {
   recipes: Recipe[]
 }
 
-const DAYS_OF_WEEK = [
+const DAYS = [
   { key: "monday", label: "Lunes" },
   { key: "tuesday", label: "Martes" },
   { key: "wednesday", label: "Miércoles" },
@@ -47,8 +38,8 @@ const DAYS_OF_WEEK = [
 ]
 
 const MEAL_TYPES = [
-  { key: "lunch", label: "Comida", color: "bg-blue-50 border-blue-200" },
-  { key: "dinner", label: "Cena", color: "bg-orange-50 border-orange-200" },
+  { key: "lunch", label: "Comida", color: "border-blue-300 bg-blue-50" },
+  { key: "dinner", label: "Cena", color: "border-orange-300 bg-orange-50" },
 ]
 
 export default function WeeklyMenuView({ recipes }: WeeklyMenuViewProps) {
@@ -59,7 +50,7 @@ export default function WeeklyMenuView({ recipes }: WeeklyMenuViewProps) {
   // Inicializar menú vacío
   useEffect(() => {
     const initialMenu: MenuEntry[] = []
-    DAYS_OF_WEEK.forEach((day) => {
+    DAYS.forEach((day) => {
       MEAL_TYPES.forEach((mealType) => {
         initialMenu.push({
           day: day.key,
@@ -76,22 +67,23 @@ export default function WeeklyMenuView({ recipes }: WeeklyMenuViewProps) {
     if (!recipe) return
 
     setIsLoading(true)
-
     try {
       // Simular guardado en base de datos
       await new Promise((resolve) => setTimeout(resolve, 500))
 
-      setMenu((prevMenu) =>
-        prevMenu.map((entry) => (entry.day === day && entry.mealType === mealType ? { ...entry, recipe } : entry)),
+      setMenu((prev) =>
+        prev.map((entry) => (entry.day === day && entry.mealType === mealType ? { ...entry, recipe } : entry)),
       )
 
       toast({
-        title: "✅ Receta añadida",
-        description: `${recipe.name} añadida al ${MEAL_TYPES.find((m) => m.key === mealType)?.label.toLowerCase()} del ${DAYS_OF_WEEK.find((d) => d.key === day)?.label}`,
+        title: "Receta añadida",
+        description: `${recipe.name} añadida al ${mealType === "lunch" ? "almuerzo" : "cena"} del ${
+          DAYS.find((d) => d.key === day)?.label
+        }`,
       })
     } catch (error) {
       toast({
-        title: "❌ Error",
+        title: "Error",
         description: "No se pudo añadir la receta al menú",
         variant: "destructive",
       })
@@ -100,145 +92,192 @@ export default function WeeklyMenuView({ recipes }: WeeklyMenuViewProps) {
     }
   }
 
-  const removeRecipeFromMenu = (day: string, mealType: "lunch" | "dinner") => {
-    setMenu((prevMenu) =>
-      prevMenu.map((entry) => (entry.day === day && entry.mealType === mealType ? { ...entry, recipe: null } : entry)),
-    )
+  const removeRecipeFromMenu = async (day: string, mealType: "lunch" | "dinner") => {
+    setIsLoading(true)
+    try {
+      // Simular eliminación en base de datos
+      await new Promise((resolve) => setTimeout(resolve, 300))
 
-    toast({
-      title: "🗑️ Receta eliminada",
-      description: "Receta eliminada del menú",
-    })
+      setMenu((prev) =>
+        prev.map((entry) => (entry.day === day && entry.mealType === mealType ? { ...entry, recipe: null } : entry)),
+      )
+
+      toast({
+        title: "Receta eliminada",
+        description: "Receta eliminada del menú",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar la receta del menú",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const clearMenu = () => {
-    setMenu((prevMenu) => prevMenu.map((entry) => ({ ...entry, recipe: null })))
-
+    setMenu((prev) => prev.map((entry) => ({ ...entry, recipe: null })))
     toast({
-      title: "🧹 Menú limpiado",
+      title: "Menú limpiado",
       description: "Se han eliminado todas las recetas del menú",
     })
   }
 
-  const getMenuEntry = (day: string, mealType: "lunch" | "dinner") => {
-    return menu.find((entry) => entry.day === day && entry.mealType === mealType)
-  }
-
-  const getTotalCalories = () => {
-    return menu.reduce((total, entry) => {
-      return total + (entry.recipe?.calories || 0)
-    }, 0)
-  }
-
-  const getRecipeCount = () => {
-    return menu.filter((entry) => entry.recipe !== null).length
-  }
-
-  if (recipes.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <div className="text-6xl mb-4">📅</div>
-        <h2 className="text-2xl font-semibold mb-2">Planificador de Menú Semanal</h2>
-        <p className="text-gray-600 mb-6">Necesitas tener recetas disponibles para poder planificar tu menú semanal.</p>
-        <Button>
-          <ChefHat className="h-4 w-4 mr-2" />
-          Añadir Primera Receta
-        </Button>
-      </div>
-    )
+  // Calcular estadísticas
+  const stats = {
+    totalRecipes: menu.filter((entry) => entry.recipe).length,
+    totalCalories: menu.reduce((sum, entry) => sum + (entry.recipe?.calories || 0), 0),
+    avgCaloriesPerDay: Math.round(menu.reduce((sum, entry) => sum + (entry.recipe?.calories || 0), 0) / DAYS.length),
+    completeDays: DAYS.filter((day) =>
+      MEAL_TYPES.every(
+        (mealType) => menu.find((entry) => entry.day === day.key && entry.mealType === mealType.key)?.recipe,
+      ),
+    ).length,
   }
 
   return (
     <div className="space-y-6">
       {/* Header con estadísticas */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Calendar className="h-8 w-8" />
-            Menú Semanal
-          </h1>
-          <p className="text-gray-600 mt-1">Planifica tus comidas para toda la semana</p>
+          <h1 className="text-3xl font-bold mb-2">Planificador Semanal</h1>
+          <p className="text-gray-600">Organiza tus comidas para toda la semana</p>
         </div>
-
-        <div className="flex gap-4">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">{getRecipeCount()}</div>
-            <div className="text-sm text-gray-600">Comidas</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">{getTotalCalories()}</div>
-            <div className="text-sm text-gray-600">Calorías</div>
-          </div>
-          <Button variant="outline" onClick={clearMenu} size="sm">
-            <RotateCcw className="h-4 w-4 mr-1" />
-            Limpiar
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={clearMenu} disabled={isLoading}>
+            <Trash2 className="h-4 w-4 mr-2" />
+            Limpiar menú
           </Button>
         </div>
       </div>
 
+      {/* Estadísticas */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <ChefHat className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="text-sm text-gray-600">Recetas</p>
+                <p className="text-2xl font-bold">{stats.totalRecipes}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-green-600" />
+              <div>
+                <p className="text-sm text-gray-600">Calorías totales</p>
+                <p className="text-2xl font-bold">{stats.totalCalories}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Utensils className="h-5 w-5 text-orange-600" />
+              <div>
+                <p className="text-sm text-gray-600">Promedio/día</p>
+                <p className="text-2xl font-bold">{stats.avgCaloriesPerDay}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-purple-600" />
+              <div>
+                <p className="text-sm text-gray-600">Días completos</p>
+                <p className="text-2xl font-bold">{stats.completeDays}/7</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Grid del menú semanal */}
       <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
-        {DAYS_OF_WEEK.map((day) => (
-          <Card key={day.key} className="h-fit">
+        {DAYS.map((day) => (
+          <Card key={day.key} className="min-h-[400px]">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg text-center">{day.label}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {MEAL_TYPES.map((mealType) => {
-                const entry = getMenuEntry(day.key, mealType.key as "lunch" | "dinner")
+                const menuEntry = menu.find((entry) => entry.day === day.key && entry.mealType === mealType.key)
+                const recipe = menuEntry?.recipe
+
                 return (
                   <div key={mealType.key} className={`p-3 rounded-lg border-2 ${mealType.color}`}>
                     <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-medium text-sm">{mealType.label}</h4>
-                      <Utensils className="h-4 w-4 text-gray-400" />
+                      <Badge variant="outline" className="text-xs">
+                        {mealType.label}
+                      </Badge>
+                      {recipe && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeRecipeFromMenu(day.key, mealType.key as "lunch" | "dinner")}
+                          disabled={isLoading}
+                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
 
-                    {entry?.recipe ? (
+                    {recipe ? (
                       <div className="space-y-2">
-                        <div className="text-sm font-medium">{entry.recipe.name}</div>
-                        {entry.recipe.calories && (
-                          <div className="flex items-center gap-1 text-xs text-gray-600">
-                            <Clock className="h-3 w-3" />
-                            {entry.recipe.calories} cal
-                          </div>
+                        <h4 className="font-medium text-sm line-clamp-2">{recipe.name}</h4>
+                        {recipe.image_url && (
+                          <img
+                            src={recipe.image_url || "/placeholder.svg"}
+                            alt={recipe.name}
+                            className="w-full h-20 object-cover rounded"
+                          />
                         )}
-                        {entry.recipe.is_ai_generated && (
+                        {recipe.calories && (
                           <Badge variant="secondary" className="text-xs">
-                            AI
+                            {recipe.calories} cal
                           </Badge>
                         )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full text-xs bg-transparent"
-                          onClick={() => removeRecipeFromMenu(day.key, mealType.key as "lunch" | "dinner")}
-                        >
-                          Quitar
-                        </Button>
                       </div>
                     ) : (
-                      <Select
-                        onValueChange={(value) =>
-                          addRecipeToMenu(day.key, mealType.key as "lunch" | "dinner", Number.parseInt(value))
-                        }
-                        disabled={isLoading}
-                      >
-                        <SelectTrigger className="w-full h-8 text-xs">
-                          <SelectValue placeholder="Seleccionar receta" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {recipes.map((recipe) => (
-                            <SelectItem key={recipe.id} value={recipe.id.toString()}>
-                              <div className="flex items-center gap-2">
-                                <span>{recipe.name}</span>
-                                {recipe.calories && (
-                                  <span className="text-xs text-gray-500">({recipe.calories} cal)</span>
-                                )}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="space-y-2">
+                        <Select
+                          onValueChange={(value) =>
+                            addRecipeToMenu(day.key, mealType.key as "lunch" | "dinner", Number.parseInt(value))
+                          }
+                          disabled={isLoading}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Seleccionar receta" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {recipes.map((recipe) => (
+                              <SelectItem key={recipe.id} value={recipe.id.toString()}>
+                                <div className="flex items-center gap-2">
+                                  <span className="truncate">{recipe.name}</span>
+                                  {recipe.calories && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {recipe.calories} cal
+                                    </Badge>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     )}
                   </div>
                 )
@@ -248,30 +287,57 @@ export default function WeeklyMenuView({ recipes }: WeeklyMenuViewProps) {
         ))}
       </div>
 
-      {/* Resumen del menú */}
-      {getRecipeCount() > 0 && (
+      {/* Resumen semanal */}
+      {stats.totalRecipes > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ChefHat className="h-5 w-5" />
-              Resumen del Menú
+              <BarChart3 className="h-5 w-5" />
+              Resumen Semanal
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">{getRecipeCount()}</div>
-                <div className="text-sm text-gray-600">Comidas planificadas</div>
-              </div>
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{getTotalCalories()}</div>
-                <div className="text-sm text-gray-600">Calorías totales</div>
-              </div>
-              <div className="text-center p-4 bg-orange-50 rounded-lg">
-                <div className="text-2xl font-bold text-orange-600">
-                  {Math.round(getTotalCalories() / Math.max(getRecipeCount(), 1))}
+              <div>
+                <h4 className="font-medium mb-2">Distribución de comidas</h4>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span>Almuerzos:</span>
+                    <span>{menu.filter((e) => e.mealType === "lunch" && e.recipe).length}/7</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Cenas:</span>
+                    <span>{menu.filter((e) => e.mealType === "dinner" && e.recipe).length}/7</span>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-600">Calorías promedio</div>
+              </div>
+              <div>
+                <h4 className="font-medium mb-2">Información nutricional</h4>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span>Total semanal:</span>
+                    <span>{stats.totalCalories} cal</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Promedio diario:</span>
+                    <span>{stats.avgCaloriesPerDay} cal</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h4 className="font-medium mb-2">Progreso</h4>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span>Días completos:</span>
+                    <span>{stats.completeDays}/7</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-green-600 h-2 rounded-full transition-all"
+                      style={{ width: `${(stats.completeDays / 7) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
               </div>
             </div>
           </CardContent>
