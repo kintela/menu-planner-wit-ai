@@ -54,9 +54,7 @@ export default function HomePage() {
                 Añade, edita y organiza todas tus recetas favoritas en un solo lugar.
               </p>
               <Link href="/recipes">
-                <Button className="w-full bg-transparent" variant="outline">
-                  Ver Recetas
-                </Button>
+                <Button className="w-full">Ver Recetas</Button>
               </Link>
             </CardContent>
           </Card>
