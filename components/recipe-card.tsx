@@ -3,7 +3,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import { ChefHat, Flame, Users, User, Eye, Pencil } from "lucide-react"
-
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 
 import { useAuth } from "@/components/auth/auth-provider"
@@ -29,6 +29,7 @@ interface RecipeCardProps {
 export function RecipeCard({ recipe, className }: RecipeCardProps) {
   const router = useRouter()
   const { user } = useAuth()
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
 
   // Usar la misma lógica que StarRating para verificar ownership
   const isOwner = user && (user.id === recipe.user_id || user.email === recipe.user_id)
@@ -63,10 +64,19 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
               Generado por IA
             </Badge>
           )}
-          {/* Mostrar iconos de video y fuente */}
-          <div className="absolute top-2 left-2 flex gap-2">
-            {recipe.video_url && <VideoModal videoUrl={recipe.video_url} recipeName={recipe.name} />}
-          </div>
+
+          {/* Video Button - Solo en la esquina superior izquierda */}
+          {recipe.video_url && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="absolute top-2 left-2 z-10 bg-black/70 hover:bg-black/90 text-white border-0"
+              onClick={() => setIsVideoModalOpen(true)}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+          )}
+
           {recipe.source_url && <SourceLinkButton sourceUrl={recipe.source_url} recipeName={recipe.name} />}
 
           {/* Información del creador en la esquina inferior derecha de la imagen */}
@@ -156,6 +166,16 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
           />
         </CardFooter>
       </Card>
+
+      {/* Video Modal - Renderizado fuera del Card */}
+      {recipe.video_url && (
+        <VideoModal
+          videoUrl={recipe.video_url}
+          recipeName={recipe.name}
+          isOpen={isVideoModalOpen}
+          onClose={() => setIsVideoModalOpen(false)}
+        />
+      )}
     </TooltipProvider>
   )
 }

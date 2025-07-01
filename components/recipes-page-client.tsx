@@ -1,14 +1,10 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Search, Plus, Filter, X } from "lucide-react"
-import Link from "next/link"
-import { RecipeCard } from "@/components/recipe-card"
-import { SimpleNavigation } from "@/components/simple-navigation"
+import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface Recipe {
   id: number
@@ -18,20 +14,20 @@ interface Recipe {
   image_url?: string
   calories?: number
   user_id: string
-  is_ai_generated?: boolean
+  is_ai_generated: boolean
   video_url?: string
   source_url?: string
   created_at: string
   user_profiles?: {
-    full_name?: string
-    first_name?: string
+    full_name: string
+    first_name: string
   }
-  recipe_categories?: Array<{
+  recipe_categories?: {
     categories: {
       id: number
       name: string
     }
-  }>
+  }[]
 }
 
 interface Category {
@@ -41,170 +37,149 @@ interface Category {
 
 interface RecipesPageClientProps {
   initialRecipes: Recipe[]
-  initialCategories: Category[]
+  categories: Category[]
 }
 
-export function RecipesPageClient({ initialRecipes, initialCategories }: RecipesPageClientProps) {
+export default function RecipesPageClient({ initialRecipes, categories }: RecipesPageClientProps) {
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedCategories, setSelectedCategories] = useState<number[]>([])
-  const [showFilters, setShowFilters] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<string>("all")
 
-  // Filtrar recetas
   const filteredRecipes = useMemo(() => {
     return initialRecipes.filter((recipe) => {
-      // Filtro de búsqueda
       const matchesSearch =
-        searchTerm === "" ||
         recipe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        recipe.ingredients.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        recipe.preparation.toLowerCase().includes(searchTerm.toLowerCase())
+        recipe.ingredients.toLowerCase().includes(searchTerm.toLowerCase())
 
-      // Filtro de categorías
       const matchesCategory =
-        selectedCategories.length === 0 ||
-        recipe.recipe_categories?.some((rc) => selectedCategories.includes(rc.categories.id))
+        selectedCategory === "all" ||
+        recipe.recipe_categories?.some((rc) => rc.categories.id.toString() === selectedCategory)
 
       return matchesSearch && matchesCategory
     })
-  }, [initialRecipes, searchTerm, selectedCategories])
+  }, [initialRecipes, searchTerm, selectedCategory])
 
-  // Contar recetas por categoría
-  const categoryCounts = useMemo(() => {
-    const counts: Record<number, number> = {}
-    initialRecipes.forEach((recipe) => {
-      recipe.recipe_categories?.forEach((rc) => {
-        counts[rc.categories.id] = (counts[rc.categories.id] || 0) + 1
-      })
-    })
-    return counts
-  }, [initialRecipes])
+  if (initialRecipes.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
+          <h3 className="text-lg font-semibold text-yellow-800 mb-2">Entorno de desarrollo v0</h3>
+          <p className="text-yellow-700">
+            En producción, aquí verás tus {initialRecipes.length || 82} recetas reales de Supabase.
+          </p>
+        </div>
 
-  const toggleCategory = (categoryId: number) => {
-    setSelectedCategories((prev) =>
-      prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId],
+        <div className="max-w-md mx-auto">
+          <h2 className="text-xl font-semibold mb-4">No hay recetas disponibles</h2>
+          <p className="text-gray-600 mb-6">Comienza añadiendo tu primera receta para ver el contenido aquí.</p>
+          <a
+            href="/recipes/add"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium inline-block"
+          >
+            Añadir Primera Receta
+          </a>
+        </div>
+      </div>
     )
   }
 
-  const clearFilters = () => {
-    setSearchTerm("")
-    setSelectedCategories([])
-  }
-
-  const hasActiveFilters = searchTerm !== "" || selectedCategories.length > 0
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <SimpleNavigation />
-
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Recetas</h1>
-            <p className="text-gray-600 mt-1">
-              {filteredRecipes.length} de {initialRecipes.length} recetas
-            </p>
-          </div>
-          <Button asChild>
-            <Link href="/recipes/add">
-              <Plus className="mr-2 h-4 w-4" />
-              Añadir Receta
-            </Link>
-          </Button>
+    <div className="space-y-6">
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex-1">
+          <Input
+            type="text"
+            placeholder="Buscar recetas..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full"
+          />
         </div>
+        <div className="sm:w-48">
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger>
+              <SelectValue placeholder="Categoría" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las categorías</SelectItem>
+              {categories.map((category) => (
+                <SelectItem key={category.id} value={category.id.toString()}>
+                  {category.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-        {/* Search and Filters */}
-        <Card className="mb-8">
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Buscar recetas, ingredientes o preparación..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowFilters(!showFilters)}
-                  className={showFilters ? "bg-blue-50 border-blue-200" : ""}
-                >
-                  <Filter className="mr-2 h-4 w-4" />
-                  Filtros
-                  {selectedCategories.length > 0 && (
-                    <Badge variant="secondary" className="ml-2">
-                      {selectedCategories.length}
-                    </Badge>
-                  )}
-                </Button>
-                {hasActiveFilters && (
-                  <Button variant="ghost" onClick={clearFilters}>
-                    <X className="mr-2 h-4 w-4" />
-                    Limpiar
-                  </Button>
+      {/* Resultados */}
+      <div className="text-sm text-gray-600 mb-4">
+        Mostrando {filteredRecipes.length} de {initialRecipes.length} recetas
+      </div>
+
+      {/* Grid de recetas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredRecipes.map((recipe) => (
+          <Card key={recipe.id} className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <div className="flex justify-between items-start">
+                <CardTitle className="text-lg line-clamp-2">{recipe.name}</CardTitle>
+                {recipe.is_ai_generated && (
+                  <Badge variant="secondary" className="ml-2 shrink-0">
+                    IA
+                  </Badge>
                 )}
               </div>
-            </div>
-          </CardHeader>
+              {recipe.user_profiles && (
+                <p className="text-sm text-gray-600">
+                  Por {recipe.user_profiles.first_name || recipe.user_profiles.full_name}
+                </p>
+              )}
+            </CardHeader>
+            <CardContent>
+              {recipe.image_url && (
+                <img
+                  src={recipe.image_url || "/placeholder.svg"}
+                  alt={recipe.name}
+                  className="w-full h-48 object-cover rounded-lg mb-4"
+                />
+              )}
 
-          {showFilters && (
-            <CardContent className="pt-0">
-              <div className="border-t pt-4">
-                <h3 className="font-medium mb-3">Categorías</h3>
-                <div className="flex flex-wrap gap-2">
-                  {initialCategories.map((category) => (
-                    <Badge
-                      key={category.id}
-                      variant={selectedCategories.includes(category.id) ? "default" : "outline"}
-                      className="cursor-pointer hover:bg-blue-100"
-                      onClick={() => toggleCategory(category.id)}
-                    >
-                      {category.name}
-                      <span className="ml-1 text-xs">({categoryCounts[category.id] || 0})</span>
+              <p className="text-sm text-gray-700 line-clamp-3 mb-4">{recipe.ingredients.substring(0, 150)}...</p>
+
+              {recipe.calories && <div className="text-sm text-gray-600 mb-3">🔥 {recipe.calories} calorías</div>}
+
+              {recipe.recipe_categories && recipe.recipe_categories.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-4">
+                  {recipe.recipe_categories.map((rc, index) => (
+                    <Badge key={index} variant="outline" className="text-xs">
+                      {rc.categories.name}
                     </Badge>
                   ))}
                 </div>
-              </div>
-            </CardContent>
-          )}
-        </Card>
-
-        {/* Results */}
-        {filteredRecipes.length === 0 ? (
-          <Card className="text-center py-12">
-            <CardContent>
-              <div className="text-gray-400 mb-4">
-                <Search className="h-12 w-12 mx-auto" />
-              </div>
-              <CardTitle className="text-xl mb-2">No se encontraron recetas</CardTitle>
-              <p className="text-gray-600 mb-4">
-                {hasActiveFilters ? "Intenta ajustar los filtros de búsqueda" : "Comienza añadiendo tu primera receta"}
-              </p>
-              {hasActiveFilters ? (
-                <Button variant="outline" onClick={clearFilters}>
-                  Limpiar filtros
-                </Button>
-              ) : (
-                <Button asChild>
-                  <Link href="/recipes/add">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Añadir Primera Receta
-                  </Link>
-                </Button>
               )}
+
+              <div className="flex justify-between items-center">
+                <a href={`/recipes/${recipe.id}`} className="text-blue-600 hover:text-blue-800 font-medium text-sm">
+                  Ver receta →
+                </a>
+                {recipe.video_url && (
+                  <Badge variant="outline" className="text-xs">
+                    📹 Video
+                  </Badge>
+                )}
+              </div>
             </CardContent>
           </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredRecipes.map((recipe) => (
-              <RecipeCard key={recipe.id} recipe={recipe} />
-            ))}
-          </div>
-        )}
+        ))}
       </div>
+
+      {filteredRecipes.length === 0 && searchTerm && (
+        <div className="text-center py-12">
+          <h3 className="text-lg font-semibold mb-2">No se encontraron recetas</h3>
+          <p className="text-gray-600">Intenta con otros términos de búsqueda o cambia los filtros.</p>
+        </div>
+      )}
     </div>
   )
 }

@@ -8,22 +8,23 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { supabase } from "@/lib/supabase/client"
-import { Mail, Lock, Eye, EyeOff } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
 
 export function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  const [message, setMessage] = useState("")
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const router = useRouter()
+  const supabase = createClient()
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setError("")
-    setMessage("")
+    setError(null)
+    setMessage(null)
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -31,113 +32,99 @@ export function LoginForm() {
         password,
       })
 
-      if (error) throw error
-
-      setMessage("¡Inicio de sesión exitoso!")
-    } catch (error: any) {
-      setError(error.message)
+      if (error) {
+        setError(error.message)
+      } else {
+        setMessage("¡Inicio de sesión exitoso! Redirigiendo...")
+        router.push("/")
+        router.refresh()
+      }
+    } catch (err) {
+      setError("Error inesperado al iniciar sesión")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleResetPassword = async () => {
-    if (!email) {
-      setError("Por favor ingresa tu email primero")
-      return
-    }
-
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault()
     setLoading(true)
-    setError("")
-    setMessage("")
+    setError(null)
+    setMessage(null)
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
       })
 
-      if (error) throw error
-
-      setMessage("Se ha enviado un enlace de recuperación a tu email")
-    } catch (error: any) {
-      setError(error.message)
+      if (error) {
+        setError(error.message)
+      } else {
+        setMessage("¡Registro exitoso! Revisa tu email para confirmar tu cuenta.")
+      }
+    } catch (err) {
+      setError("Error inesperado al registrarse")
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <CardTitle>Iniciar Sesión</CardTitle>
-        <CardDescription>Accede a tu cuenta para gestionar tus recetas</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold text-center">MenuPlanner</CardTitle>
+          <CardDescription className="text-center">Inicia sesión o crea una cuenta para continuar</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4">
+            <div>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="tu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="pl-10"
+                placeholder="tu@email.com"
                 required
               />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password">Contraseña</Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <div>
+              <Label htmlFor="password">Contraseña</Label>
               <Input
                 id="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="Tu contraseña"
+                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="pl-10 pr-10"
+                placeholder="••••••••"
                 required
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </div>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {message && (
+              <Alert>
+                <AlertDescription>{message}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-2">
+              <Button onClick={handleSignIn} disabled={loading} className="w-full">
+                {loading ? "Cargando..." : "Iniciar Sesión"}
+              </Button>
+              <Button onClick={handleSignUp} disabled={loading} variant="outline" className="w-full bg-transparent">
+                {loading ? "Cargando..." : "Crear Cuenta"}
               </Button>
             </div>
-          </div>
-
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {message && (
-            <Alert>
-              <AlertDescription>{message}</AlertDescription>
-            </Alert>
-          )}
-
-          <div className="space-y-2">
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
-            </Button>
-
-            <Button type="button" variant="ghost" className="w-full" onClick={handleResetPassword} disabled={loading}>
-              ¿Olvidaste tu contraseña?
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

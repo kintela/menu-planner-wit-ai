@@ -1,13 +1,10 @@
 "use client"
 
-import type { ReactNode } from "react"
+import type React from "react"
+
 import { createContext, useContext, useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-
-interface User {
-  id: string
-  email: string
-}
+import type { User } from "@supabase/supabase-js"
 
 interface SessionContextType {
   user: User | null
@@ -19,46 +16,24 @@ const SessionContext = createContext<SessionContextType>({
   loading: true,
 })
 
-interface SessionWrapperProps {
-  children: ReactNode
-}
-
-export default function SessionWrapper({ children }: SessionWrapperProps) {
+export function SessionWrapper({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const supabase = createClient()
 
   useEffect(() => {
-    let mounted = true
-    const supabase = createClient()
-
-    // Get initial session with error handling
+    // Get initial session
     const getInitialSession = async () => {
       try {
         const {
           data: { session },
-          error,
         } = await supabase.auth.getSession()
-
-        if (error) {
-          console.error("Error getting session:", error)
-          // Clear any invalid tokens silently
-          try {
-            await supabase.auth.signOut()
-          } catch (signOutError) {
-            console.error("Error signing out:", signOutError)
-          }
-        }
-
-        if (mounted) {
-          setUser(session?.user ? { id: session.user.id, email: session.user.email || "" } : null)
-          setLoading(false)
-        }
+        setUser(session?.user ?? null)
       } catch (error) {
-        console.error("Error in getInitialSession:", error)
-        if (mounted) {
-          setUser(null)
-          setLoading(false)
-        }
+        console.error("Error getting session:", error)
+        setUser(null)
+      } finally {
+        setLoading(false)
       }
     }
 
@@ -68,25 +43,12 @@ export default function SessionWrapper({ children }: SessionWrapperProps) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return
-
-      console.log("Auth state changed:", event)
-
-      try {
-        setUser(session?.user ? { id: session.user.id, email: session.user.email || "" } : null)
-        setLoading(false)
-      } catch (error) {
-        console.error("Error in auth state change:", error)
-        setUser(null)
-        setLoading(false)
-      }
+      setUser(session?.user ?? null)
+      setLoading(false)
     })
 
-    return () => {
-      mounted = false
-      subscription.unsubscribe()
-    }
-  }, [])
+    return () => subscription.unsubscribe()
+  }, [supabase.auth])
 
   return <SessionContext.Provider value={{ user, loading }}>{children}</SessionContext.Provider>
 }

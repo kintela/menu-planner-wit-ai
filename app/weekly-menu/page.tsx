@@ -6,20 +6,32 @@ import { SimpleNavigation } from "@/components/simple-navigation"
 import WeeklyMenuView from "@/components/weekly-menu-view"
 import LoginForm from "@/components/auth/login-form"
 import { supabase } from "@/lib/supabase/client"
-import type { Recipe, WeeklyMenu, MenuItem } from "@/lib/types"
+import type { Recipe as RecipeType, WeeklyMenu, MenuItem } from "@/lib/types"
 import { Suspense } from "react"
 import { createClient } from "@/lib/supabase/server"
 
 interface MenuDay {
-  lunch: Recipe[]
-  dinner: Recipe[]
+  lunch: RecipeType[]
+  dinner: RecipeType[]
 }
 
-async function getRecipes(): Promise<Recipe[]> {
+async function getRecipes(): Promise<RecipeType[]> {
   try {
     const supabase = createClient()
 
-    const { data: recipes, error } = await supabase.from("recipes").select("id, name, calories").order("name")
+    const { data: recipes, error } = await supabase
+      .from("recipes")
+      .select(`
+        id,
+        name,
+        calories,
+        image_url,
+        user_profiles (
+          full_name,
+          first_name
+        )
+      `)
+      .order("name")
 
     if (error) {
       console.error("Error cargando recetas:", error)
@@ -28,7 +40,7 @@ async function getRecipes(): Promise<Recipe[]> {
 
     return recipes || []
   } catch (error) {
-    console.error("Error:", error)
+    console.error("Error en getRecipes:", error)
     return []
   }
 }
@@ -36,7 +48,7 @@ async function getRecipes(): Promise<Recipe[]> {
 const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
 export default function WeeklyMenuPage() {
-  const [recipes, setRecipes] = useState<Recipe[]>([])
+  const [recipes, setRecipes] = useState<RecipeType[]>([])
   const { user, loading: authLoading } = useAuth()
   const [mounted, setMounted] = useState(false)
   const [currentWeek, setCurrentWeek] = useState(new Date())
@@ -121,7 +133,7 @@ export default function WeeklyMenuPage() {
         }
 
         if (itemsData && Array.isArray(itemsData)) {
-          itemsData.forEach((item: MenuItem & { recipe: Recipe }) => {
+          itemsData.forEach((item: MenuItem & { recipe: RecipeType }) => {
             if (item.recipe && menuByDay[item.day_of_week] && menuByDay[item.day_of_week][item.meal_type]) {
               menuByDay[item.day_of_week][item.meal_type].push(item.recipe)
             }
@@ -296,9 +308,16 @@ export default function WeeklyMenuPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <SimpleNavigation />
-      <Suspense fallback={<div className="text-center py-8">Cargando planificador...</div>}>
-        <WeeklyMenuView recipes={recipes} userId={user.id} />
-      </Suspense>
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Planificador Semanal</h1>
+          <p className="text-gray-600 mt-2">Organiza tus comidas para toda la semana</p>
+        </div>
+
+        <Suspense fallback={<div className="text-center py-8">Cargando planificador...</div>}>
+          <WeeklyMenuView initialRecipes={recipes} userId={user.id} />
+        </Suspense>
+      </div>
     </div>
   )
 }
