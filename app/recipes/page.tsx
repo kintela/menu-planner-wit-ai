@@ -25,28 +25,23 @@ export const getRecipesAndCategories = async () => {
       console.log("📋 Intentando cargar recetas completas...")
       const recipesData = await safeQuery(
         async () => {
-          try {
-            const result = await supabase
-              .from("recipes")
-              .select(`
-               *,
-               user_profiles (
-                 id,
-                 full_name,
-                 email,
-                 alias,
-                 first_name,
-                 last_name,
-                 avatar_url
-               )
-             `)
-              .order("created_at", { ascending: false })
+          const result = await supabase
+            .from("recipes")
+            .select(`
+             *,
+             user_profiles (
+               id,
+               full_name,
+               email,
+               alias,
+               first_name,
+               last_name,
+               avatar_url
+             )
+           `)
+            .order("created_at", { ascending: false })
 
-            return result
-          } catch (error) {
-            console.error("Error interno en consulta de recetas:", error)
-            return { data: null, error }
-          }
+          return result
         },
         {
           endpoint: "recipes-full",
@@ -69,18 +64,13 @@ export const getRecipesAndCategories = async () => {
       try {
         const basicRecipesData = await safeQuery(
           async () => {
-            try {
-              const result = await supabase
-                .from("recipes")
-                .select("id, name, ingredients, preparation, image_url, user_id, created_at")
-                .order("created_at", { ascending: false })
-                .limit(50)
+            const result = await supabase
+              .from("recipes")
+              .select("id, name, ingredients, preparation, image_url, user_id, created_at")
+              .order("created_at", { ascending: false })
+              .limit(50)
 
-              return result
-            } catch (error) {
-              console.error("Error interno en consulta de recetas básicas:", error)
-              return { data: null, error }
-            }
+            return result
           },
           {
             endpoint: "recipes-basic",
@@ -114,13 +104,8 @@ export const getRecipesAndCategories = async () => {
       console.log("📂 Intentando cargar categorías...")
       const categoriesResult = await safeQuery(
         async () => {
-          try {
-            const result = await supabase.from("categories").select("id, name").order("name")
-            return result
-          } catch (error) {
-            console.error("Error interno en consulta de categorías:", error)
-            return { data: null, error }
-          }
+          const result = await supabase.from("categories").select("id, name").order("name")
+          return result
         },
         {
           endpoint: "categories",
@@ -159,20 +144,15 @@ export const getRecipesAndCategories = async () => {
         console.log("🔗 Intentando cargar relaciones receta-categoría...")
         const relationsResult = await safeQuery(
           async () => {
-            try {
-              const result = await supabase.from("recipe_categories").select(`
-                 recipe_id,
-                 category_id,
-                 categories (
-                   id,
-                   name
-                 )
-               `)
-              return result
-            } catch (error) {
-              console.error("Error interno en consulta de relaciones:", error)
-              return { data: null, error }
-            }
+            const result = await supabase.from("recipe_categories").select(`
+               recipe_id,
+               category_id,
+               categories (
+                 id,
+                 name
+               )
+             `)
+            return result
           },
           {
             endpoint: "recipe-categories",
