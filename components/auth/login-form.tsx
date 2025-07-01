@@ -7,43 +7,34 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { createClient } from "@/lib/supabase/client"
-import { useRouter } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { supabase } from "@/lib/supabase/client"
 
-export function LoginForm() {
+export default function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
-  const { toast } = useToast()
+  const [message, setMessage] = useState("")
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setMessage("")
 
     try {
-      const supabase = createClient()
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) throw error
-
-      toast({
-        title: "¡Bienvenido!",
-        description: "Has iniciado sesión correctamente",
-      })
-
-      router.push("/")
-      router.refresh()
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Error al iniciar sesión",
-        variant: "destructive",
-      })
+      if (error) {
+        setMessage(error.message)
+      } else {
+        setMessage("¡Inicio de sesión exitoso!")
+        // Redirect will be handled by auth state change
+      }
+    } catch (error) {
+      setMessage("Error inesperado")
     } finally {
       setLoading(false)
     }
@@ -83,6 +74,11 @@ export function LoginForm() {
             {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
           </Button>
         </form>
+        {message && (
+          <Alert className="mt-4">
+            <AlertDescription>{message}</AlertDescription>
+          </Alert>
+        )}
       </CardContent>
     </Card>
   )

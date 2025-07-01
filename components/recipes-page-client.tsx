@@ -2,9 +2,8 @@
 
 import { useState, useMemo } from "react"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Search, X } from "lucide-react"
 import RecipeCard from "@/components/recipe-card"
 
@@ -45,34 +44,27 @@ interface RecipesPageClientProps {
 }
 
 export default function RecipesPageClient({ initialRecipes, categories }: RecipesPageClientProps) {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState<string>("all")
-  const [showMyRecipes, setShowMyRecipes] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [selectedCategories, setSelectedCategories] = useState<number[]>([])
 
   // Filtrar recetas
   const filteredRecipes = useMemo(() => {
     return initialRecipes.filter((recipe) => {
-      // Filtro de búsqueda
+      // Filtro por búsqueda
       const matchesSearch =
-        searchQuery === "" ||
-        recipe.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        recipe.ingredients.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        recipe.preparation.toLowerCase().includes(searchQuery.toLowerCase())
+        searchTerm === "" ||
+        recipe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        recipe.ingredients.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        recipe.preparation.toLowerCase().includes(searchTerm.toLowerCase())
 
-      // Filtro de categoría
+      // Filtro por categorías
       const matchesCategory =
-        selectedCategory === "all" || recipe.categories?.some((cat) => cat.id.toString() === selectedCategory)
+        selectedCategories.length === 0 ||
+        (recipe.categories && recipe.categories.some((cat) => selectedCategories.includes(cat.id)))
 
       return matchesSearch && matchesCategory
     })
-  }, [initialRecipes, searchQuery, selectedCategory])
-
-  // Limpiar filtros
-  const clearFilters = () => {
-    setSearchQuery("")
-    setSelectedCategory("all")
-    setShowMyRecipes(false)
-  }
+  }, [initialRecipes, searchTerm, selectedCategories])
 
   // Contar recetas por categoría
   const categoriesWithCount = useMemo(() => {
@@ -82,77 +74,92 @@ export default function RecipesPageClient({ initialRecipes, categories }: Recipe
     }))
   }, [categories, initialRecipes])
 
+  const toggleCategory = (categoryId: number) => {
+    setSelectedCategories((prev) =>
+      prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId],
+    )
+  }
+
+  const clearFilters = () => {
+    setSearchTerm("")
+    setSelectedCategories([])
+  }
+
+  const hasActiveFilters = searchTerm !== "" || selectedCategories.length > 0
+
   return (
     <div className="space-y-6">
-      {/* Filtros */}
-      <div className="bg-white p-4 rounded-lg border space-y-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Búsqueda */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder="Buscar recetas, ingredientes..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+      {/* Barra de búsqueda */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+        <Input
+          type="text"
+          placeholder="Buscar recetas por nombre, ingredientes o preparación..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+        />
+      </div>
 
-          {/* Filtro por categoría */}
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue placeholder="Todas las categorías" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas las categorías</SelectItem>
-              {categoriesWithCount.map((category) => (
-                <SelectItem key={category.id} value={category.id.toString()}>
-                  {category.name} ({category.count})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Botón limpiar filtros */}
-          {(searchQuery || selectedCategory !== "all") && (
-            <Button variant="outline" onClick={clearFilters}>
-              <X className="h-4 w-4 mr-2" />
-              Limpiar
+      {/* Filtros por categoría */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Categorías</h3>
+          {hasActiveFilters && (
+            <Button variant="outline" size="sm" onClick={clearFilters}>
+              <X className="h-4 w-4 mr-1" />
+              Limpiar filtros
             </Button>
           )}
         </div>
-
-        {/* Filtros activos */}
-        {(searchQuery || selectedCategory !== "all") && (
-          <div className="flex flex-wrap gap-2">
-            {searchQuery && <Badge variant="secondary">Búsqueda: "{searchQuery}"</Badge>}
-            {selectedCategory !== "all" && (
-              <Badge variant="secondary">
-                Categoría: {categories.find((c) => c.id.toString() === selectedCategory)?.name}
-              </Badge>
-            )}
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {categoriesWithCount.map((category) => (
+            <Badge
+              key={category.id}
+              variant={selectedCategories.includes(category.id) ? "default" : "outline"}
+              className="cursor-pointer hover:bg-blue-100"
+              onClick={() => toggleCategory(category.id)}
+            >
+              {category.name} ({category.count})
+            </Badge>
+          ))}
+        </div>
       </div>
 
       {/* Estadísticas */}
-      <div className="flex justify-between items-center">
-        <p className="text-gray-600">
-          Mostrando {filteredRecipes.length} de {initialRecipes.length} recetas
-        </p>
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+          <div>
+            <div className="text-2xl font-bold text-blue-600">{filteredRecipes.length}</div>
+            <div className="text-sm text-gray-600">Recetas mostradas</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-green-600">{initialRecipes.length}</div>
+            <div className="text-sm text-gray-600">Total recetas</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-purple-600">
+              {initialRecipes.filter((r) => r.is_ai_generated).length}
+            </div>
+            <div className="text-sm text-gray-600">Generadas por IA</div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-orange-600">{categories.length}</div>
+            <div className="text-sm text-gray-600">Categorías</div>
+          </div>
+        </div>
       </div>
 
-      {/* Grid de recetas */}
+      {/* Lista de recetas */}
       {filteredRecipes.length === 0 ? (
         <div className="text-center py-12">
-          <div className="text-4xl mb-4">🔍</div>
+          <div className="text-6xl mb-4">🔍</div>
           <h3 className="text-xl font-semibold mb-2">No se encontraron recetas</h3>
-          <p className="text-gray-600 mb-4">
-            {searchQuery || selectedCategory !== "all"
+          <p className="text-gray-600">
+            {hasActiveFilters
               ? "Intenta ajustar los filtros de búsqueda"
-              : "No tienes recetas guardadas aún"}
+              : "No tienes recetas aún. ¡Añade tu primera receta!"}
           </p>
-          {(searchQuery || selectedCategory !== "all") && <Button onClick={clearFilters}>Limpiar filtros</Button>}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -151,24 +151,9 @@ export default async function RecipesPage() {
         </Link>
       </div>
 
-      {recipes.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">📝</div>
-          <h2 className="text-2xl font-bold mb-4">No tienes recetas aún</h2>
-          <p className="text-gray-600 mb-6">Comienza añadiendo tu primera receta para crear tu colección personal</p>
-          <Link
-            href="/recipes/add"
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium inline-flex items-center gap-2"
-          >
-            <Plus className="h-5 w-5" />
-            Añadir Primera Receta
-          </Link>
-        </div>
-      ) : (
-        <Suspense fallback={<div className="text-center py-8">Cargando tus recetas...</div>}>
-          <RecipesPageClient initialRecipes={recipes} categories={categories} />
-        </Suspense>
-      )}
+      <Suspense fallback={<div className="text-center py-8">Cargando tus recetas...</div>}>
+        <RecipesPageClient initialRecipes={recipes} categories={categories} />
+      </Suspense>
     </div>
   )
 }

@@ -1,11 +1,9 @@
-import { LoginForm } from "@/components/auth/login-form"
-import { SimpleNavigation } from "@/components/simple-navigation"
+import LoginForm from "@/components/auth/login-form"
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <SimpleNavigation />
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="w-full max-w-md">
         <LoginForm />
       </div>
     </div>

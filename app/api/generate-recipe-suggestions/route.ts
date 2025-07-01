@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import type { NextRequest } from "next/server"
+import { generateText } from "ai"
+import { openai } from "@ai-sdk/openai"
 
 // Configuración específica para producción
 export const runtime = "nodejs"
@@ -129,193 +131,54 @@ export async function POST(request: NextRequest) {
     }
 
     // Preparar el prompt
-    const prompt = `
-Genera 3 sugerencias de recetas basadas en:
-- Ingredientes: ${ingredients.join(", ")}
-- Preferencias: ${preferences || "ninguna especificada"}
-- Restricciones dietéticas: ${dietary_restrictions || "ninguna"}
-- Tipo de cocina: ${cuisine_type || "cualquiera"}
-
-Para cada receta, proporciona:
-1. Nombre de la receta
-2. Lista de ingredientes
-3. Instrucciones paso a paso
-4. Tiempo de preparación estimado
-5. Número de porciones
-6. Calorías aproximadas por porción
-
-Responde en formato JSON con un array de objetos "recipes".`
+    const prompt = `Genera 3 sugerencias de recetas basadas en:
+    - Ingredientes: ${ingredients.join(", ")}
+    - Preferencias: ${preferences || "ninguna especificada"}
+    - Restricciones dietéticas: ${dietary_restrictions || "ninguna"}
+    - Tipo de cocina: ${cuisine_type || "cualquiera"}
+    
+    Para cada receta, proporciona:
+    1. Nombre de la receta
+    2. Lista de ingredientes principales
+    3. Breve descripción de la preparación
+    4. Tiempo estimado de preparación
+    5. Calorías aproximadas por porción
+    
+    Responde en formato JSON con un array de objetos con las propiedades: name, ingredients, preparation, prep_time, calories.`
 
     console.log("🚀 Enviando petición a OpenAI...")
 
-    // Preparar opciones de fetch
-    const fetchOptions: RequestInit = {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        "User-Agent": "MenuPlanner/1.0",
-      },
-      body: JSON.stringify({
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content: "Eres un chef que responde SOLO con JSON válido. No uses markdown ni texto adicional.",
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: 1500,
-      }),
-    }
+    // Generar texto usando la nueva función
+    const { text } = await generateText({
+      model: openai("gpt-4"),
+      prompt,
+      temperature: 0.7,
+    })
 
-    // Hacer la llamada con retry
-    let openaiResponse: Response
+    console.log("📡 Respuesta de OpenAI recibida")
+
+    // Intentar parsear la respuesta como JSON
+    let suggestions
     try {
-      openaiResponse = await fetchWithRetry("https://api.openai.com/v1/chat/completions", fetchOptions, 3)
-    } catch (error) {
-      console.error("❌ Error en todas las llamadas a OpenAI:", error)
-
-      return NextResponse.json(
-        {
-          error: "No se pudo conectar con el servicio de IA. Verifica tu conexión e inténtalo de nuevo.",
-          code: "OPENAI_CONNECTION_FAILED",
-          details: error instanceof Error ? error.message : "Error de conexión",
-          duration: Date.now() - startTime,
-        },
-        { status: 503 },
-      )
-    }
-
-    console.log("📡 Respuesta de OpenAI recibida, status:", openaiResponse.status)
-
-    if (!openaiResponse.ok) {
-      let errorDetails = `HTTP ${openaiResponse.status}: ${openaiResponse.statusText}`
-
-      try {
-        const errorData = await openaiResponse.json()
-        errorDetails = errorData.error?.message || errorDetails
-        console.error("❌ Error detallado de OpenAI:", errorData)
-      } catch {
-        console.error("❌ No se pudo parsear error de OpenAI")
-      }
-
-      if (openaiResponse.status === 429) {
-        return NextResponse.json(
-          {
-            error: "Límite de uso de IA alcanzado. Inténtalo en unos minutos.",
-            code: "RATE_LIMITED",
-          },
-          { status: 429 },
-        )
-      }
-
-      if (openaiResponse.status === 401) {
-        return NextResponse.json(
-          {
-            error: "Error de autenticación con la IA.",
-            code: "UNAUTHORIZED",
-          },
-          { status: 500 },
-        )
-      }
-
-      if (openaiResponse.status >= 500) {
-        return NextResponse.json(
-          {
-            error: "El servicio de IA está temporalmente no disponible. Inténtalo en unos minutos.",
-            code: "SERVICE_UNAVAILABLE",
-            details: errorDetails,
-          },
-          { status: 503 },
-        )
-      }
-
-      return NextResponse.json(
-        {
-          error: "Error al comunicarse con la IA.",
-          code: "OPENAI_ERROR",
-          details: errorDetails,
-        },
-        { status: 500 },
-      )
-    }
-
-    // Parsear respuesta
-    let openaiData
-    try {
-      openaiData = await openaiResponse.json()
+      suggestions = JSON.parse(text)
       console.log("✅ Respuesta de OpenAI parseada exitosamente")
-    } catch (error) {
-      console.error("❌ Error al parsear respuesta de OpenAI:", error)
-      return NextResponse.json(
+    } catch {
+      // Si no es JSON válido, crear una respuesta estructurada
+      suggestions = [
         {
-          error: "Error al procesar respuesta de la IA.",
-          code: "RESPONSE_PARSE_ERROR",
+          name: `Plato con ${ingredients.join(", ")}`,
+          ingredients: ingredients,
+          preparation: text.substring(0, 200) + "...",
+          prep_time: 30,
+          calories: 350,
         },
-        { status: 500 },
-      )
-    }
-
-    const response = openaiData.choices?.[0]?.message?.content
-    console.log("📝 Contenido de respuesta recibido, longitud:", response?.length || 0)
-
-    if (!response) {
-      console.error("❌ OpenAI devolvió respuesta vacía")
-      return NextResponse.json(
-        {
-          error: "La IA no pudo generar sugerencias",
-          code: "EMPTY_RESPONSE",
-        },
-        { status: 500 },
-      )
-    }
-
-    // Limpiar y parsear la respuesta
-    let cleanedResponse = response.trim()
-
-    // Remover markdown si existe
-    if (cleanedResponse.startsWith("```json")) {
-      cleanedResponse = cleanedResponse.replace(/^```json\s*/, "").replace(/\s*```$/, "")
-    } else if (cleanedResponse.startsWith("```")) {
-      cleanedResponse = cleanedResponse.replace(/^```\s*/, "").replace(/\s*```$/, "")
-    }
-
-    console.log("🧹 Respuesta limpia (primeros 200 chars):", cleanedResponse.substring(0, 200))
-
-    let suggestionsData
-    try {
-      suggestionsData = JSON.parse(cleanedResponse)
-      console.log("✅ JSON parseado exitosamente")
-    } catch (parseError) {
-      console.error("❌ Error al parsear JSON:", parseError)
-      console.error("Respuesta completa:", cleanedResponse)
-
-      // Crear respuesta de fallback
-      console.log("🔄 Creando respuesta de fallback...")
-      return NextResponse.json({
-        recipes: [
-          {
-            name: `Plato con ${ingredients.join(", ")}`,
-            ingredients: ingredients,
-            instructions: ["Preparar según las instrucciones generadas por IA"],
-            prep_time: 30,
-            servings: 4,
-            calories: 300,
-          },
-        ],
-        fallback: true,
-        duration: Date.now() - startTime,
-      })
+      ]
+      console.error("❌ Error al parsear JSON, creando respuesta de fallback")
     }
 
     // Validar estructura
-    if (!suggestionsData.recipes || !Array.isArray(suggestionsData.recipes)) {
-      console.error("❌ Estructura de respuesta inválida:", suggestionsData)
+    if (!suggestions || !Array.isArray(suggestions)) {
+      console.error("❌ Estructura de respuesta inválida:", suggestions)
       return NextResponse.json(
         {
           error: "Formato de respuesta de IA inválido",
@@ -326,32 +189,31 @@ Responde en formato JSON con un array de objetos "recipes".`
     }
 
     // Validar cada receta
-    const validRecipes = suggestionsData.recipes.filter((recipe) => {
+    const validSuggestions = suggestions.filter((suggestion) => {
       const isValid =
-        recipe &&
-        typeof recipe.name === "string" &&
-        Array.isArray(recipe.ingredients) &&
-        Array.isArray(recipe.instructions) &&
-        typeof recipe.prep_time === "number" &&
-        typeof recipe.servings === "number" &&
-        typeof recipe.calories === "number" &&
-        recipe.name.trim() &&
-        recipe.ingredients.length > 0 &&
-        recipe.instructions.length > 0
+        suggestion &&
+        typeof suggestion.name === "string" &&
+        Array.isArray(suggestion.ingredients) &&
+        typeof suggestion.preparation === "string" &&
+        typeof suggestion.prep_time === "number" &&
+        typeof suggestion.calories === "number" &&
+        suggestion.name.trim() &&
+        suggestion.ingredients.length > 0 &&
+        suggestion.preparation.length > 0
 
       if (!isValid) {
-        console.warn("⚠️ Receta inválida filtrada:", recipe)
+        console.warn("⚠️ Sugerencia inválida filtrada:", suggestion)
       }
 
       return isValid
     })
 
-    if (validRecipes.length === 0) {
-      console.error("❌ No se encontraron recetas válidas")
+    if (validSuggestions.length === 0) {
+      console.error("❌ No se encontraron sugerencias válidas")
       return NextResponse.json(
         {
-          error: "No se pudieron generar recetas válidas",
-          code: "NO_VALID_RECIPES",
+          error: "No se pudieron generar sugerencias válidas",
+          code: "NO_VALID_SUGGESTIONS",
         },
         { status: 500 },
       )
@@ -359,10 +221,10 @@ Responde en formato JSON con un array de objetos "recipes".`
 
     const duration = Date.now() - startTime
     console.log(`✅ Proceso completado exitosamente en ${duration}ms`)
-    console.log(`📊 Devolviendo ${validRecipes.length} recetas válidas`)
+    console.log(`📊 Devolviendo ${validSuggestions.length} sugerencias válidas`)
 
     return NextResponse.json({
-      recipes: validRecipes,
+      suggestions: validSuggestions,
       duration,
       timestamp: new Date().toISOString(),
     })

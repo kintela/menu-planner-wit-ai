@@ -9,6 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@ai-sdk/openai": "latest",
     "@edge-runtime/vm": "latest",
     "@hookform/resolvers": "^3.9.1",
     "@jest/globals": "latest",
@@ -48,6 +49,7 @@
     "@types/debug": "latest",
     "@vitest/browser": "latest",
     "@vitest/ui": "latest",
+    "ai": "latest",
     "autoprefixer": "^10.4.20",
     "child_process": "latest",
     "class-variance-authority": "^0.7.1",

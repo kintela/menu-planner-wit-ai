@@ -10,8 +10,6 @@ import type { Recipe, WeeklyMenu, MenuItem } from "@/lib/types"
 import { Suspense } from "react"
 import { createClient } from "@/lib/supabase/server"
 
-const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
-
 interface MenuDay {
   lunch: Recipe[]
   dinner: Recipe[]
@@ -21,10 +19,7 @@ async function getRecipes(): Promise<Recipe[]> {
   try {
     const supabase = createClient()
 
-    const { data: recipes, error } = await supabase
-      .from("recipes")
-      .select("id, name, calories, image_url")
-      .order("name")
+    const { data: recipes, error } = await supabase.from("recipes").select("id, name, calories").order("name")
 
     if (error) {
       console.error("Error cargando recetas:", error)
@@ -38,8 +33,10 @@ async function getRecipes(): Promise<Recipe[]> {
   }
 }
 
+const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+
 export default function WeeklyMenuPage() {
-  const recipes = getRecipes()
+  const [recipes, setRecipes] = useState<Recipe[]>([])
   const { user, loading: authLoading } = useAuth()
   const [mounted, setMounted] = useState(false)
   const [currentWeek, setCurrentWeek] = useState(new Date())
@@ -54,6 +51,15 @@ export default function WeeklyMenuPage() {
 
   useEffect(() => {
     setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const fetchRecipes = async () => {
+      const recipesData = await getRecipes()
+      setRecipes(recipesData)
+    }
+
+    fetchRecipes()
   }, [])
 
   useEffect(() => {
@@ -134,7 +140,7 @@ export default function WeeklyMenuPage() {
   const addRecipeToMenu = async (dayIndex: number, mealType: "lunch" | "dinner", recipeId: string) => {
     if (!user) return
 
-    const recipe = await recipes.find((r) => r.id === recipeId)
+    const recipe = recipes.find((r) => r.id === Number.parseInt(recipeId))
     if (!recipe) return
 
     try {
