@@ -5,10 +5,15 @@ interface RateLimitEntry {
 
 class RateLimiter {
   private limits: Map<string, RateLimitEntry> = new Map()
-  private readonly maxRequests = 10
-  private readonly windowMs = 60000 // 1 minuto
+  private readonly maxRequests: number
+  private readonly windowMs: number
 
-  async checkLimit(key: string): Promise<boolean> {
+  constructor(maxRequests = 100, windowMs = 60000) {
+    this.maxRequests = maxRequests
+    this.windowMs = windowMs
+  }
+
+  isAllowed(key: string): boolean {
     const now = Date.now()
     const entry = this.limits.get(key)
 
@@ -28,13 +33,50 @@ class RateLimiter {
     return true
   }
 
-  async waitForSlot(key: string): Promise<void> {
+  getRemainingRequests(key: string): number {
     const entry = this.limits.get(key)
-    if (entry && Date.now() < entry.resetTime) {
-      const waitTime = entry.resetTime - Date.now()
-      await new Promise((resolve) => setTimeout(resolve, Math.min(waitTime, 5000)))
+    if (!entry || Date.now() > entry.resetTime) {
+      return this.maxRequests
+    }
+    return Math.max(0, this.maxRequests - entry.count)
+  }
+
+  getResetTime(key: string): number {
+    const entry = this.limits.get(key)
+    if (!entry || Date.now() > entry.resetTime) {
+      return 0
+    }
+    return entry.resetTime
+  }
+
+  cleanup(): void {
+    const now = Date.now()
+    for (const [key, entry] of this.limits.entries()) {
+      if (now > entry.resetTime) {
+        this.limits.delete(key)
+      }
     }
   }
 }
 
 export const rateLimiter = new RateLimiter()
+
+export function checkRateLimit(identifier: string): {
+  allowed: boolean
+  remaining: number
+  resetTime: number
+} {
+  const allowed = rateLimiter.isAllowed(identifier)
+  const remaining = rateLimiter.getRemainingRequests(identifier)
+  const resetTime = rateLimiter.getResetTime(identifier)
+
+  return { allowed, remaining, resetTime }
+}
+
+// Cleanup expired entries every 5 minutes
+setInterval(
+  () => {
+    rateLimiter.cleanup()
+  },
+  5 * 60 * 1000,
+)

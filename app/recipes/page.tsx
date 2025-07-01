@@ -1,9 +1,7 @@
-import { Suspense } from "react"
+"use client"
+
 import { createClient } from "@/lib/supabase/server"
-import { rateLimiter } from "@/lib/supabase/rate-limiter"
-import RecipesPageClient from "@/components/recipes-page-client"
-import Link from "next/link"
-import { Plus } from "lucide-react"
+import { RecipesPageClient } from "@/components/recipes-page-client"
 
 interface Recipe {
   id: number
@@ -13,22 +11,20 @@ interface Recipe {
   image_url?: string
   calories?: number
   user_id: string
-  is_ai_generated: boolean
+  is_ai_generated?: boolean
   video_url?: string
   source_url?: string
   created_at: string
   user_profiles?: {
-    full_name: string
-    first_name: string
-    last_name: string
-    alias: string
-    avatar_url: string
-    email: string
+    full_name?: string
+    first_name?: string
   }
-  categories?: {
-    id: number
-    name: string
-  }[]
+  recipe_categories?: Array<{
+    categories: {
+      id: number
+      name: string
+    }
+  }>
 }
 
 interface Category {
@@ -37,96 +33,73 @@ interface Category {
 }
 
 async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; categories: Category[] }> {
-  const cacheKey = "recipes-page"
+  const supabase = createClient()
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      console.log(`🔄 Intento ${attempt}/${retries} - Cargando recetas reales...`)
+      console.log(`🔄 Intento ${attempt}/${retries} - Cargando recetas...`)
 
-      if (!(await rateLimiter.checkLimit(cacheKey))) {
-        console.log("⏳ Rate limit alcanzado, esperando...")
-        await rateLimiter.waitForSlot(cacheKey)
-      }
-
-      const supabase = createClient()
-
-      // Cargar recetas sin la relación problemática
-      const { data: recipes, error: recipesError } = await supabase
+      // Cargar recetas sin relaciones problemáticas
+      const { data: recipesData, error: recipesError } = await supabase
         .from("recipes")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(100)
-
-      // Cargar categorías
-      const { data: categories, error: categoriesError } = await supabase.from("categories").select("*").order("name")
+        .limit(50)
 
       if (recipesError) {
-        console.error("Error cargando recetas:", recipesError)
-        throw recipesError
+        console.error(`❌ Error cargando recetas (intento ${attempt}):`, recipesError)
+        if (attempt === retries) throw recipesError
+        continue
       }
+
+      // Cargar categorías
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from("categories")
+        .select("*")
+        .order("name")
 
       if (categoriesError) {
-        console.error("Error cargando categorías:", categoriesError)
-        throw categoriesError
+        console.error(`❌ Error cargando categorías (intento ${attempt}):`, categoriesError)
+        if (attempt === retries) throw categoriesError
+        continue
       }
 
-      // Cargar perfiles de usuario por separado si hay recetas
-      let recipesWithProfiles = recipes || []
-      if (recipes && recipes.length > 0) {
-        const userIds = [...new Set(recipes.map((r) => r.user_id))]
+      // Cargar perfiles de usuario
+      const userIds = [...new Set(recipesData?.map((r) => r.user_id) || [])]
+      const { data: profilesData } = await supabase.from("user_profiles").select("*").in("id", userIds)
 
-        const { data: profiles } = await supabase.from("user_profiles").select("*").in("id", userIds)
+      // Cargar categorías de recetas
+      const recipeIds = recipesData?.map((r) => r.id) || []
+      const { data: recipeCategoriesData } = await supabase
+        .from("recipe_categories")
+        .select(`
+          recipe_id,
+          categories (
+            id,
+            name
+          )
+        `)
+        .in("recipe_id", recipeIds)
 
-        // Combinar recetas con perfiles
-        recipesWithProfiles = recipes.map((recipe) => ({
+      // Combinar datos
+      const recipes: Recipe[] =
+        recipesData?.map((recipe) => ({
           ...recipe,
-          user_profiles: profiles?.find((p) => p.id === recipe.user_id),
-        }))
-      }
+          user_profiles: profilesData?.find((p) => p.id === recipe.user_id),
+          recipe_categories: recipeCategoriesData?.filter((rc) => rc.recipe_id === recipe.id) || [],
+        })) || []
 
-      // Cargar categorías de recetas por separado
-      if (recipes && recipes.length > 0) {
-        const recipeIds = recipes.map((r) => r.id)
-
-        const { data: recipeCategories } = await supabase
-          .from("recipe_categories")
-          .select(`
-            recipe_id,
-            categories (
-              id,
-              name
-            )
-          `)
-          .in("recipe_id", recipeIds)
-
-        // Combinar recetas con categorías
-        recipesWithProfiles = recipesWithProfiles.map((recipe) => ({
-          ...recipe,
-          categories:
-            recipeCategories
-              ?.filter((rc) => rc.recipe_id === recipe.id)
-              ?.map((rc) => rc.categories)
-              ?.filter(Boolean) || [],
-        }))
-      }
-
-      console.log(`✅ Cargadas ${recipesWithProfiles.length} recetas reales y ${categories?.length || 0} categorías`)
+      console.log(`✅ Cargadas ${recipes.length} recetas y ${categoriesData?.length || 0} categorías`)
 
       return {
-        recipes: recipesWithProfiles,
-        categories: categories || [],
+        recipes,
+        categories: categoriesData || [],
       }
     } catch (error) {
       console.error(`❌ Error en intento ${attempt}:`, error)
-
       if (attempt === retries) {
-        console.log("🔄 No se pudieron cargar las recetas reales")
-        return {
-          recipes: [],
-          categories: [],
-        }
+        throw error
       }
-
       // Esperar antes del siguiente intento
       await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
     }
@@ -136,24 +109,28 @@ async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; ca
 }
 
 export default async function RecipesPage() {
-  const { recipes, categories } = await getRecipesWithRetry()
+  try {
+    const { recipes, categories } = await getRecipesWithRetry()
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Recetas</h1>
-        <Link
-          href="/recipes/add"
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Añadir Receta
-        </Link>
+    return <RecipesPageClient initialRecipes={recipes} initialCategories={categories} />
+  } catch (error) {
+    console.error("Error cargando recetas:", error)
+
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold mb-4">Error cargando recetas</h1>
+          <p className="text-gray-600 mb-4">
+            Hubo un problema al cargar las recetas. Por favor, intenta recargar la página.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Recargar página
+          </button>
+        </div>
       </div>
-
-      <Suspense fallback={<div className="text-center py-8">Cargando tus recetas...</div>}>
-        <RecipesPageClient initialRecipes={recipes} categories={categories} />
-      </Suspense>
-    </div>
-  )
+    )
+  }
 }

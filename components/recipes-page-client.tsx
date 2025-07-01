@@ -1,11 +1,13 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Search, X } from "lucide-react"
-import RecipeCard from "@/components/recipe-card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Search, Plus, Filter, X } from "lucide-react"
+import Link from "next/link"
+import { RecipeCard } from "@/components/recipe-card"
 
 interface Recipe {
   id: number
@@ -15,22 +17,20 @@ interface Recipe {
   image_url?: string
   calories?: number
   user_id: string
-  is_ai_generated: boolean
+  is_ai_generated?: boolean
   video_url?: string
   source_url?: string
   created_at: string
   user_profiles?: {
-    full_name: string
-    first_name: string
-    last_name: string
-    alias: string
-    avatar_url: string
-    email: string
+    full_name?: string
+    first_name?: string
   }
-  categories?: {
-    id: number
-    name: string
-  }[]
+  recipe_categories?: Array<{
+    categories: {
+      id: number
+      name: string
+    }
+  }>
 }
 
 interface Category {
@@ -40,39 +40,43 @@ interface Category {
 
 interface RecipesPageClientProps {
   initialRecipes: Recipe[]
-  categories: Category[]
+  initialCategories: Category[]
 }
 
-export default function RecipesPageClient({ initialRecipes, categories }: RecipesPageClientProps) {
+export function RecipesPageClient({ initialRecipes, initialCategories }: RecipesPageClientProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategories, setSelectedCategories] = useState<number[]>([])
+  const [showMyRecipes, setShowMyRecipes] = useState(false)
 
   // Filtrar recetas
   const filteredRecipes = useMemo(() => {
     return initialRecipes.filter((recipe) => {
-      // Filtro por búsqueda
+      // Filtro de búsqueda
       const matchesSearch =
         searchTerm === "" ||
         recipe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         recipe.ingredients.toLowerCase().includes(searchTerm.toLowerCase()) ||
         recipe.preparation.toLowerCase().includes(searchTerm.toLowerCase())
 
-      // Filtro por categorías
+      // Filtro de categorías
       const matchesCategory =
         selectedCategories.length === 0 ||
-        (recipe.categories && recipe.categories.some((cat) => selectedCategories.includes(cat.id)))
+        recipe.recipe_categories?.some((rc) => selectedCategories.includes(rc.categories.id))
 
       return matchesSearch && matchesCategory
     })
   }, [initialRecipes, searchTerm, selectedCategories])
 
   // Contar recetas por categoría
-  const categoriesWithCount = useMemo(() => {
-    return categories.map((category) => ({
-      ...category,
-      count: initialRecipes.filter((recipe) => recipe.categories?.some((cat) => cat.id === category.id)).length,
-    }))
-  }, [categories, initialRecipes])
+  const categoryCounts = useMemo(() => {
+    const counts: Record<number, number> = {}
+    initialRecipes.forEach((recipe) => {
+      recipe.recipe_categories?.forEach((rc) => {
+        counts[rc.categories.id] = (counts[rc.categories.id] || 0) + 1
+      })
+    })
+    return counts
+  }, [initialRecipes])
 
   const toggleCategory = (categoryId: number) => {
     setSelectedCategories((prev) =>
@@ -83,83 +87,94 @@ export default function RecipesPageClient({ initialRecipes, categories }: Recipe
   const clearFilters = () => {
     setSearchTerm("")
     setSelectedCategories([])
+    setShowMyRecipes(false)
   }
 
-  const hasActiveFilters = searchTerm !== "" || selectedCategories.length > 0
+  const hasActiveFilters = searchTerm !== "" || selectedCategories.length > 0 || showMyRecipes
 
   return (
-    <div className="space-y-6">
-      {/* Barra de búsqueda */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-        <Input
-          type="text"
-          placeholder="Buscar recetas por nombre, ingredientes o preparación..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
-        />
+    <div className="container mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold">Recetas</h1>
+          <p className="text-gray-600 mt-1">
+            {filteredRecipes.length} de {initialRecipes.length} recetas
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/recipes/add">
+            <Plus className="mr-2 h-4 w-4" />
+            Añadir Receta
+          </Link>
+        </Button>
       </div>
 
-      {/* Filtros por categoría */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Categorías</h3>
-          {hasActiveFilters && (
-            <Button variant="outline" size="sm" onClick={clearFilters}>
-              <X className="h-4 w-4 mr-1" />
-              Limpiar filtros
-            </Button>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {categoriesWithCount.map((category) => (
-            <Badge
-              key={category.id}
-              variant={selectedCategories.includes(category.id) ? "default" : "outline"}
-              className="cursor-pointer hover:bg-blue-100"
-              onClick={() => toggleCategory(category.id)}
-            >
-              {category.name} ({category.count})
-            </Badge>
-          ))}
-        </div>
-      </div>
+      {/* Filters */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Filtros
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="ml-auto">
+                <X className="h-4 w-4 mr-1" />
+                Limpiar
+              </Button>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Buscar recetas, ingredientes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
 
-      {/* Estadísticas */}
-      <div className="bg-gray-50 p-4 rounded-lg">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+          {/* Categories */}
           <div>
-            <div className="text-2xl font-bold text-blue-600">{filteredRecipes.length}</div>
-            <div className="text-sm text-gray-600">Recetas mostradas</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-green-600">{initialRecipes.length}</div>
-            <div className="text-sm text-gray-600">Total recetas</div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-purple-600">
-              {initialRecipes.filter((r) => r.is_ai_generated).length}
+            <h3 className="font-medium mb-2">Categorías</h3>
+            <div className="flex flex-wrap gap-2">
+              {initialCategories.map((category) => (
+                <Badge
+                  key={category.id}
+                  variant={selectedCategories.includes(category.id) ? "default" : "outline"}
+                  className="cursor-pointer hover:bg-blue-100"
+                  onClick={() => toggleCategory(category.id)}
+                >
+                  {category.name} ({categoryCounts[category.id] || 0})
+                </Badge>
+              ))}
             </div>
-            <div className="text-sm text-gray-600">Generadas por IA</div>
           </div>
-          <div>
-            <div className="text-2xl font-bold text-orange-600">{categories.length}</div>
-            <div className="text-sm text-gray-600">Categorías</div>
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      {/* Lista de recetas */}
+      {/* Results */}
       {filteredRecipes.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">🔍</div>
-          <h3 className="text-xl font-semibold mb-2">No se encontraron recetas</h3>
-          <p className="text-gray-600">
+          <h2 className="text-2xl font-semibold mb-2">No se encontraron recetas</h2>
+          <p className="text-gray-600 mb-4">
             {hasActiveFilters
-              ? "Intenta ajustar los filtros de búsqueda"
-              : "No tienes recetas aún. ¡Añade tu primera receta!"}
+              ? "Intenta ajustar los filtros o buscar con otros términos"
+              : "Aún no tienes recetas. ¡Añade tu primera receta!"}
           </p>
+          {hasActiveFilters ? (
+            <Button onClick={clearFilters}>Limpiar filtros</Button>
+          ) : (
+            <Button asChild>
+              <Link href="/recipes/add">
+                <Plus className="mr-2 h-4 w-4" />
+                Añadir primera receta
+              </Link>
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

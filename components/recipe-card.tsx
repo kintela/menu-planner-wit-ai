@@ -1,11 +1,12 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import Link from "next/link"
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Clock, User, Zap, ExternalLink, Eye, Pencil } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Clock, Users, ExternalLink, Play, Sparkles } from "lucide-react"
 import { VideoModal } from "@/components/video-modal"
 
 interface Recipe {
@@ -16,145 +17,139 @@ interface Recipe {
   image_url?: string
   calories?: number
   user_id: string
-  is_ai_generated: boolean
+  is_ai_generated?: boolean
   video_url?: string
   source_url?: string
   created_at: string
   user_profiles?: {
-    full_name: string
-    first_name: string
-    last_name: string
-    alias: string
-    avatar_url: string
-    email: string
+    full_name?: string
+    first_name?: string
   }
-  categories?: {
-    id: number
-    name: string
-  }[]
+  recipe_categories?: Array<{
+    categories: {
+      id: number
+      name: string
+    }
+  }>
 }
 
 interface RecipeCardProps {
   recipe: Recipe
 }
 
-export default function RecipeCard({ recipe }: RecipeCardProps) {
-  const [imageError, setImageError] = useState(false)
+export function RecipeCard({ recipe }: RecipeCardProps) {
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("es-ES", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-  }
-
-  const getAuthorName = () => {
-    if (recipe.user_profiles?.alias) {
-      return recipe.user_profiles.alias
-    }
-    if (recipe.user_profiles?.full_name) {
-      return recipe.user_profiles.full_name
-    }
-    if (recipe.user_profiles?.first_name && recipe.user_profiles?.last_name) {
-      return `${recipe.user_profiles.first_name} ${recipe.user_profiles.last_name}`
-    }
-    if (recipe.user_profiles?.first_name) {
-      return recipe.user_profiles.first_name
-    }
-    return "Usuario"
-  }
+  const authorName = recipe.user_profiles?.full_name || recipe.user_profiles?.first_name || "Usuario"
+  const categories = recipe.recipe_categories?.map((rc) => rc.categories) || []
 
   return (
-    <Card className="h-full flex flex-col hover:shadow-lg transition-shadow">
-      {/* Imagen */}
-      <div className="relative h-48 overflow-hidden rounded-t-lg">
-        {recipe.image_url && !imageError ? (
-          <img
-            src={recipe.image_url || "/placeholder.svg"}
+    <>
+      <Card className="group hover:shadow-lg transition-all duration-200 relative overflow-hidden">
+        {/* Video Button - Top Right */}
+        {recipe.video_url && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="absolute top-2 right-2 z-10 bg-black/70 hover:bg-black/90 text-white border-0 p-2"
+            onClick={() => setIsVideoModalOpen(true)}
+            aria-label="Ver video de la receta"
+          >
+            <Play className="h-4 w-4" />
+          </Button>
+        )}
+
+        {/* AI Badge - Top Left */}
+        {recipe.is_ai_generated && (
+          <Badge className="absolute top-2 left-2 z-10 bg-purple-600 hover:bg-purple-700 text-white">
+            <Sparkles className="h-3 w-3 mr-1" />
+            IA
+          </Badge>
+        )}
+
+        {/* Recipe Image */}
+        <div className="relative h-48 overflow-hidden">
+          <Image
+            src={recipe.image_url || "/placeholder.svg?height=200&width=300&text=Sin+imagen"}
             alt={recipe.name}
-            className="w-full h-full object-cover"
-            onError={() => setImageError(true)}
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-200"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
-            <div className="text-4xl">🍽️</div>
-          </div>
-        )}
-
-        {/* Badges superpuestos */}
-        <div className="absolute top-2 left-2 flex gap-1">
-          {recipe.is_ai_generated && (
-            <Badge variant="secondary" className="bg-purple-100 text-purple-800">
-              <Zap className="h-3 w-3 mr-1" />
-              AI
-            </Badge>
-          )}
         </div>
 
-        {/* Botones de acción en la imagen */}
-        <div className="absolute top-2 right-2 flex gap-1">
-          {recipe.video_url && <VideoModal videoUrl={recipe.video_url} recipeName={recipe.name} />}
-          {recipe.source_url && (
-            <Button variant="secondary" size="sm" asChild>
-              <a href={recipe.source_url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <CardContent className="flex-1 p-4">
-        {/* Título */}
-        <h3 className="font-semibold text-lg mb-2 line-clamp-2">{recipe.name}</h3>
-
-        {/* Categorías */}
-        {recipe.categories && recipe.categories.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-3">
-            {recipe.categories.map((category) => (
-              <Badge key={category.id} variant="outline" className="text-xs">
-                {category.name}
-              </Badge>
-            ))}
+        <CardHeader className="pb-2">
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle className="text-lg line-clamp-2 group-hover:text-blue-600 transition-colors">
+              <Link href={`/recipes/${recipe.id}`} className="hover:underline">
+                {recipe.name}
+              </Link>
+            </CardTitle>
           </div>
-        )}
+          <CardDescription className="text-sm text-gray-600">Por {authorName}</CardDescription>
+        </CardHeader>
 
-        {/* Ingredientes (preview) */}
-        <p className="text-sm text-gray-600 mb-3 line-clamp-2">{recipe.ingredients}</p>
-
-        {/* Información adicional */}
-        <div className="flex items-center gap-4 text-xs text-gray-500 mb-3">
-          {recipe.calories && (
-            <div className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {recipe.calories} cal
+        <CardContent className="pt-0">
+          {/* Categories */}
+          {categories.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-3">
+              {categories.slice(0, 3).map((category) => (
+                <Badge key={category.id} variant="outline" className="text-xs">
+                  {category.name}
+                </Badge>
+              ))}
+              {categories.length > 3 && (
+                <Badge variant="outline" className="text-xs">
+                  +{categories.length - 3}
+                </Badge>
+              )}
             </div>
           )}
-          <div className="flex items-center gap-1">
-            <User className="h-3 w-3" />
-            {getAuthorName()}
+
+          {/* Recipe Description */}
+          <p className="text-sm text-gray-600 line-clamp-2 mb-4">{recipe.preparation}</p>
+
+          {/* Recipe Stats */}
+          <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+            <div className="flex items-center gap-4">
+              {recipe.calories && (
+                <div className="flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  <span>{recipe.calories} cal</span>
+                </div>
+              )}
+              <div className="flex items-center gap-1">
+                <Users className="h-4 w-4" />
+                <span>4 porciones</span>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Fecha */}
-        <p className="text-xs text-gray-400">Creada el {formatDate(recipe.created_at)}</p>
-      </CardContent>
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            <Button asChild className="flex-1" size="sm">
+              <Link href={`/recipes/${recipe.id}`}>Ver Receta</Link>
+            </Button>
+            {recipe.source_url && (
+              <Button variant="outline" size="sm" asChild>
+                <Link href={recipe.source_url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-      <CardFooter className="p-4 pt-0 grid grid-cols-2 gap-2">
-        <Button asChild size="sm">
-          <Link href={`/recipes/${recipe.id}`}>
-            <Eye className="h-4 w-4 mr-1" />
-            Ver
-          </Link>
-        </Button>
-        <Button asChild variant="outline" size="sm">
-          <Link href={`/recipes/${recipe.id}/edit`}>
-            <Pencil className="h-4 w-4 mr-1" />
-            Editar
-          </Link>
-        </Button>
-      </CardFooter>
-    </Card>
+      {/* Video Modal */}
+      {recipe.video_url && (
+        <VideoModal
+          isOpen={isVideoModalOpen}
+          onClose={() => setIsVideoModalOpen(false)}
+          videoUrl={recipe.video_url}
+          title={recipe.name}
+        />
+      )}
+    </>
   )
 }

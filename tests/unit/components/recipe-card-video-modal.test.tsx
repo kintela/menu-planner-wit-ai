@@ -1,130 +1,143 @@
-import type React from "react"
-import { render, screen } from "@testing-library/react"
-import "@testing-library/jest-dom"
-import RecipeCard from "@/components/recipe-card"
+"use client"
+
+import { render, screen, fireEvent } from "@testing-library/react"
+import { RecipeCard } from "@/components/recipe-card"
 import jest from "jest" // Import jest to fix the undeclared variable error
 
 // Mock del componente VideoModal
 jest.mock("@/components/video-modal", () => ({
-  VideoModal: ({ videoUrl, recipeName }: { videoUrl: string; recipeName: string }) => (
-    <button data-testid="video-modal-trigger" data-video-url={videoUrl} data-recipe-name={recipeName}>
-      <svg data-testid="play-icon" />
-    </button>
+  VideoModal: ({ isOpen, onClose, videoUrl, title }: any) => (
+    <div data-testid="video-modal" style={{ display: isOpen ? "block" : "none" }}>
+      <div>Video Modal</div>
+      <div>URL: {videoUrl}</div>
+      <div>Title: {title}</div>
+      <button onClick={onClose}>Close</button>
+    </div>
   ),
 }))
 
+// Mock de Next.js Image
+jest.mock("next/image", () => ({
+  __esModule: true,
+  default: ({ src, alt, ...props }: any) => <img src={src || "/placeholder.svg"} alt={alt} {...props} />,
+}))
+
 // Mock de Next.js Link
-jest.mock("next/link", () => {
-  return ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>
-})
+jest.mock("next/link", () => ({
+  __esModule: true,
+  default: ({ children, href, ...props }: any) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
+}))
+
+const mockRecipeWithVideo = {
+  id: 1,
+  name: "Paella Valenciana",
+  ingredients: "Arroz, pollo, conejo, judías verdes",
+  preparation: "Sofreír las carnes, añadir las verduras, incorporar el arroz y el caldo con azafrán.",
+  image_url: "/test-image.jpg",
+  calories: 450,
+  user_id: "user1",
+  is_ai_generated: false,
+  video_url: "https://youtube.com/watch?v=example1",
+  source_url: "https://recetasespanolas.com/paella",
+  created_at: "2024-01-15T10:00:00Z",
+  user_profiles: {
+    full_name: "María García",
+    first_name: "María",
+  },
+  recipe_categories: [{ categories: { id: 2, name: "Almuerzo" } }],
+}
+
+const mockRecipeWithoutVideo = {
+  ...mockRecipeWithVideo,
+  video_url: undefined,
+}
 
 describe("RecipeCard Video Modal", () => {
-  const mockRecipeWithVideo = {
-    id: 1,
-    name: "Paella Valenciana",
-    ingredients: "Arroz, pollo, verduras",
-    preparation: "Cocinar todo junto",
-    image_url: "https://example.com/paella.jpg",
-    calories: 450,
-    user_id: "user123",
-    is_ai_generated: false,
-    video_url: "https://youtube.com/watch?v=abc123",
-    source_url: null,
-    created_at: "2024-01-15T10:00:00Z",
-    user_profiles: {
-      full_name: "Chef García",
-      first_name: "María",
-      last_name: "García",
-      alias: "Chef García",
-      avatar_url: "https://example.com/avatar.jpg",
-      email: "chef@example.com",
-    },
-    categories: [
-      { id: 1, name: "Almuerzo" },
-      { id: 2, name: "Mediterránea" },
-    ],
-  }
-
-  const mockRecipeWithoutVideo = {
-    ...mockRecipeWithVideo,
-    id: 2,
-    name: "Ensalada Simple",
-    video_url: null,
-  }
-
-  it("should render video modal button when recipe has video_url", () => {
+  it("should show video button when recipe has video_url", () => {
     render(<RecipeCard recipe={mockRecipeWithVideo} />)
 
-    const videoButton = screen.getByTestId("video-modal-trigger")
+    const videoButton = screen.getByLabelText("Ver video de la receta")
     expect(videoButton).toBeInTheDocument()
-    expect(videoButton).toHaveAttribute("data-video-url", "https://youtube.com/watch?v=abc123")
-    expect(videoButton).toHaveAttribute("data-recipe-name", "Paella Valenciana")
-
-    const playIcon = screen.getByTestId("play-icon")
-    expect(playIcon).toBeInTheDocument()
+    expect(videoButton).toHaveClass("absolute", "top-2", "right-2")
   })
 
-  it("should not render video modal button when recipe has no video_url", () => {
+  it("should not show video button when recipe has no video_url", () => {
     render(<RecipeCard recipe={mockRecipeWithoutVideo} />)
 
-    const videoButton = screen.queryByTestId("video-modal-trigger")
+    const videoButton = screen.queryByLabelText("Ver video de la receta")
     expect(videoButton).not.toBeInTheDocument()
-
-    const playIcon = screen.queryByTestId("play-icon")
-    expect(playIcon).not.toBeInTheDocument()
   })
 
-  it("should render video modal button in the correct position (top-right of image)", () => {
+  it("should open video modal when video button is clicked", () => {
     render(<RecipeCard recipe={mockRecipeWithVideo} />)
 
-    const videoButton = screen.getByTestId("video-modal-trigger")
-    const buttonContainer = videoButton.closest(".absolute.top-2.right-2")
+    const videoButton = screen.getByLabelText("Ver video de la receta")
+    const videoModal = screen.getByTestId("video-modal")
 
-    expect(buttonContainer).toBeInTheDocument()
-    expect(buttonContainer).toHaveClass("absolute", "top-2", "right-2", "flex", "gap-1")
+    // Initially modal should be hidden
+    expect(videoModal).toHaveStyle({ display: "none" })
+
+    // Click video button
+    fireEvent.click(videoButton)
+
+    // Modal should now be visible
+    expect(videoModal).toHaveStyle({ display: "block" })
+    expect(screen.getByText("URL: https://youtube.com/watch?v=example1")).toBeInTheDocument()
+    expect(screen.getByText("Title: Paella Valenciana")).toBeInTheDocument()
   })
 
-  it("should render both video and source buttons when both URLs are present", () => {
-    const recipeWithBoth = {
-      ...mockRecipeWithVideo,
-      source_url: "https://example.com/recipe-source",
-    }
-
-    render(<RecipeCard recipe={recipeWithBoth} />)
-
-    const videoButton = screen.getByTestId("video-modal-trigger")
-    expect(videoButton).toBeInTheDocument()
-
-    const sourceButton = screen.getByRole("link", { name: /external/i })
-    expect(sourceButton).toBeInTheDocument()
-    expect(sourceButton).toHaveAttribute("href", "https://example.com/recipe-source")
-    expect(sourceButton).toHaveAttribute("target", "_blank")
-  })
-
-  it("should pass correct props to VideoModal component", () => {
+  it("should close video modal when close button is clicked", () => {
     render(<RecipeCard recipe={mockRecipeWithVideo} />)
 
-    const videoButton = screen.getByTestId("video-modal-trigger")
-    expect(videoButton).toHaveAttribute("data-video-url", mockRecipeWithVideo.video_url)
-    expect(videoButton).toHaveAttribute("data-recipe-name", mockRecipeWithVideo.name)
+    const videoButton = screen.getByLabelText("Ver video de la receta")
+    const videoModal = screen.getByTestId("video-modal")
+
+    // Open modal
+    fireEvent.click(videoButton)
+    expect(videoModal).toHaveStyle({ display: "block" })
+
+    // Close modal
+    const closeButton = screen.getByText("Close")
+    fireEvent.click(closeButton)
+    expect(videoModal).toHaveStyle({ display: "none" })
   })
 
-  it("should render recipe card with all other elements when video is present", () => {
+  it("should render other card elements correctly with video functionality", () => {
     render(<RecipeCard recipe={mockRecipeWithVideo} />)
 
-    // Verificar que todos los elementos principales están presentes
+    // Check that other elements are still present
     expect(screen.getByText("Paella Valenciana")).toBeInTheDocument()
-    expect(screen.getByText("Arroz, pollo, verduras")).toBeInTheDocument()
-    expect(screen.getByText("Chef García")).toBeInTheDocument()
-    expect(screen.getByText("450 cal")).toBeInTheDocument()
+    expect(screen.getByText("Por María García")).toBeInTheDocument()
     expect(screen.getByText("Almuerzo")).toBeInTheDocument()
-    expect(screen.getByText("Mediterránea")).toBeInTheDocument()
+    expect(screen.getByText("450 cal")).toBeInTheDocument()
+    expect(screen.getByText("Ver Receta")).toBeInTheDocument()
 
-    // Verificar botones de acción
-    expect(screen.getByRole("link", { name: /ver/i })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /editar/i })).toBeInTheDocument()
+    // Check that video button doesn't interfere with other functionality
+    const recipeLink = screen.getByText("Paella Valenciana").closest("a")
+    expect(recipeLink).toHaveAttribute("href", "/recipes/1")
 
-    // Verificar que el botón de video también está presente
-    expect(screen.getByTestId("video-modal-trigger")).toBeInTheDocument()
+    const sourceLink = screen.getByRole("link", { name: "" })
+    expect(sourceLink).toHaveAttribute("href", "https://recetasespanolas.com/paella")
+  })
+
+  it("should position video button in top-right corner", () => {
+    render(<RecipeCard recipe={mockRecipeWithVideo} />)
+
+    const videoButton = screen.getByLabelText("Ver video de la receta")
+    expect(videoButton).toHaveClass("absolute", "top-2", "right-2", "z-10")
+  })
+
+  it("should pass correct props to VideoModal", () => {
+    render(<RecipeCard recipe={mockRecipeWithVideo} />)
+
+    const videoButton = screen.getByLabelText("Ver video de la receta")
+    fireEvent.click(videoButton)
+
+    expect(screen.getByText("URL: https://youtube.com/watch?v=example1")).toBeInTheDocument()
+    expect(screen.getByText("Title: Paella Valenciana")).toBeInTheDocument()
   })
 })
