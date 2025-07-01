@@ -2,6 +2,8 @@ import { Suspense } from "react"
 import { createClient } from "@/lib/supabase/server"
 import { rateLimiter } from "@/lib/supabase/rate-limiter"
 import RecipesPageClient from "@/components/recipes-page-client"
+import Link from "next/link"
+import { Plus } from "lucide-react"
 
 interface Recipe {
   id: number
@@ -19,17 +21,16 @@ interface Recipe {
     full_name: string
     first_name: string
   }
-  recipe_categories?: {
-    categories: {
-      id: number
-      name: string
-    }
+  categories?: {
+    id: number
+    name: string
   }[]
 }
 
 interface Category {
   id: number
   name: string
+  recipeCount: number
 }
 
 async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; categories: Category[] }> {
@@ -46,37 +47,33 @@ async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; ca
 
       const supabase = createClient()
 
-      // Cargar recetas con relaciones
-      const { data: recipes, error: recipesError } = await supabase
+      // Cargar recetas
+      const recipesResult = await supabase
         .from("recipes")
         .select(`
           *,
           user_profiles!recipes_user_id_fkey (
             full_name,
             first_name
-          ),
-          recipe_categories (
-            categories (
-              id,
-              name
-            )
           )
         `)
         .order("created_at", { ascending: false })
         .limit(100)
 
       // Cargar categorías
-      const { data: categories, error: categoriesError } = await supabase.from("categories").select("*").order("name")
+      const categoriesResult = await supabase.from("categories").select("*").order("name")
 
-      if (recipesError && categoriesError) {
-        throw new Error(`Recipes: ${recipesError.message}, Categories: ${categoriesError.message}`)
-      }
+      const recipes = recipesResult.data || []
+      const categories = (categoriesResult.data || []).map((cat: any) => ({
+        ...cat,
+        recipeCount: 0,
+      }))
 
-      console.log(`✅ Cargadas ${recipes?.length || 0} recetas y ${categories?.length || 0} categorías`)
+      console.log(`✅ Cargadas ${recipes.length} recetas y ${categories.length} categorías`)
 
       return {
-        recipes: recipes || [],
-        categories: categories || [],
+        recipes,
+        categories,
       }
     } catch (error) {
       console.error(`❌ Error en intento ${attempt}:`, error)
@@ -86,11 +83,11 @@ async function getRecipesWithRetry(retries = 3): Promise<{ recipes: Recipe[]; ca
         return {
           recipes: [],
           categories: [
-            { id: 1, name: "Desayuno" },
-            { id: 2, name: "Almuerzo" },
-            { id: 3, name: "Cena" },
-            { id: 4, name: "Postre" },
-            { id: 5, name: "Snacks" },
+            { id: 1, name: "Desayuno", recipeCount: 0 },
+            { id: 2, name: "Almuerzo", recipeCount: 0 },
+            { id: 3, name: "Cena", recipeCount: 0 },
+            { id: 4, name: "Postre", recipeCount: 0 },
+            { id: 5, name: "Snacks", recipeCount: 0 },
           ],
         }
       }
@@ -110,9 +107,13 @@ export default async function RecipesPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Recetas</h1>
-        <a href="/recipes/add" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium">
-          + Añadir Receta
-        </a>
+        <Link
+          href="/recipes/add"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          Añadir Receta
+        </Link>
       </div>
 
       <Suspense fallback={<div className="text-center py-8">Cargando recetas...</div>}>
