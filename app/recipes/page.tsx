@@ -1,8 +1,6 @@
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
-
 import { RecipesPageClient } from "@/components/recipes-page-client"
-
 import Link from "next/link"
 import { Plus } from "lucide-react"
 import { safeQuery } from "@/lib/supabase/rate-limiter"
@@ -192,7 +190,6 @@ export const getRecipesAndCategories = async () => {
         console.log(`✅ Relaciones cargadas: ${recipeCategories.length}`)
       } catch (error) {
         console.warn("⚠️ Error cargando relaciones, continuando sin ellas:", error)
-
         recipeCategories = []
       }
     } else {

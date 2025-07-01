@@ -1,51 +1,83 @@
-// Rate limiter simplificado para v0
-interface RateLimitOptions {
+interface RateLimitConfig {
   endpoint: string
   maxRetries?: number
   baseDelay?: number
 }
 
-const requestCounts = new Map<string, { count: number; resetTime: number }>()
+interface RateLimitState {
+  requests: number
+  lastReset: number
+  blocked: boolean
+}
+
+class RateLimiter {
+  private limits: Map<string, RateLimitState> = new Map()
+  private readonly maxRequestsPerMinute = 10
+  private readonly blockDuration = 60000 // 1 minuto
+
+  private getState(endpoint: string): RateLimitState {
+    const now = Date.now()
+    let state = this.limits.get(endpoint)
+
+    if (!state) {
+      state = { requests: 0, lastReset: now, blocked: false }
+      this.limits.set(endpoint, state)
+    }
+
+    // Reset contador cada minuto
+    if (now - state.lastReset > 60000) {
+      state.requests = 0
+      state.lastReset = now
+      state.blocked = false
+    }
+
+    return state
+  }
+
+  async execute<T>(operation: () => Promise<T>, config: RateLimitConfig): Promise<T> {
+    const { endpoint, maxRetries = 3, baseDelay = 1000 } = config
+    const state = this.getState(endpoint)
+
+    // Verificar si está bloqueado
+    if (state.blocked) {
+      throw new Error(`Rate limit exceeded for ${endpoint}. Try again later.`)
+    }
+
+    // Verificar límite de requests
+    if (state.requests >= this.maxRequestsPerMinute) {
+      state.blocked = true
+      throw new Error(`Rate limit exceeded for ${endpoint}. Blocked for 1 minute.`)
+    }
+
+    let lastError: Error | null = null
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        state.requests++
+        const result = await operation()
+        return result
+      } catch (error) {
+        lastError = error as Error
+
+        if (attempt < maxRetries) {
+          const delay = baseDelay * Math.pow(2, attempt)
+          console.log(`Retry ${attempt + 1}/${maxRetries} for ${endpoint} in ${delay}ms`)
+          await new Promise((resolve) => setTimeout(resolve, delay))
+        }
+      }
+    }
+
+    throw lastError || new Error(`Failed after ${maxRetries} retries`)
+  }
+}
+
+const rateLimiter = new RateLimiter()
 
 export const safeQuery = async <T>(\
-  queryFn: () => Promise<T>,\
-  options: RateLimitOptions\
+  operation: () => Promise<T>,\
+  config: RateLimitConfig\
 )
 : Promise<T> =>
 {
-  const { endpoint, maxRetries = 3, baseDelay = 1000 } = options
-
-  // Verificar rate limit
-  const now = Date.now()
-  const key = endpoint
-  const current = requestCounts.get(key)
-
-  if (current && current.count > 10 && now < current.resetTime) {
-    console.warn(`Rate limit alcanzado para ${endpoint}`)
-    await new Promise((resolve) => setTimeout(resolve, baseDelay))
-  }
-
-  // Actualizar contador
-  if (!current || now >= current.resetTime) {
-    requestCounts.set(key, { count: 1, resetTime: now + 60000 }) // Reset cada minuto
-  } else {
-    current.count++
-  }
-
-  // Ejecutar query con reintentos
-  let lastError: any
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await queryFn();
-    } catch (error) {
-      lastError = error
-      if (attempt < maxRetries) {
-        const delay = baseDelay * Math.pow(2, attempt)
-        console.warn(`Intento ${attempt + 1} falló, reintentando en ${delay}ms...`)
-        await new Promise((resolve) => setTimeout(resolve, delay))
-      }
-    }
-  }
-
-  throw lastError
+  return rateLimiter.execute(operation, config)
 }
