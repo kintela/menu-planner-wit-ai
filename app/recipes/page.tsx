@@ -29,7 +29,6 @@ export default async function RecipesPage() {
       return <RecipesPageClient initialRecipes={[]} />
     }
 
-    // Transform the data to match the expected format
     const transformedRecipes =
       recipes?.map((recipe) => ({
         ...recipe,

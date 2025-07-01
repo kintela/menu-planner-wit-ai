@@ -5,9 +5,7 @@ import Link from "next/link"
 import { ChefHat, Flame, Users, User, Eye, Pencil } from "lucide-react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-
 import { useAuth } from "@/components/auth/auth-provider"
-
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,32 +17,25 @@ import { getCaloriesPerServing, getCalorieLevel } from "@/lib/calories-calculato
 import { StarRating } from "@/components/star-rating"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
-// Define the RecipeCardProps interface
 interface RecipeCardProps {
   recipe: any
   className?: string
 }
 
-// Update the RecipeCard component to check if the user is the creator
 export function RecipeCard({ recipe, className }: RecipeCardProps) {
   const router = useRouter()
   const { user } = useAuth()
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
 
-  // Usar la misma lógica que StarRating para verificar ownership
   const isOwner = user && (user.id === recipe.user_id || user.email === recipe.user_id)
   const canEdit = user && isOwner
 
-  // Ahora solo usamos el campo calories
   const caloriesPerServing = recipe.calories ? getCaloriesPerServing(recipe.calories) : null
   const calorieLevel = caloriesPerServing ? getCalorieLevel(caloriesPerServing) : null
 
-  // Obtener la información del creador (puede venir de creator o user_profiles)
   const creatorInfo = recipe.creator || recipe.user_profiles || null
 
-  // Función para manejar la eliminación de la receta
   const handleDelete = () => {
-    // Refrescar la página para mostrar la lista actualizada
     router.refresh()
   }
 
@@ -65,7 +56,6 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
             </Badge>
           )}
 
-          {/* Video Button - Solo en la esquina superior izquierda */}
           {recipe.video_url && (
             <Button
               variant="secondary"
@@ -79,7 +69,6 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
 
           {recipe.source_url && <SourceLinkButton sourceUrl={recipe.source_url} recipeName={recipe.name} />}
 
-          {/* Información del creador en la esquina inferior derecha de la imagen */}
           {creatorInfo && (
             <div className="absolute bottom-2 right-2 flex items-center gap-1 text-xs bg-black/60 text-white backdrop-blur-sm rounded px-2 py-1 shadow-md">
               {creatorInfo.avatar_url ? (
@@ -167,7 +156,6 @@ export function RecipeCard({ recipe, className }: RecipeCardProps) {
         </CardFooter>
       </Card>
 
-      {/* Video Modal - Renderizado fuera del Card */}
       {recipe.video_url && (
         <VideoModal
           videoUrl={recipe.video_url}
