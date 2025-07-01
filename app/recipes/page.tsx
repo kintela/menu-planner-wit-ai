@@ -5,40 +5,64 @@ export default async function RecipesPage() {
   const supabase = createClient()
 
   try {
-    const { data: recipes, error } = await supabase
+    // Fetch recipes
+    const { data: recipes, error: recipesError } = await supabase
       .from("recipes")
-      .select(`
-        *,
-        categories:recipe_categories(
-          category:categories(*)
-        ),
-        user_profiles!recipes_user_id_fkey(
-          id,
-          email,
-          full_name,
-          first_name,
-          last_name,
-          alias,
-          avatar_url
-        )
-      `)
+      .select("*")
       .order("created_at", { ascending: false })
 
-    if (error) {
-      console.error("Error fetching recipes:", error)
-      return <RecipesPageClient initialRecipes={[]} />
+    if (recipesError) {
+      console.error("Error fetching recipes:", recipesError)
+      return <RecipesPageClient initialRecipes={[]} initialCategories={[]} />
     }
 
-    const transformedRecipes =
-      recipes?.map((recipe) => ({
-        ...recipe,
-        categories: recipe.categories?.map((rc) => rc.category).filter(Boolean) || [],
-        creator: recipe.user_profiles,
-      })) || []
+    // Fetch categories
+    const { data: categories, error: categoriesError } = await supabase.from("categories").select("*")
 
-    return <RecipesPageClient initialRecipes={transformedRecipes} />
+    if (categoriesError) {
+      console.error("Error fetching categories:", categoriesError)
+    }
+
+    // Fetch user profiles for recipe creators
+    const userIds = [...new Set(recipes?.map((recipe) => recipe.user_id) || [])]
+    const { data: userProfiles, error: profilesError } = await supabase
+      .from("user_profiles")
+      .select("id, full_name, first_name, last_name, alias, avatar_url")
+      .in("id", userIds)
+
+    if (profilesError) {
+      console.error("Error fetching user profiles:", profilesError)
+    }
+
+    // Fetch recipe categories relationships
+    const recipeIds = recipes?.map((recipe) => recipe.id) || []
+    const { data: recipeCategories, error: recipeCategoriesError } = await supabase
+      .from("recipe_categories")
+      .select("recipe_id, category_id")
+      .in("recipe_id", recipeIds)
+
+    if (recipeCategoriesError) {
+      console.error("Error fetching recipe categories:", recipeCategoriesError)
+    }
+
+    // Combine the data
+    const enrichedRecipes =
+      recipes?.map((recipe) => {
+        const creator = userProfiles?.find((profile) => profile.id === recipe.user_id)
+        const recipeCategoryIds =
+          recipeCategories?.filter((rc) => rc.recipe_id === recipe.id).map((rc) => rc.category_id) || []
+        const recipeCategories_data = categories?.filter((cat) => recipeCategoryIds.includes(cat.id)) || []
+
+        return {
+          ...recipe,
+          user_profiles: creator,
+          recipe_categories: recipeCategories_data.map((cat) => ({ categories: cat })),
+        }
+      }) || []
+
+    return <RecipesPageClient initialRecipes={enrichedRecipes} initialCategories={categories || []} />
   } catch (error) {
     console.error("Error in RecipesPage:", error)
-    return <RecipesPageClient initialRecipes={[]} />
+    return <RecipesPageClient initialRecipes={[]} initialCategories={[]} />
   }
 }
