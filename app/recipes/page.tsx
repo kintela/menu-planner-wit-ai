@@ -1,5 +1,11 @@
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
+
+import { RecipesPageClient } from "@/components/recipes-page-client"
+
 import Link from "next/link"
 import { Plus } from "lucide-react"
+import { safeQuery } from "@/lib/supabase/rate-limiter"
 
 interface CategoryWithCount {
   id: number
@@ -7,92 +13,292 @@ interface CategoryWithCount {
   recipeCount: number
 }
 
-interface Recipe {
-  id: number
-  name: string
-  ingredients: string
-  preparation: string
-  image_url: string | null
-  is_ai_generated: boolean
-  video_url: string | null
-  source_url: string | null
-  calories: number | null
-  user_id: string
-  created_at: string
-  categories: Array<{ id: number; name: string }>
-  user_profiles: {
-    id: string
-    full_name: string | null
-    email: string
-    alias: string | null
-    first_name: string | null
-    last_name: string | null
-    avatar_url: string | null
-  } | null
-}
-
-// Función que simula la carga de datos reales de Supabase
-const loadRecipesData = async () => {
-  console.log("🚀 Simulando carga de datos de Supabase...")
-
-  // Simular delay de conexión
-  await new Promise((resolve) => setTimeout(resolve, 500))
-
-  // En v0, devolvemos estructura vacía pero informativa
-  return {
-    recipes: [] as Recipe[],
-    categories: [
-      { id: 1, name: "Desayuno", recipeCount: 0 },
-      { id: 2, name: "Almuerzo", recipeCount: 0 },
-      { id: 3, name: "Cena", recipeCount: 0 },
-      { id: 4, name: "Postre", recipeCount: 0 },
-      { id: 5, name: "Snacks", recipeCount: 0 },
-    ] as CategoryWithCount[],
-    totalRecipesCount: 0,
-    dataQuality: {
-      hasFullRecipeData: false,
-      hasCategoriesData: true,
-      hasRelationsData: false,
-    },
-    connectionError: "Entorno v0: Base de datos no disponible",
-  }
-}
-
 export const getRecipesAndCategories = async () => {
-  try {
-    console.log("🔄 Cargando recetas...")
-    const data = await loadRecipesData()
+  const supabase = createServerComponentClient({ cookies })
 
-    console.log("✅ Estructura de datos preparada")
-    return data
-  } catch (error) {
-    console.error("❌ Error:", error)
+  try {
+    console.log("🚀 Cargando datos con protección de rate limiting...")
+
+    // Paso 1: Cargar recetas básicas primero
+    let recipes: any[] = []
+    let hasFullRecipeData = false
+
+    try {
+      console.log("📋 Intentando cargar recetas completas...")
+      const recipesData = await safeQuery(
+        async () => {
+          try {
+            const result = await supabase
+              .from("recipes")
+              .select(`
+               *,
+               user_profiles (
+                 id,
+                 full_name,
+                 email,
+                 alias,
+                 first_name,
+                 last_name,
+                 avatar_url
+               )
+             `)
+              .order("created_at", { ascending: false })
+
+            return result
+          } catch (error) {
+            console.error("Error interno en consulta de recetas:", error)
+            return { data: null, error }
+          }
+        },
+        {
+          endpoint: "recipes-full",
+          maxRetries: 2,
+          baseDelay: 1000,
+        },
+      )
+
+      if (recipesData.error) {
+        throw recipesData.error
+      }
+
+      recipes = recipesData.data || []
+      hasFullRecipeData = true
+      console.log(`✅ Recetas completas cargadas: ${recipes.length}`)
+    } catch (error) {
+      console.warn("⚠️ Fallback a recetas básicas debido a rate limiting o error:", error)
+
+      // Fallback: cargar solo datos básicos de recetas
+      try {
+        const basicRecipesData = await safeQuery(
+          async () => {
+            try {
+              const result = await supabase
+                .from("recipes")
+                .select("id, name, ingredients, preparation, image_url, user_id, created_at")
+                .order("created_at", { ascending: false })
+                .limit(50)
+
+              return result
+            } catch (error) {
+              console.error("Error interno en consulta de recetas básicas:", error)
+              return { data: null, error }
+            }
+          },
+          {
+            endpoint: "recipes-basic",
+            maxRetries: 1,
+            baseDelay: 2000,
+          },
+        )
+
+        if (basicRecipesData.error) {
+          throw basicRecipesData.error
+        }
+
+        recipes = (basicRecipesData.data || []).map((recipe) => ({
+          ...recipe,
+          user_profiles: null,
+        }))
+        console.log(`✅ Recetas básicas cargadas: ${recipes.length}`)
+      } catch (fallbackError) {
+        console.error("❌ Error en fallback de recetas:", fallbackError)
+        recipes = []
+      }
+    }
+
+    // Paso 2: Cargar categorías con delay
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    let categoriesData: any[] = []
+    let hasCategoriesData = false
+
+    try {
+      console.log("📂 Intentando cargar categorías...")
+      const categoriesResult = await safeQuery(
+        async () => {
+          try {
+            const result = await supabase.from("categories").select("id, name").order("name")
+            return result
+          } catch (error) {
+            console.error("Error interno en consulta de categorías:", error)
+            return { data: null, error }
+          }
+        },
+        {
+          endpoint: "categories",
+          maxRetries: 2,
+          baseDelay: 1000,
+        },
+      )
+
+      if (categoriesResult.error) {
+        throw categoriesResult.error
+      }
+
+      categoriesData = categoriesResult.data || []
+      hasCategoriesData = true
+      console.log(`✅ Categorías cargadas: ${categoriesData.length}`)
+    } catch (error) {
+      console.warn("⚠️ Error cargando categorías, usando fallback estático:", error)
+
+      categoriesData = [
+        { id: 1, name: "Desayuno" },
+        { id: 2, name: "Almuerzo" },
+        { id: 3, name: "Cena" },
+        { id: 4, name: "Postre" },
+        { id: 5, name: "Snacks" },
+      ]
+    }
+
+    // Paso 3: Cargar relaciones solo si tenemos datos completos
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    let recipeCategories: any[] = []
+    let hasRelationsData = false
+
+    if (hasFullRecipeData && hasCategoriesData && recipes.length > 0) {
+      try {
+        console.log("🔗 Intentando cargar relaciones receta-categoría...")
+        const relationsResult = await safeQuery(
+          async () => {
+            try {
+              const result = await supabase.from("recipe_categories").select(`
+                 recipe_id,
+                 category_id,
+                 categories (
+                   id,
+                   name
+                 )
+               `)
+              return result
+            } catch (error) {
+              console.error("Error interno en consulta de relaciones:", error)
+              return { data: null, error }
+            }
+          },
+          {
+            endpoint: "recipe-categories",
+            maxRetries: 1,
+            baseDelay: 1500,
+          },
+        )
+
+        if (relationsResult.error) {
+          throw relationsResult.error
+        }
+
+        recipeCategories = relationsResult.data || []
+        hasRelationsData = true
+        console.log(`✅ Relaciones cargadas: ${recipeCategories.length}`)
+      } catch (error) {
+        console.warn("⚠️ Error cargando relaciones, continuando sin ellas:", error)
+
+        recipeCategories = []
+      }
+    } else {
+      console.log("⏭️ Saltando relaciones debido a datos incompletos")
+    }
+
+    // Paso 4: Procesar datos
+    const recipeToCategories: { [key: number]: any[] } = {}
+    recipeCategories.forEach((rc) => {
+      if (!recipeToCategories[rc.recipe_id]) {
+        recipeToCategories[rc.recipe_id] = []
+      }
+      if (rc.categories) {
+        recipeToCategories[rc.recipe_id].push(rc.categories)
+      }
+    })
+
+    // Enriquecer las recetas con sus categorías
+    const enrichedRecipes = recipes.map((recipe) => ({
+      ...recipe,
+      categories: recipeToCategories[recipe.id] || [],
+    }))
+
+    // Calcular el conteo de recetas por categoría
+    const categories: CategoryWithCount[] = categoriesData.map((category) => {
+      const recipeCount = hasRelationsData
+        ? enrichedRecipes.filter((recipe) => recipe.categories.some((cat: any) => cat.id === category.id)).length
+        : 0
+
+      return {
+        id: category.id,
+        name: category.name,
+        recipeCount,
+      }
+    })
+
+    console.log("✅ Procesamiento completado:", {
+      recipesCount: enrichedRecipes.length,
+      categoriesCount: categories.length,
+      hasFullData: hasFullRecipeData && hasCategoriesData && hasRelationsData,
+    })
 
     return {
-      recipes: [] as Recipe[],
+      recipes: enrichedRecipes,
+      categories,
+      totalRecipesCount: enrichedRecipes.length,
+      dataQuality: {
+        hasFullRecipeData,
+        hasCategoriesData,
+        hasRelationsData,
+      },
+    }
+  } catch (error) {
+    console.error("❌ Error crítico:", error)
+
+    return {
+      recipes: [],
       categories: [
         { id: 1, name: "Desayuno", recipeCount: 0 },
         { id: 2, name: "Almuerzo", recipeCount: 0 },
         { id: 3, name: "Cena", recipeCount: 0 },
         { id: 4, name: "Postre", recipeCount: 0 },
-        { id: 5, name: "Snacks", recipeCount: 0 },
-      ] as CategoryWithCount[],
+      ],
       totalRecipesCount: 0,
       dataQuality: {
         hasFullRecipeData: false,
-        hasCategoriesData: true,
+        hasCategoriesData: false,
         hasRelationsData: false,
       },
-      connectionError: "Error de conexión",
     }
   }
 }
 
 export const getRecipeById = async (id: number) => {
-  console.log(`🔍 Buscando receta con ID: ${id}`)
-  return {
-    recipe: null,
-    error: "Funcionalidad no disponible en v0",
+  const supabase = createServerComponentClient({ cookies })
+
+  try {
+    console.log(`🔍 Obteniendo receta con ID: ${id}`)
+
+    const { data: recipe, error } = await supabase
+      .from("recipes")
+      .select(`
+       *,
+       user_profiles (
+         id,
+         full_name,
+         email,
+         alias,
+         first_name,
+         last_name,
+         avatar_url
+       )
+     `)
+      .eq("id", id)
+      .single()
+
+    if (error) {
+      console.error("Error obteniendo receta:", error)
+      return { recipe: null, error: error.message }
+    }
+
+    console.log("✅ Receta obtenida exitosamente")
+    return { recipe, error: null }
+  } catch (error) {
+    console.error("❌ Error crítico obteniendo receta:", error)
+    return { recipe: null, error: "Error interno del servidor" }
   }
 }
 
@@ -101,8 +307,7 @@ interface RecipesPageProps {
 }
 
 const Recipes = async ({ searchParams }: RecipesPageProps) => {
-  const data = await getRecipesAndCategories()
-  const { recipes, categories, totalRecipesCount, dataQuality, connectionError } = data
+  const { recipes, categories, totalRecipesCount, dataQuality } = await getRecipesAndCategories()
 
   const showOnlyMyRecipes = searchParams.my === "true"
 
@@ -119,59 +324,55 @@ const Recipes = async ({ searchParams }: RecipesPageProps) => {
         </Link>
       </div>
 
-      {/* Mostrar estado de conexión */}
-      {connectionError && (
-        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+      {/* Mostrar estado de los datos */}
+      {!dataQuality.hasFullRecipeData && recipes.length > 0 && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex items-center gap-2">
-            <span className="text-yellow-600">⚠️</span>
-            <div>
-              <p className="text-yellow-800 font-medium">Entorno de desarrollo v0</p>
-              <p className="text-yellow-700 text-sm">
-                {connectionError}. En producción, este componente se conectará automáticamente a tu base de datos
-                Supabase con las 82 recetas reales.
-              </p>
-            </div>
+            <span className="text-blue-600">ℹ️</span>
+            <p className="text-blue-800">
+              <strong>Modo adaptativo:</strong> Algunos datos se cargaron de forma simplificada para optimizar el
+              rendimiento.
+              {!dataQuality.hasRelationsData && " Los filtros por categoría pueden tener conteos limitados."}
+            </p>
           </div>
         </div>
       )}
 
-      {/* Mostrar contenido */}
-      <div className="text-center py-10">
-        <div className="mb-6">
-          <div className="text-6xl mb-4">🗄️</div>
-          <h2 className="text-2xl font-semibold mb-2">Base de datos no disponible en v0</h2>
-          <p className="text-muted-foreground mb-4">
-            Este es el entorno de desarrollo v0. En producción, aquí verás tus 82 recetas reales de Supabase.
-          </p>
-        </div>
-
-        <div className="bg-gray-50 p-6 rounded-lg max-w-2xl mx-auto">
-          <h3 className="text-lg font-semibold mb-3">📋 Estructura de datos preparada:</h3>
-          <div className="text-left space-y-2 text-sm">
-            <p>
-              <strong>✅ Tabla recipes:</strong> Conectada y lista para mostrar tus 82 recetas
-            </p>
-            <p>
-              <strong>✅ Tabla categories:</strong> Sistema de categorización implementado
-            </p>
-            <p>
-              <strong>✅ Tabla recipe_categories:</strong> Relaciones configuradas
-            </p>
-            <p>
-              <strong>✅ Tabla user_profiles:</strong> Información de autores preparada
-            </p>
-            <p>
-              <strong>✅ Filtros y búsqueda:</strong> Funcionalidad completa implementada
+      {/* Mostrar mensaje si no hay datos */}
+      {recipes.length === 0 ? (
+        <div className="text-center py-10">
+          <div className="mb-6">
+            <div className="text-6xl mb-4">📝</div>
+            <h2 className="text-2xl font-semibold mb-2">No hay recetas disponibles</h2>
+            <p className="text-muted-foreground mb-4">
+              {categories.length === 0
+                ? "Hubo un problema cargando los datos. Por favor, intenta recargar la página."
+                : "Sé el primero en añadir una receta al sistema."}
             </p>
           </div>
-          <div className="mt-4 p-3 bg-blue-50 rounded border-l-4 border-blue-400">
-            <p className="text-blue-800 text-sm">
-              <strong>🚀 Para ver tus recetas reales:</strong> Despliega este código en Vercel o tu servidor con acceso
-              a Supabase.
-            </p>
+          <div className="flex gap-3 justify-center">
+            <Link
+              href="/recipes"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+            >
+              🔄 Recargar
+            </Link>
+            <Link
+              href="/recipes/add"
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+            >
+              ➕ Añadir Primera Receta
+            </Link>
           </div>
         </div>
-      </div>
+      ) : (
+        <RecipesPageClient
+          recipes={recipes}
+          categories={categories}
+          totalRecipesCount={totalRecipesCount}
+          showOnlyMyRecipes={showOnlyMyRecipes}
+        />
+      )}
     </div>
   )
 }
