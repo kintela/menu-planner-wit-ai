@@ -43,20 +43,12 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
   const authorName = recipe.user_profiles?.full_name || recipe.user_profiles?.first_name || "Usuario"
   const categories = recipe.recipe_categories?.map((rc) => rc.categories.name) || []
 
+  const handleVideoClick = () => {
+    setIsVideoModalOpen(true)
+  }
+
   return (
     <Card className="group hover:shadow-lg transition-all duration-200 overflow-hidden relative">
-      {/* Video Button - Top Right */}
-      {recipe.video_url && (
-        <Button
-          variant="secondary"
-          size="sm"
-          className="absolute top-2 right-2 z-10 bg-black/70 hover:bg-black/90 text-white border-0"
-          onClick={() => setIsVideoModalOpen(true)}
-        >
-          <Video className="h-4 w-4" />
-        </Button>
-      )}
-
       <CardHeader className="p-0">
         <div className="relative h-48 w-full overflow-hidden">
           <Image
@@ -66,11 +58,25 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
             className="object-cover group-hover:scale-105 transition-transform duration-200"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           />
+
+          {/* AI Badge - Top Left */}
           {recipe.is_ai_generated && (
             <Badge className="absolute top-2 left-2 bg-purple-600 hover:bg-purple-700">
               <Sparkles className="h-3 w-3 mr-1" />
               IA
             </Badge>
+          )}
+
+          {/* Video Button - Top Right - ÚNICO BOTÓN DE VIDEO */}
+          {recipe.video_url && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="absolute top-2 right-2 z-10 bg-black/70 hover:bg-black/90 text-white border-0"
+              onClick={handleVideoClick}
+            >
+              <Video className="h-4 w-4" />
+            </Button>
           )}
         </div>
       </CardHeader>
@@ -116,8 +122,8 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
         </div>
       </CardContent>
 
-      {/* Video Modal - Solo se renderiza si hay video_url */}
-      {recipe.video_url && (
+      {/* Video Modal - Solo se renderiza cuando isVideoModalOpen es true */}
+      {recipe.video_url && isVideoModalOpen && (
         <VideoModal
           videoUrl={recipe.video_url}
           recipeName={recipe.name}
