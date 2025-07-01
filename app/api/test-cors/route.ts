@@ -4,6 +4,7 @@ export async function GET() {
   return NextResponse.json(
     { message: "CORS test successful", timestamp: new Date().toISOString() },
     {
+      status: 200,
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",

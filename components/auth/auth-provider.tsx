@@ -48,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true
 
-    // Get initial session
+    // Get initial session with error handling
     const getInitialSession = async () => {
       try {
         const {
@@ -58,8 +58,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (error) {
           console.error("Error getting session:", error)
-          // Clear any invalid tokens
-          await supabase.auth.signOut()
+          // Clear any invalid tokens silently
+          try {
+            await supabase.auth.signOut()
+          } catch (signOutError) {
+            console.error("Error signing out:", signOutError)
+          }
         }
 
         if (mounted) {
@@ -90,14 +94,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log("Auth state changed:", event)
 
-      if (event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
-        setUser(session?.user ?? null)
-        setProfile(null)
-      } else if (session?.user) {
-        setUser(session.user)
-        const userProfile = await loadUserProfile(session.user.id)
-        setProfile(userProfile)
-      } else {
+      try {
+        if (event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
+          setUser(session?.user ?? null)
+          if (session?.user) {
+            const userProfile = await loadUserProfile(session.user.id)
+            setProfile(userProfile)
+          } else {
+            setProfile(null)
+          }
+        } else if (session?.user) {
+          setUser(session.user)
+          const userProfile = await loadUserProfile(session.user.id)
+          setProfile(userProfile)
+        } else {
+          setUser(null)
+          setProfile(null)
+        }
+      } catch (error) {
+        console.error("Error in auth state change:", error)
         setUser(null)
         setProfile(null)
       }
