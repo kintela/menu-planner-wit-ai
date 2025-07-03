@@ -5,11 +5,11 @@ async function getRecipes() {
   try {
     const supabase = createClient()
 
-    // Get recipes
+    // Get recipes ordered by name
     const { data: recipes, error: recipesError } = await supabase
       .from("recipes")
       .select("*")
-      .order("created_at", { ascending: false })
+      .order("name", { ascending: true })
 
     if (recipesError) {
       console.error("Error fetching recipes:", recipesError)
