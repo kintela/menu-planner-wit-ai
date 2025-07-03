@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ChefHat, Flame, User, Video, Eye, X } from "lucide-react"
+import { ChefHat, Flame, User, Video, Eye, X, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 
@@ -158,18 +158,28 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
           )}
         </CardHeader>
 
-        <CardContent className="flex-1 pt-0">
+        <CardContent className="flex-1 pt-0 flex flex-col">
           <p className="text-gray-600 text-sm line-clamp-3 mb-3">
             {recipe.ingredients.length > 150 ? `${recipe.ingredients.substring(0, 150)}...` : recipe.ingredients}
           </p>
 
-          <div className="flex items-center justify-between text-sm text-gray-500 mt-auto">
+          <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
             {recipe.calories && (
               <div className="flex items-center gap-1">
                 <Flame className="h-4 w-4 text-orange-500" />
                 <span>{recipe.calories} cal</span>
               </div>
             )}
+          </div>
+
+          {/* Recipe detail button */}
+          <div className="mt-auto">
+            <Link href={`/recipes/${recipe.id}`}>
+              <Button variant="outline" size="sm" className="w-full bg-transparent">
+                Ver receta completa
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </Link>
           </div>
         </CardContent>
       </Card>
