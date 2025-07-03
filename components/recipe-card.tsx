@@ -43,6 +43,7 @@ interface RecipeCardProps {
 
 export function RecipeCard({ recipe }: RecipeCardProps) {
   const [showVideoModal, setShowVideoModal] = useState(false)
+  const [showSourceModal, setShowSourceModal] = useState(false)
   const [imageError, setImageError] = useState(false)
 
   const getYouTubeEmbedUrl = (url: string) => {
@@ -106,7 +107,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
               size="sm"
               variant="secondary"
               className="absolute top-2 right-2 h-8 w-8 p-0 bg-black/70 text-white hover:bg-black/80"
-              onClick={() => window.open(recipe.source_url, "_blank")}
+              onClick={() => setShowSourceModal(true)}
             >
               <Eye className="h-4 w-4" />
             </Button>
@@ -187,6 +188,28 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
               <iframe
                 src={getYouTubeEmbedUrl(recipe.video_url)}
                 title={recipe.name}
+                className="w-full h-full"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Source URL Modal */}
+      {showSourceModal && recipe.source_url && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="font-semibold text-lg">Fuente: {recipe.name}</h3>
+              <Button variant="ghost" size="sm" onClick={() => setShowSourceModal(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="h-[70vh]">
+              <iframe
+                src={recipe.source_url}
+                title={`Fuente de ${recipe.name}`}
                 className="w-full h-full"
                 allowFullScreen
               />
