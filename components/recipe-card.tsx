@@ -202,17 +202,35 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="font-semibold text-lg">Fuente: {recipe.name}</h3>
-              <Button variant="ghost" size="sm" onClick={() => setShowSourceModal(false)}>
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => window.open(recipe.source_url, "_blank")}>
+                  Abrir en nueva pestaña
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setShowSourceModal(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-            <div className="h-[70vh]">
+            <div className="h-[70vh] relative">
               <iframe
                 src={recipe.source_url}
                 title={`Fuente de ${recipe.name}`}
                 className="w-full h-full"
                 allowFullScreen
+                onError={() => {
+                  // Handle iframe error
+                }}
               />
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-50 opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+                <div className="text-center p-4 bg-white rounded-lg shadow-lg pointer-events-auto">
+                  <p className="text-sm text-gray-600 mb-2">
+                    Si no se carga el contenido, algunos sitios web bloquean la visualización en marcos.
+                  </p>
+                  <Button variant="default" size="sm" onClick={() => window.open(recipe.source_url, "_blank")}>
+                    Ver en nueva pestaña
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
