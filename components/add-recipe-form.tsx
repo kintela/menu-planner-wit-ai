@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { Loader2, Upload, X, Calculator } from "lucide-react"
 import Image from "next/image"
 
-import { getSupabaseClient } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { Category } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -196,7 +196,7 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
         finalCalories = estimatedCalories
       }
 
-      const supabase = getSupabaseClient()
+      const supabase = createClient()
 
       // Insertar la receta con el user_id
       const { data: recipe, error } = await supabase

@@ -4,7 +4,7 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { AddRecipeForm } from "@/components/add-recipe-form"
 import { Loader2, AlertCircle, Plus } from "lucide-react"
 import { useEffect, useState } from "react"
-import { getSupabaseClient } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
 import type { Category } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,7 +21,7 @@ export default function AddRecipePage() {
       try {
         setCategoriesLoading(true)
         setCategoriesError(null)
-        const supabase = getSupabaseClient()
+        const supabase = createClient()
 
         console.log("Intentando cargar categorías...")
         const { data, error } = await supabase.from("categories").select("*").order("name")
@@ -34,7 +34,6 @@ export default function AddRecipePage() {
 
           if (!data || data.length === 0) {
             setCategoriesError("No hay categorías disponibles.")
-
           }
         }
       } catch (error) {
@@ -44,7 +43,6 @@ export default function AddRecipePage() {
         setCategoriesLoading(false)
       }
     }
-
 
     if (user || !loading) {
       loadCategories()
@@ -110,7 +108,6 @@ export default function AddRecipePage() {
     )
   }
 
-
   if (categoriesError) {
     return (
       <div className="container mx-auto py-8 px-4">
@@ -134,7 +131,6 @@ export default function AddRecipePage() {
                 </Button>
 
                 <Button variant="outline" onClick={() => window.location.reload()}>
-
                   Reintentar
                 </Button>
               </div>
@@ -150,7 +146,6 @@ export default function AddRecipePage() {
       </div>
     )
   }
-
 
   return (
     <div className="container mx-auto py-8 px-4">
