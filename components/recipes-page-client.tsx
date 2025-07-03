@@ -1,151 +1,205 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Search, Filter, Plus } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import RecipeCard from "@/components/recipe-card"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Search, Plus, Filter, X } from "lucide-react"
 import Link from "next/link"
+import { RecipeCard } from "@/components/recipe-card"
 
 interface Recipe {
-  id: number
-  name: string
-  ingredients: string
-  preparation: string
-  image_url: string | null
-  is_ai_generated: boolean | null
-  video_url: string | null
-  source_url: string | null
-  calories: number | null
+  id: string
+  title: string
+  description?: string
+  ingredients?: string[]
+  instructions?: string[]
+  prep_time?: number
+  cook_time?: number
+  servings?: number
+  difficulty?: string
+  category_id?: string
+  image_url?: string
+  video_url?: string
+  source_url?: string
+  rating?: number
   created_at: string
-  user_id: string | null
-  category_id: number | null
+  user_id: string
 }
 
 interface Category {
-  id: number
-  name: string
-  created_at: string
-}
-
-interface UserProfile {
   id: string
-  email: string
-  full_name: string | null
-  alias: string | null
-  avatar_url: string | null
+  name: string
+  description?: string
 }
 
 interface RecipesPageClientProps {
-  initialRecipes?: Recipe[]
-  initialCategories?: Category[]
-  userProfiles?: UserProfile[]
+  initialRecipes: Recipe[]
+  initialCategories: Category[]
 }
 
-export default function RecipesPageClient({
-  initialRecipes = [],
-  initialCategories = [],
-  userProfiles = [],
-}: RecipesPageClientProps) {
+export function RecipesPageClient({ initialRecipes = [], initialCategories = [] }: RecipesPageClientProps) {
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState<string>("all")
-  const [showMyRecipes, setShowMyRecipes] = useState(false)
-
-  // Ensure we have valid arrays
-  const recipes = Array.isArray(initialRecipes) ? initialRecipes : []
-  const categories = Array.isArray(initialCategories) ? initialCategories : []
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
 
   const filteredRecipes = useMemo(() => {
-    if (!Array.isArray(recipes)) return []
+    if (!Array.isArray(initialRecipes)) return []
 
-    return recipes.filter((recipe) => {
+    return initialRecipes.filter((recipe) => {
       const matchesSearch =
-        recipe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        recipe.ingredients.toLowerCase().includes(searchTerm.toLowerCase())
+        !searchTerm ||
+        recipe.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        recipe.description?.toLowerCase().includes(searchTerm.toLowerCase())
 
-      const matchesCategory = selectedCategory === "all" || recipe.category_id?.toString() === selectedCategory
+      const matchesCategory = !selectedCategory || recipe.category_id === selectedCategory
 
       return matchesSearch && matchesCategory
     })
-  }, [recipes, searchTerm, selectedCategory])
+  }, [initialRecipes, searchTerm, selectedCategory])
 
-  const getUserProfile = (userId: string | null) => {
-    if (!userId || !Array.isArray(userProfiles)) return null
-    return userProfiles.find((profile) => profile.id === userId) || null
+  const clearFilters = () => {
+    setSearchTerm("")
+    setSelectedCategory(null)
+  }
+
+  const hasActiveFilters = searchTerm || selectedCategory
+
+  if (!Array.isArray(initialRecipes) || initialRecipes.length === 0) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Recetas</h1>
+          <Button asChild>
+            <Link href="/recipes/add">
+              <Plus className="h-4 w-4 mr-2" />
+              Añadir Receta
+            </Link>
+          </Button>
+        </div>
+
+        <Card className="text-center py-12">
+          <CardContent>
+            <div className="max-w-md mx-auto">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No hay recetas disponibles</h3>
+              <p className="text-gray-600 mb-6">Comienza añadiendo tu primera receta para ver el contenido aquí.</p>
+              <Button asChild>
+                <Link href="/recipes/add">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Añadir Primera Receta
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Recetas</h1>
-        <Link href="/recipes/add">
-          <Button className="bg-blue-600 hover:bg-blue-700">
+        <Button asChild>
+          <Link href="/recipes/add">
             <Plus className="h-4 w-4 mr-2" />
             Añadir Receta
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
 
-      {/* Search and Filter Controls */}
-      <div className="mb-8 space-y-4">
-        <div className="flex flex-col sm:flex-row gap-4">
+      {/* Search and Filters */}
+      <div className="mb-6 space-y-4">
+        <div className="flex gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
-              type="text"
               placeholder="Buscar recetas..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
             />
           </div>
-
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full sm:w-48">
-              <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Categoría" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas las categorías</SelectItem>
-              {categories.map((category) => (
-                <SelectItem key={category.id} value={category.id.toString()}>
-                  {category.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-2">
+            <Filter className="h-4 w-4" />
+            Filtros
+          </Button>
+          {hasActiveFilters && (
+            <Button variant="outline" onClick={clearFilters}>
+              <X className="h-4 w-4 mr-2" />
+              Limpiar
+            </Button>
+          )}
         </div>
+
+        {showFilters && (
+          <Card className="p-4">
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">Categoría</label>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant={selectedCategory === null ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedCategory(null)}
+                  >
+                    Todas
+                  </Button>
+                  {initialCategories.map((category) => (
+                    <Button
+                      key={category.id}
+                      variant={selectedCategory === category.id ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedCategory(category.id)}
+                    >
+                      {category.name}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
       </div>
 
       {/* Results */}
-      {filteredRecipes.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-gray-500 mb-4">
-            {recipes.length === 0 ? (
-              <>
-                <h3 className="text-lg font-medium mb-2">No hay recetas disponibles</h3>
-                <p>Comienza añadiendo tu primera receta para ver el contenido aquí.</p>
-              </>
-            ) : (
-              <>
-                <h3 className="text-lg font-medium mb-2">No se encontraron recetas</h3>
-                <p>Intenta con otros términos de búsqueda o filtros.</p>
-              </>
-            )}
-          </div>
-          {recipes.length === 0 && (
-            <Link href="/recipes/add">
-              <Button className="bg-blue-600 hover:bg-blue-700">Añadir Primera Receta</Button>
-            </Link>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="mb-4">
+        <p className="text-gray-600">
+          {filteredRecipes.length} receta{filteredRecipes.length !== 1 ? "s" : ""} encontrada
+          {filteredRecipes.length !== 1 ? "s" : ""}
+        </p>
+      </div>
+
+      {/* Recipe Grid */}
+      {filteredRecipes.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredRecipes.map((recipe) => (
-            <RecipeCard key={recipe.id} recipe={recipe} userProfile={getUserProfile(recipe.user_id)} />
+            <RecipeCard key={recipe.id} recipe={recipe} />
           ))}
         </div>
+      ) : (
+        <Card className="text-center py-12">
+          <CardContent>
+            <div className="max-w-md mx-auto">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No se encontraron recetas</h3>
+              <p className="text-gray-600 mb-6">Intenta ajustar tus filtros de búsqueda o añade una nueva receta.</p>
+              <div className="flex gap-4 justify-center">
+                {hasActiveFilters && (
+                  <Button variant="outline" onClick={clearFilters}>
+                    Limpiar filtros
+                  </Button>
+                )}
+                <Button asChild>
+                  <Link href="/recipes/add">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Añadir Receta
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   )

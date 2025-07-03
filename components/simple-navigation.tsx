@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Home, BookOpen, Calendar } from "lucide-react"
 
-export default function SimpleNavigation() {
+export function SimpleNavigation() {
   const pathname = usePathname()
 
   const navItems = [
