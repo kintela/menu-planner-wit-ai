@@ -175,7 +175,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
           {/* Recipe detail button */}
           <div className="mt-auto">
             <Link href={`/recipes/${recipe.id}`}>
-              <Button variant="outline" size="sm" className="w-full bg-transparent">
+              <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0">
                 Ver receta completa
                 <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
