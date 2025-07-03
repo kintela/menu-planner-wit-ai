@@ -36,8 +36,8 @@ export function LoginForm() {
         setError(error.message)
       } else {
         setMessage("¡Inicio de sesión exitoso! Redirigiendo...")
-        router.push("/")
-        router.refresh()
+        // Forzar redirección inmediata
+        window.location.href = "/"
       }
     } catch (err) {
       setError("Error inesperado al iniciar sesión")
