@@ -21,3 +21,6 @@ export function createClient() {
     },
   })
 }
+
+// Export createServerClient for backward compatibility
+export { createServerClient }
