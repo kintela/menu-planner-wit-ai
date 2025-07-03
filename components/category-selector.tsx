@@ -1,23 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { PlusCircle } from "lucide-react"
-import { getSupabaseClient } from "@/lib/supabase/client"
-import type { Category } from "@/lib/types"
+import { useState } from "react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/hooks/use-toast"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import type { Category } from "@/lib/types"
 
 interface CategorySelectorProps {
   categories: Category[]
@@ -25,159 +14,77 @@ interface CategorySelectorProps {
   onCategoriesChange: (categories: number[]) => void
 }
 
-export function CategorySelector({
-  categories: initialCategories,
-  selectedCategories,
-  onCategoriesChange,
-}: CategorySelectorProps) {
-  const { toast } = useToast()
-  const [categories, setCategories] = useState<Category[]>(initialCategories)
-  const [newCategoryName, setNewCategoryName] = useState("")
-  const [isAddingCategory, setIsAddingCategory] = useState(false)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
+export function CategorySelector({ categories, selectedCategories, onCategoriesChange }: CategorySelectorProps) {
+  const [showAll, setShowAll] = useState(false)
 
-  // Efecto para actualizar las categorías cuando cambian las props
-  useEffect(() => {
-    setCategories(initialCategories)
-  }, [initialCategories])
-
-  // Efecto para depuración
-  useEffect(() => {
-    console.log("CategorySelector - Categories:", categories)
-    console.log("CategorySelector - Selected Categories:", selectedCategories)
-  }, [categories, selectedCategories])
-
-  const handleCategoryChange = (categoryId: number, checked: boolean) => {
-    if (checked) {
-      onCategoriesChange([...selectedCategories, categoryId])
-    } else {
+  const handleCategoryToggle = (categoryId: number) => {
+    if (selectedCategories.includes(categoryId)) {
       onCategoriesChange(selectedCategories.filter((id) => id !== categoryId))
+    } else {
+      onCategoriesChange([...selectedCategories, categoryId])
     }
   }
 
-  const handleAddCategory = async () => {
-    if (!newCategoryName.trim()) {
-      toast({
-        title: "Nombre requerido",
-        description: "Por favor, introduce un nombre para la categoría.",
-        variant: "destructive",
-      })
-      return
-    }
+  const displayedCategories = showAll ? categories : categories.slice(0, 6)
 
-    setIsAddingCategory(true)
-
-    try {
-      const supabase = getSupabaseClient()
-
-      // Normalizar el nombre para la comparación (sin espacios extra, en minúsculas)
-      const normalizedName = newCategoryName.trim().toLowerCase()
-
-      // Comprobar si la categoría ya existe (comparación insensible a mayúsculas/minúsculas)
-      const existingCategory = categories.find((category) => category.name.toLowerCase() === normalizedName)
-
-      if (existingCategory) {
-        toast({
-          title: "Categoría existente",
-          description: `Ya existe una categoría llamada "${existingCategory.name}".`,
-          variant: "destructive",
-        })
-        setIsAddingCategory(false)
-        return
-      }
-
-      // Insertar la nueva categoría con el nombre original (manteniendo mayúsculas/minúsculas)
-      const { data: newCategory, error } = await supabase
-        .from("categories")
-        .insert({ name: newCategoryName.trim() })
-        .select()
-        .single()
-
-      if (error) throw error
-
-      // Actualizar la lista de categorías
-      setCategories([...categories, newCategory])
-
-      // Seleccionar la nueva categoría
-      onCategoriesChange([...selectedCategories, newCategory.id])
-
-      toast({
-        title: "Categoría añadida",
-        description: `La categoría "${newCategoryName.trim()}" ha sido añadida.`,
-      })
-
-      // Limpiar el formulario
-      setNewCategoryName("")
-      setIsDialogOpen(false)
-    } catch (error) {
-      console.error("Error adding category:", error)
-      toast({
-        title: "Error",
-        description: "Ha ocurrido un error al añadir la categoría.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsAddingCategory(false)
-    }
+  if (categories.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Categorías</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground text-sm">
+            No hay categorías disponibles. Puedes añadir la receta sin categorías.
+          </p>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <Label className="text-base">Categorías</Label>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm">
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Nueva categoría
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Añadir nueva categoría</DialogTitle>
-              <DialogDescription>Crea una nueva categoría para clasificar tus recetas.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="category-name">Nombre de la categoría</Label>
-                <Input
-                  id="category-name"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder="Ej: Postres, Vegetariano, Sin gluten..."
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleAddCategory} disabled={isAddingCategory}>
-                {isAddingCategory ? "Añadiendo..." : "Añadir categoría"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-        {categories && categories.length > 0 ? (
-          categories.map((category) => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Categorías</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          {displayedCategories.map((category) => (
             <div key={category.id} className="flex items-center space-x-2">
               <Checkbox
                 id={`category-${category.id}`}
                 checked={selectedCategories.includes(category.id)}
-                onCheckedChange={(checked) => handleCategoryChange(category.id, checked as boolean)}
+                onCheckedChange={() => handleCategoryToggle(category.id)}
               />
-              <Label htmlFor={`category-${category.id}`} className="cursor-pointer">
+              <Label htmlFor={`category-${category.id}`} className="text-sm font-normal cursor-pointer">
                 {category.name}
               </Label>
             </div>
-          ))
-        ) : (
-          <p className="col-span-full text-muted-foreground">No hay categorías disponibles.</p>
+          ))}
+        </div>
+
+        {categories.length > 6 && (
+          <Button type="button" variant="outline" size="sm" onClick={() => setShowAll(!showAll)} className="w-full">
+            {showAll ? "Mostrar menos" : `Mostrar todas (${categories.length})`}
+          </Button>
         )}
-      </div>
-    </div>
+
+        {selectedCategories.length > 0 && (
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Categorías seleccionadas:</Label>
+            <div className="flex flex-wrap gap-2">
+              {selectedCategories.map((categoryId) => {
+                const category = categories.find((c) => c.id === categoryId)
+                return category ? (
+                  <Badge key={categoryId} variant="secondary" className="text-xs">
+                    {category.name}
+                  </Badge>
+                ) : null
+              })}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
