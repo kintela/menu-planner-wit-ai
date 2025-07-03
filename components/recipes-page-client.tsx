@@ -88,12 +88,13 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Recetas</h1>
-            <Button
-              asChild
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-lg shadow-sm border-0"
+            <Link
+              href="/recipes/add"
+              className="inline-flex items-center justify-center px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 text-decoration-none"
+              style={{ textDecoration: "none" }}
             >
-              <Link href="/recipes/add">Añadir Receta</Link>
-            </Button>
+              Añadir Receta
+            </Link>
           </div>
 
           <Card className="text-center py-12">
@@ -101,12 +102,13 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
               <div className="max-w-md mx-auto">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No hay recetas disponibles</h3>
                 <p className="text-gray-600 mb-6">Comienza añadiendo tu primera receta para ver el contenido aquí.</p>
-                <Button
-                  asChild
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-lg shadow-sm border-0"
+                <Link
+                  href="/recipes/add"
+                  className="inline-flex items-center justify-center px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 text-decoration-none"
+                  style={{ textDecoration: "none" }}
                 >
-                  <Link href="/recipes/add">Añadir Primera Receta</Link>
-                </Button>
+                  Añadir Primera Receta
+                </Link>
               </div>
             </CardContent>
           </Card>
@@ -127,12 +129,13 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
               {filteredRecipes.length} de {recipes.length} recetas
             </p>
           </div>
-          <Button
-            asChild
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-lg shadow-sm border-0"
+          <Link
+            href="/recipes/add"
+            className="inline-flex items-center justify-center px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 text-decoration-none"
+            style={{ textDecoration: "none" }}
           >
-            <Link href="/recipes/add">Añadir Receta</Link>
-          </Button>
+            Añadir Receta
+          </Link>
         </div>
 
         {/* Search and Filters */}
@@ -208,12 +211,13 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
                       Limpiar filtros
                     </Button>
                   )}
-                  <Button
-                    asChild
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-lg shadow-sm border-0"
+                  <Link
+                    href="/recipes/add"
+                    className="inline-flex items-center justify-center px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 text-decoration-none"
+                    style={{ textDecoration: "none" }}
                   >
-                    <Link href="/recipes/add">Añadir Receta</Link>
-                  </Button>
+                    Añadir Receta
+                  </Link>
                 </div>
               </div>
             </CardContent>
