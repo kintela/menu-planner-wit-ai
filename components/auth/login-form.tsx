@@ -3,14 +3,13 @@
 import type React from "react"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
 
 export function LoginForm() {
   const [email, setEmail] = useState("")
@@ -18,9 +17,10 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+  const [isSignUp, setIsSignUp] = useState(false)
   const router = useRouter()
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError("")
@@ -28,53 +28,35 @@ export function LoginForm() {
 
     try {
       const supabase = createClient()
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
 
-      if (error) {
-        setError(error.message)
-        return
+      if (isSignUp) {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+        })
+
+        if (error) {
+          setError(error.message)
+        } else {
+          setSuccess("¡Cuenta creada exitosamente! Revisa tu email para confirmar tu cuenta.")
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+
+        if (error) {
+          setError(error.message)
+        } else {
+          setSuccess("¡Inicio de sesión exitoso! Redirigiendo...")
+          setTimeout(() => {
+            window.location.href = "/"
+          }, 1000)
+        }
       }
-
-      if (data.user) {
-        setSuccess("¡Inicio de sesión exitoso! Redirigiendo...")
-        // Force a complete page redirect
-        setTimeout(() => {
-          window.location.href = "/"
-        }, 1000)
-      }
-    } catch (err) {
-      setError("Error inesperado. Por favor, inténtalo de nuevo.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError("")
-    setSuccess("")
-
-    try {
-      const supabase = createClient()
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      })
-
-      if (error) {
-        setError(error.message)
-        return
-      }
-
-      if (data.user) {
-        setSuccess("¡Cuenta creada exitosamente! Revisa tu email para confirmar tu cuenta.")
-      }
-    } catch (err) {
-      setError("Error inesperado. Por favor, inténtalo de nuevo.")
+    } catch (error) {
+      setError("Ha ocurrido un error inesperado")
     } finally {
       setLoading(false)
     }
@@ -85,10 +67,12 @@ export function LoginForm() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">MenuPlanner</CardTitle>
-          <CardDescription>Inicia sesión o crea una cuenta para continuar</CardDescription>
+          <CardDescription>
+            {isSignUp ? "Crea una cuenta para continuar" : "Inicia sesión o crea una cuenta para continuar"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="email">Email</Label>
               <Input
@@ -97,10 +81,11 @@ export function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={loading}
                 className="mt-1"
+                placeholder="tu@email.com"
               />
             </div>
+
             <div>
               <Label htmlFor="password">Contraseña</Label>
               <Input
@@ -109,8 +94,8 @@ export function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                disabled={loading}
                 className="mt-1"
+                placeholder="••••••••"
               />
             </div>
 
@@ -126,27 +111,19 @@ export function LoginForm() {
               </Alert>
             )}
 
-            <div className="space-y-2">
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Cargando..." : "Iniciar Sesión"}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full bg-transparent"
-                onClick={handleRegister}
-                disabled={loading}
-              >
-                Crear Cuenta
-              </Button>
-            </div>
-          </form>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Cargando..." : isSignUp ? "Crear Cuenta" : "Iniciar Sesión"}
+            </Button>
 
-          <div className="mt-4 text-center">
-            <Link href="/auth/reset-password" className="text-sm text-blue-600 hover:text-blue-500">
-              ¿Olvidaste tu contraseña?
-            </Link>
-          </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full bg-transparent"
+              onClick={() => setIsSignUp(!isSignUp)}
+            >
+              {isSignUp ? "¿Ya tienes cuenta? Inicia sesión" : "Crear Cuenta"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>
