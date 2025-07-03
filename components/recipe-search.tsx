@@ -1,18 +1,15 @@
 "use client"
 
-
 import { useState, useRef, useEffect } from "react"
 import { Search, RefreshCw } from "lucide-react"
-
-
-import type { Category } from "@/lib/types"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 
-interface CategoryWithCount extends Category {
+interface CategoryWithCount {
+  id: number
+  name: string
   recipeCount: number
 }
 
@@ -41,7 +38,6 @@ export function RecipeSearch({
     }
   }, [searchTerm])
 
-
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
     const newCategories = checked
       ? [...selectedCategories, categoryId]
@@ -57,7 +53,6 @@ export function RecipeSearch({
   // Función para limpiar filtros (solo estado local)
   const clearFilters = () => {
     console.log("🧹 Limpiando filtros desde RecipeSearch...")
-
 
     // Limpiar input de búsqueda físicamente
     if (searchInputRef.current) {
@@ -95,9 +90,7 @@ export function RecipeSearch({
     window.clearRecipeFilters = clearFilters
   }
 
-
   const hasActiveFilters = searchTerm || selectedCategories.length > 0
-
 
   return (
     <div key={key} className="space-y-4">
@@ -114,14 +107,10 @@ export function RecipeSearch({
             data-testid="search-input"
           />
         </div>
-
-
         <Button type="button" variant="outline" onClick={() => window.location.reload()} title="Recargar página">
-
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
-
       <div>
         <h3 className="text-sm font-medium mb-2">Filtrar por categoría:</h3>
         <div className="flex flex-wrap gap-4">
@@ -134,12 +123,12 @@ export function RecipeSearch({
                   onCheckedChange={(checked) => handleCategoryChange(category.id, checked as boolean)}
                   data-testid={`category-checkbox-${category.id}`}
                 />
-                <Label htmlFor={`category-${category.id}`} className="cursor-pointer flex items-center">
+                <span className="cursor-pointer flex items-center">
                   {category.name}
                   <Badge variant="outline" className="ml-2 text-xs">
                     {category.recipeCount}
                   </Badge>
-                </Label>
+                </span>
               </div>
             ))
           ) : (
@@ -147,7 +136,6 @@ export function RecipeSearch({
           )}
         </div>
       </div>
-
       {/* Mostrar filtros activos */}
       {hasActiveFilters && (
         <div className="flex flex-wrap gap-2 items-center" data-testid="active-filters">
