@@ -21,6 +21,3 @@ export function createClient() {
     },
   })
 }
-
-// Export for backward compatibility
-export const createSupabaseClient = createClient
