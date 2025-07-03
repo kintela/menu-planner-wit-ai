@@ -90,12 +90,9 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
             <h1 className="text-3xl font-bold text-gray-900">Recetas</h1>
             <Button
               asChild
-              className="font-medium px-6 py-2 rounded-md shadow-sm"
-              style={{ backgroundColor: "#2563eb !important", color: "white !important", border: "none" }}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-lg shadow-sm border-0"
             >
-              <Link href="/recipes/add" style={{ backgroundColor: "#2563eb", color: "white", textDecoration: "none" }}>
-                Añadir Receta
-              </Link>
+              <Link href="/recipes/add">Añadir Receta</Link>
             </Button>
           </div>
 
@@ -106,15 +103,9 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
                 <p className="text-gray-600 mb-6">Comienza añadiendo tu primera receta para ver el contenido aquí.</p>
                 <Button
                   asChild
-                  className="font-medium px-6 py-2 rounded-md shadow-sm"
-                  style={{ backgroundColor: "#2563eb !important", color: "white !important", border: "none" }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-lg shadow-sm border-0"
                 >
-                  <Link
-                    href="/recipes/add"
-                    style={{ backgroundColor: "#2563eb", color: "white", textDecoration: "none" }}
-                  >
-                    Añadir Primera Receta
-                  </Link>
+                  <Link href="/recipes/add">Añadir Primera Receta</Link>
                 </Button>
               </div>
             </CardContent>
@@ -138,12 +129,9 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
           </div>
           <Button
             asChild
-            className="font-medium px-6 py-2 rounded-md shadow-sm"
-            style={{ backgroundColor: "#2563eb !important", color: "white !important", border: "none" }}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-lg shadow-sm border-0"
           >
-            <Link href="/recipes/add" style={{ backgroundColor: "#2563eb", color: "white", textDecoration: "none" }}>
-              Añadir Receta
-            </Link>
+            <Link href="/recipes/add">Añadir Receta</Link>
           </Button>
         </div>
 
@@ -222,15 +210,9 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
                   )}
                   <Button
                     asChild
-                    className="font-medium px-6 py-2 rounded-md shadow-sm"
-                    style={{ backgroundColor: "#2563eb !important", color: "white !important", border: "none" }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-lg shadow-sm border-0"
                   >
-                    <Link
-                      href="/recipes/add"
-                      style={{ backgroundColor: "#2563eb", color: "white", textDecoration: "none" }}
-                    >
-                      Añadir Receta
-                    </Link>
+                    <Link href="/recipes/add">Añadir Receta</Link>
                   </Button>
                 </div>
               </div>
