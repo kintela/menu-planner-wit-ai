@@ -3,68 +3,78 @@
 import type React from "react"
 
 import { useState } from "react"
+import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 
 export function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
   const router = useRouter()
-  const supabase = createClient()
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setError(null)
-    setMessage(null)
+    setError("")
+    setSuccess("")
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
       if (error) {
         setError(error.message)
-      } else {
-        setMessage("¡Inicio de sesión exitoso! Redirigiendo...")
-        // Forzar redirección inmediata
-        window.location.href = "/"
+        return
+      }
+
+      if (data.user) {
+        setSuccess("¡Inicio de sesión exitoso! Redirigiendo...")
+        // Force a complete page redirect
+        setTimeout(() => {
+          window.location.href = "/"
+        }, 1000)
       }
     } catch (err) {
-      setError("Error inesperado al iniciar sesión")
+      setError("Error inesperado. Por favor, inténtalo de nuevo.")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleSignUp = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setError(null)
-    setMessage(null)
+    setError("")
+    setSuccess("")
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
       })
 
       if (error) {
         setError(error.message)
-      } else {
-        setMessage("¡Registro exitoso! Revisa tu email para confirmar tu cuenta.")
+        return
+      }
+
+      if (data.user) {
+        setSuccess("¡Cuenta creada exitosamente! Revisa tu email para confirmar tu cuenta.")
       }
     } catch (err) {
-      setError("Error inesperado al registrarse")
+      setError("Error inesperado. Por favor, inténtalo de nuevo.")
     } finally {
       setLoading(false)
     }
@@ -73,12 +83,12 @@ export function LoginForm() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center">MenuPlanner</CardTitle>
-          <CardDescription className="text-center">Inicia sesión o crea una cuenta para continuar</CardDescription>
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl font-bold">MenuPlanner</CardTitle>
+          <CardDescription>Inicia sesión o crea una cuenta para continuar</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <Label htmlFor="email">Email</Label>
               <Input
@@ -86,8 +96,9 @@ export function LoginForm() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="tu@email.com"
                 required
+                disabled={loading}
+                className="mt-1"
               />
             </div>
             <div>
@@ -97,8 +108,9 @@ export function LoginForm() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
                 required
+                disabled={loading}
+                className="mt-1"
               />
             </div>
 
@@ -108,21 +120,33 @@ export function LoginForm() {
               </Alert>
             )}
 
-            {message && (
+            {success && (
               <Alert>
-                <AlertDescription>{message}</AlertDescription>
+                <AlertDescription>{success}</AlertDescription>
               </Alert>
             )}
 
             <div className="space-y-2">
-              <Button onClick={handleSignIn} disabled={loading} className="w-full">
+              <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Cargando..." : "Iniciar Sesión"}
               </Button>
-              <Button onClick={handleSignUp} disabled={loading} variant="outline" className="w-full bg-transparent">
-                {loading ? "Cargando..." : "Crear Cuenta"}
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full bg-transparent"
+                onClick={handleRegister}
+                disabled={loading}
+              >
+                Crear Cuenta
               </Button>
             </div>
           </form>
+
+          <div className="mt-4 text-center">
+            <Link href="/auth/reset-password" className="text-sm text-blue-600 hover:text-blue-500">
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -88,11 +88,12 @@ export function RecipesPageClient({
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Recetas</h1>
-            <Link href="/recipes/add">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-md shadow-sm">
-                Añadir Receta
-              </Button>
-            </Link>
+            <Button
+              asChild
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-md shadow-sm"
+            >
+              <Link href="/recipes/add">Añadir Receta</Link>
+            </Button>
           </div>
 
           <Card className="text-center py-12">
@@ -100,11 +101,12 @@ export function RecipesPageClient({
               <div className="max-w-md mx-auto">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No hay recetas disponibles</h3>
                 <p className="text-gray-600 mb-6">Comienza añadiendo tu primera receta para ver el contenido aquí.</p>
-                <Link href="/recipes/add">
-                  <Button className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-md shadow-sm">
-                    Añadir Primera Receta
-                  </Button>
-                </Link>
+                <Button
+                  asChild
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-md shadow-sm"
+                >
+                  <Link href="/recipes/add">Añadir Primera Receta</Link>
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -125,11 +127,12 @@ export function RecipesPageClient({
               {filteredRecipes.length} de {initialRecipes.length} recetas
             </p>
           </div>
-          <Link href="/recipes/add">
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-md shadow-sm">
-              Añadir Receta
-            </Button>
-          </Link>
+          <Button
+            asChild
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-md shadow-sm"
+          >
+            <Link href="/recipes/add">Añadir Receta</Link>
+          </Button>
         </div>
 
         {/* Search and Filters */}
@@ -205,11 +208,12 @@ export function RecipesPageClient({
                       Limpiar filtros
                     </Button>
                   )}
-                  <Link href="/recipes/add">
-                    <Button className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-md shadow-sm">
-                      Añadir Receta
-                    </Button>
-                  </Link>
+                  <Button
+                    asChild
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2 rounded-md shadow-sm"
+                  >
+                    <Link href="/recipes/add">Añadir Receta</Link>
+                  </Button>
                 </div>
               </div>
             </CardContent>

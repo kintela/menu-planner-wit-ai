@@ -87,5 +87,9 @@ async function getRecipes() {
 export default async function RecipesPage() {
   const { recipes, categories, userProfiles } = await getRecipes()
 
-  return <RecipesPageClient initialRecipes={recipes} initialCategories={categories} userProfiles={userProfiles} />
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <RecipesPageClient initialRecipes={recipes} initialCategories={categories} userProfiles={userProfiles} />
+    </div>
+  )
 }
