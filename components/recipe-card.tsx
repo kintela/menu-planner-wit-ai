@@ -1,10 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Camera, Eye, X, ArrowRight, ExternalLink } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { ChefHat, Flame, User, Video, Eye, X, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 
@@ -44,118 +44,143 @@ interface RecipeCardProps {
 export function RecipeCard({ recipe }: RecipeCardProps) {
   const [showVideoModal, setShowVideoModal] = useState(false)
   const [showSourceModal, setShowSourceModal] = useState(false)
+  const [imageError, setImageError] = useState(false)
 
-  const getDisplayName = () => {
-    if (!recipe.user_profiles) return "Usuario desconocido"
+  const getYouTubeEmbedUrl = (url: string) => {
+    if (url.includes("youtube.com/watch?v=")) {
+      const videoId = url.split("v=")[1]?.split("&")[0]
+      return `https://www.youtube.com/embed/${videoId}`
+    }
+    if (url.includes("youtu.be/")) {
+      const videoId = url.split("youtu.be/")[1]?.split("?")[0]
+      return `https://www.youtube.com/embed/${videoId}`
+    }
+    return url
+  }
+
+  const getCreatorName = () => {
+    if (!recipe.user_profiles) return "Usuario anónimo"
 
     const profile = recipe.user_profiles
-    if (profile.alias) return profile.alias
-    if (profile.full_name) return profile.full_name
-    if (profile.first_name && profile.last_name) {
-      return `${profile.first_name} ${profile.last_name}`
-    }
-    if (profile.first_name) return profile.first_name
-    if (profile.email) return profile.email.split("@")[0]
-    return "Usuario"
+    return (
+      profile.alias ||
+      profile.full_name ||
+      (profile.first_name && profile.last_name ? `${profile.first_name} ${profile.last_name}` : profile.first_name) ||
+      profile.email ||
+      "Usuario anónimo"
+    )
   }
-
-  const getVideoId = (url: string) => {
-    const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/)
-    return match ? match[1] : null
-  }
-
-  const categories = recipe.recipe_categories?.map((rc) => rc.categories.name) || []
-  const displayName = getDisplayName()
 
   return (
     <>
-      <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-200">
-        <div className="relative">
-          {recipe.image_url ? (
+      <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-200 h-full flex flex-col">
+        <div className="relative aspect-video">
+          {recipe.image_url && !imageError ? (
             <Image
               src={recipe.image_url || "/placeholder.svg"}
               alt={recipe.name}
-              width={400}
-              height={200}
-              className="w-full h-48 object-cover"
+              fill
+              className="object-cover"
+              onError={() => setImageError(true)}
             />
           ) : (
-            <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
-              <div className="text-gray-400 text-4xl">🍽️</div>
+            <div className="w-full h-full flex items-center justify-center bg-gray-200">
+              <ChefHat className="h-12 w-12 text-gray-400" />
             </div>
           )}
 
-          {/* Video button - top left */}
+          {/* Video button - left corner with camera icon */}
           {recipe.video_url && (
             <Button
               size="sm"
               variant="secondary"
-              className="absolute top-2 left-2 p-2 bg-black/70 hover:bg-black/80 text-white"
+              className="absolute top-2 left-2 h-8 w-8 p-0 bg-black/70 text-white hover:bg-black/80"
               onClick={() => setShowVideoModal(true)}
             >
-              <Camera className="h-4 w-4" />
+              <Video className="h-4 w-4" />
             </Button>
           )}
 
-          {/* Source URL button - top right */}
+          {/* Source link button - right corner with eye icon */}
           {recipe.source_url && (
             <Button
               size="sm"
               variant="secondary"
-              className="absolute top-2 right-2 p-2 bg-black/70 hover:bg-black/80 text-white"
+              className="absolute top-2 right-2 h-8 w-8 p-0 bg-black/70 text-white hover:bg-black/80"
               onClick={() => setShowSourceModal(true)}
             >
               <Eye className="h-4 w-4" />
             </Button>
           )}
+
+          {recipe.is_ai_generated && <Badge className="absolute top-12 right-2 bg-purple-600 text-white">🤖 IA</Badge>}
+
+          {/* Creator info overlay */}
+          {recipe.user_profiles && (
+            <div className="absolute bottom-2 right-2 flex items-center gap-1 text-xs bg-black/60 text-white backdrop-blur-sm rounded px-2 py-1">
+              {recipe.user_profiles.avatar_url ? (
+                <Image
+                  src={recipe.user_profiles.avatar_url || "/placeholder.svg"}
+                  alt="Avatar"
+                  width={12}
+                  height={12}
+                  className="h-3 w-3 rounded-full object-cover"
+                />
+              ) : (
+                <User className="h-3 w-3" />
+              )}
+              <span>{getCreatorName()}</span>
+            </div>
+          )}
         </div>
 
-        <CardContent className="p-4 flex flex-col h-full">
-          <div className="flex-1">
-            <Link href={`/recipes/${recipe.id}`} className="block">
-              <h3 className="font-semibold text-lg mb-2 hover:text-blue-600 transition-colors line-clamp-2">
-                {recipe.name}
-              </h3>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg line-clamp-2">
+            <Link href={`/recipes/${recipe.id}`} className="hover:text-blue-600 transition-colors">
+              {recipe.name}
             </Link>
+          </CardTitle>
 
-            <div className="space-y-2 mb-3">
-              <p className="text-sm text-gray-600">
-                <span className="font-medium">Por:</span> {displayName}
-              </p>
-
-              {categories.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {categories.slice(0, 2).map((category, index) => (
-                    <Badge key={index} variant="secondary" className="text-xs">
-                      {category}
-                    </Badge>
-                  ))}
-                  {categories.length > 2 && (
-                    <Badge variant="secondary" className="text-xs">
-                      +{categories.length - 2}
-                    </Badge>
-                  )}
-                </div>
-              )}
-
-              <p className="text-sm text-gray-600 line-clamp-2">
-                <span className="font-medium">Ingredientes:</span> {recipe.ingredients}
-              </p>
-
-              {recipe.calories && (
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium">Calorías:</span> {recipe.calories} cal
-                </p>
+          {/* Categories */}
+          {recipe.recipe_categories && recipe.recipe_categories.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {recipe.recipe_categories.slice(0, 3).map((rc, index) => (
+                <Badge key={index} variant="outline" className="text-xs">
+                  {rc.categories.name}
+                </Badge>
+              ))}
+              {recipe.recipe_categories.length > 3 && (
+                <Badge variant="outline" className="text-xs">
+                  +{recipe.recipe_categories.length - 3}
+                </Badge>
               )}
             </div>
+          )}
+        </CardHeader>
+
+        <CardContent className="flex-1 pt-0 flex flex-col">
+          <p className="text-gray-600 text-sm line-clamp-3 mb-3">
+            {recipe.ingredients.length > 150 ? `${recipe.ingredients.substring(0, 150)}...` : recipe.ingredients}
+          </p>
+
+          <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
+            {recipe.calories && (
+              <div className="flex items-center gap-1">
+                <Flame className="h-4 w-4 text-orange-500" />
+                <span>{recipe.calories} cal</span>
+              </div>
+            )}
           </div>
 
-          <Link href={`/recipes/${recipe.id}`} className="mt-auto">
-            <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium">
-              Ver receta completa
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </Link>
+          {/* Recipe detail button */}
+          <div className="mt-auto">
+            <Link href={`/recipes/${recipe.id}`}>
+              <Button size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0">
+                Ver receta completa
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </Link>
+          </div>
         </CardContent>
       </Card>
 
@@ -163,37 +188,32 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
       {showVideoModal && recipe.video_url && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h3 className="text-lg font-semibold">Video: {recipe.name}</h3>
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="font-semibold text-lg">{recipe.name}</h3>
               <Button variant="ghost" size="sm" onClick={() => setShowVideoModal(false)}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
             <div className="aspect-video">
-              {recipe.video_url.includes("youtube.com") || recipe.video_url.includes("youtu.be") ? (
-                <iframe
-                  src={`https://www.youtube.com/embed/${getVideoId(recipe.video_url)}`}
-                  className="w-full h-full"
-                  allowFullScreen
-                  title={recipe.name}
-                />
-              ) : (
-                <video src={recipe.video_url} controls className="w-full h-full" title={recipe.name} />
-              )}
+              <iframe
+                src={getYouTubeEmbedUrl(recipe.video_url)}
+                title={recipe.name}
+                className="w-full h-full"
+                allowFullScreen
+              />
             </div>
           </div>
         </div>
       )}
 
-      {/* Source Modal */}
+      {/* Source URL Modal */}
       {showSourceModal && recipe.source_url && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h3 className="text-lg font-semibold">Fuente: {recipe.name}</h3>
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="font-semibold text-lg">Fuente: {recipe.name}</h3>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={() => window.open(recipe.source_url, "_blank")}>
-                  <ExternalLink className="h-4 w-4 mr-2" />
                   Abrir en nueva pestaña
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowSourceModal(false)}>
@@ -201,16 +221,24 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
                 </Button>
               </div>
             </div>
-            <div className="relative h-[calc(90vh-80px)]">
-              <iframe src={recipe.source_url} className="w-full h-full border-0" title={`Fuente de ${recipe.name}`} />
-              <div className="absolute inset-0 bg-gray-100 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
-                <div className="bg-white p-4 rounded-lg shadow-lg text-center">
+            <div className="h-[70vh] relative">
+              <iframe
+                src={recipe.source_url}
+                title={`Fuente de ${recipe.name}`}
+                className="w-full h-full"
+                allowFullScreen
+                onError={() => {
+                  // Handle iframe error
+                }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-50 opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+                <div className="text-center p-4 bg-white rounded-lg shadow-lg pointer-events-auto">
                   <p className="text-sm text-gray-600 mb-2">
                     Si no se carga el contenido, algunos sitios web bloquean la visualización en marcos.
                   </p>
-                  <p className="text-xs text-gray-500">
-                    Usa el botón "Abrir en nueva pestaña" para ver el contenido completo.
-                  </p>
+                  <Button variant="default" size="sm" onClick={() => window.open(recipe.source_url, "_blank")}>
+                    Ver en nueva pestaña
+                  </Button>
                 </div>
               </div>
             </div>
