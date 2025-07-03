@@ -4,7 +4,7 @@ import { useState, useMemo } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Search, Plus, Filter, X } from "lucide-react"
+import { Search, Filter, X } from "lucide-react"
 import Link from "next/link"
 import { RecipeCard } from "@/components/recipe-card"
 import { SimpleNavigation } from "@/components/simple-navigation"
@@ -88,11 +88,8 @@ export function RecipesPageClient({
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Recetas</h1>
-            <Button asChild>
-              <Link href="/recipes/add">
-                <Plus className="h-4 w-4 mr-2" />
-                Añadir Receta
-              </Link>
+            <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Link href="/recipes/add">Añadir Receta</Link>
             </Button>
           </div>
 
@@ -101,11 +98,8 @@ export function RecipesPageClient({
               <div className="max-w-md mx-auto">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No hay recetas disponibles</h3>
                 <p className="text-gray-600 mb-6">Comienza añadiendo tu primera receta para ver el contenido aquí.</p>
-                <Button asChild>
-                  <Link href="/recipes/add">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Añadir Primera Receta
-                  </Link>
+                <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <Link href="/recipes/add">Añadir Primera Receta</Link>
                 </Button>
               </div>
             </CardContent>
@@ -127,11 +121,8 @@ export function RecipesPageClient({
               {filteredRecipes.length} de {initialRecipes.length} recetas
             </p>
           </div>
-          <Button asChild>
-            <Link href="/recipes/add">
-              <Plus className="h-4 w-4 mr-2" />
-              Añadir Receta
-            </Link>
+          <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Link href="/recipes/add">Añadir Receta</Link>
           </Button>
         </div>
 
@@ -208,11 +199,8 @@ export function RecipesPageClient({
                       Limpiar filtros
                     </Button>
                   )}
-                  <Button asChild>
-                    <Link href="/recipes/add">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Añadir Receta
-                    </Link>
+                  <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
+                    <Link href="/recipes/add">Añadir Receta</Link>
                   </Button>
                 </div>
               </div>
