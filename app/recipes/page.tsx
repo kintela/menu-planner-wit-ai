@@ -6,13 +6,12 @@ async function getRecipes() {
     console.log("Fetching recipes...")
     const supabase = createClient()
 
-    // Get recipes with basic info
+    // Get recipes with basic info (removed non-existent description column)
     const { data: recipes, error: recipesError } = await supabase
       .from("recipes")
       .select(`
         id,
         name,
-        description,
         ingredients,
         preparation,
         prep_time,

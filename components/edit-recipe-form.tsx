@@ -3,274 +3,249 @@
 import type React from "react"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2, Plus, ArrowLeft } from "lucide-react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { Recipe, Category } from "@/lib/types"
 
 interface EditRecipeFormProps {
   recipe: Recipe
   categories: Category[]
-  selectedCategoryIds: number[]
 }
 
-export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: EditRecipeFormProps) {
+export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
   const router = useRouter()
-  const { user, loading: authLoading } = useAuth()
-
-  // Form states
-  const [name, setName] = useState(recipe.name || "")
-  const [ingredients, setIngredients] = useState(recipe.ingredients || "")
-  const [preparation, setPreparation] = useState(recipe.preparation || "")
-  const [imageUrl, setImageUrl] = useState(recipe.image_url || "")
-  const [calories, setCalories] = useState(recipe.calories?.toString() || "")
-  const [sourceUrl, setSourceUrl] = useState(recipe.source_url || "")
-  const [videoUrl, setVideoUrl] = useState(recipe.video_url || "")
-  const [selectedCategories, setSelectedCategories] = useState<number[]>(selectedCategoryIds)
-
-  // Component states
+  const { toast } = useToast()
+  const { user } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
-  const handleCategoryChange = (categoryId: number, checked: boolean) => {
-    setSelectedCategories((prev) => (checked ? [...prev, categoryId] : prev.filter((id) => id !== categoryId)))
-  }
+  const [formData, setFormData] = useState({
+    name: recipe.name || "",
+    ingredients: recipe.ingredients || "",
+    preparation: recipe.preparation || "",
+    prep_time: recipe.prep_time || 0,
+    cook_time: recipe.cook_time || 0,
+    servings: recipe.servings || 1,
+    difficulty: recipe.difficulty || "easy",
+    image_url: recipe.image_url || "",
+    source_url: recipe.source_url || "",
+    video_url: recipe.video_url || "",
+    calories: recipe.calories || 0,
+    category_ids: recipe.recipe_categories?.map((rc: any) => rc.categories?.id).filter(Boolean) || [],
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    console.log("Form submitted - starting handleSubmit")
-
-    if (!user) {
-      console.log("No user found, redirecting to login")
-      router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
+    if (!user?.id) {
+      toast({
+        title: "Error",
+        description: "Debes estar autenticado para editar recetas",
+        variant: "destructive",
+      })
       return
     }
 
+    console.log("Form submitted - starting handleSubmit")
+    console.log("Preparing update data...")
+
     setIsSubmitting(true)
-    setError(null)
 
     try {
-      console.log("Preparing update data...")
-      const updateData = {
-        name: name.trim(),
-        ingredients: ingredients.trim(),
-        preparation: preparation.trim(),
-        image_url: imageUrl.trim() || null,
-        calories: calories ? Number.parseInt(calories) : null,
-        source_url: sourceUrl.trim() || null,
-        video_url: videoUrl.trim() || null,
-        categories: selectedCategories,
-      }
-
       console.log("Making API request to update recipe...")
       console.log("User ID:", user.id)
       console.log("Recipe ID:", recipe.id)
 
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => {
-        console.log("Request timeout - aborting")
-        controller.abort()
-      }, 5000) // 5 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
 
-      try {
-        const response = await fetch(`/api/recipes/${recipe.id}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "X-User-ID": user.id,
-          },
-          body: JSON.stringify(updateData),
-          signal: controller.signal,
-        })
+      const response = await fetch(`/api/recipes/${recipe.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": user.id,
+        },
+        body: JSON.stringify(formData),
+        signal: controller.signal,
+      })
 
-        clearTimeout(timeoutId)
+      clearTimeout(timeoutId)
 
-        console.log("API response received, status:", response.status)
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.log("API error:", errorData)
-          throw new Error(errorData.error || "Error al actualizar la receta")
-        }
-
-        const result = await response.json()
-        console.log("Recipe updated successfully:", result)
-        console.log("Redirecting to recipe page...")
-        router.push(`/recipes/${recipe.id}`)
-      } catch (fetchError) {
-        clearTimeout(timeoutId)
-        throw fetchError
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Error updating recipe")
       }
-    } catch (err) {
-      console.error("Error updating recipe:", err)
-      if (err instanceof Error && err.name === "AbortError") {
-        setError("La petición tardó demasiado tiempo. Inténtalo de nuevo.")
+
+      const updatedRecipe = await response.json()
+      console.log("✅ Recipe updated successfully:", updatedRecipe)
+
+      toast({
+        title: "Éxito",
+        description: "Receta actualizada correctamente",
+      })
+
+      router.push(`/recipes/${recipe.id}`)
+      router.refresh()
+    } catch (error: any) {
+      console.error("❌ Error updating recipe:", error)
+
+      if (error.name === "AbortError") {
+        toast({
+          title: "Error",
+          description: "La petición tardó demasiado tiempo. Inténtalo de nuevo.",
+          variant: "destructive",
+        })
       } else {
-        setError(err instanceof Error ? err.message : "Error al actualizar la receta")
+        toast({
+          title: "Error",
+          description: error.message || "Error al actualizar la receta",
+          variant: "destructive",
+        })
       }
     } finally {
-      console.log("Setting isSubmitting to false")
       setIsSubmitting(false)
     }
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/recipes/${recipe.id}`} className="flex items-center gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                Volver
-              </Link>
-            </Button>
-            <CardTitle>Editar Receta</CardTitle>
-            <div className="w-20"></div>
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>Editar Receta</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="name">Nombre *</Label>
+            <Input
+              id="name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              required
+            />
           </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-700 text-sm">{error}</p>
-              </div>
-            )}
 
-            <div className="space-y-2">
-              <Label htmlFor="name">Nombre de la receta *</Label>
+          <div>
+            <Label htmlFor="ingredients">Ingredientes</Label>
+            <Textarea
+              id="ingredients"
+              value={formData.ingredients}
+              onChange={(e) => setFormData({ ...formData, ingredients: e.target.value })}
+              rows={6}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="preparation">Preparación</Label>
+            <Textarea
+              id="preparation"
+              value={formData.preparation}
+              onChange={(e) => setFormData({ ...formData, preparation: e.target.value })}
+              rows={8}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="prep_time">Tiempo de preparación (min)</Label>
               <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ej: Paella valenciana"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="ingredients">Ingredientes</Label>
-              <Textarea
-                id="ingredients"
-                value={ingredients}
-                onChange={(e) => setIngredients(e.target.value)}
-                placeholder="Lista los ingredientes necesarios..."
-                className="min-h-[100px]"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="preparation">Preparación</Label>
-              <Textarea
-                id="preparation"
-                value={preparation}
-                onChange={(e) => setPreparation(e.target.value)}
-                placeholder="Describe los pasos para preparar la receta..."
-                className="min-h-[150px]"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="calories">Calorías (opcional)</Label>
-              <Input
-                id="calories"
+                id="prep_time"
                 type="number"
-                value={calories}
-                onChange={(e) => setCalories(e.target.value)}
-                placeholder="Ej: 350"
-                min="0"
+                value={formData.prep_time}
+                onChange={(e) => setFormData({ ...formData, prep_time: Number.parseInt(e.target.value) || 0 })}
               />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="image_url">URL de imagen (opcional)</Label>
+            <div>
+              <Label htmlFor="cook_time">Tiempo de cocción (min)</Label>
               <Input
-                id="image_url"
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://ejemplo.com/imagen.jpg"
+                id="cook_time"
+                type="number"
+                value={formData.cook_time}
+                onChange={(e) => setFormData({ ...formData, cook_time: Number.parseInt(e.target.value) || 0 })}
               />
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="source_url">URL de origen (opcional)</Label>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="servings">Porciones</Label>
               <Input
-                id="source_url"
-                type="url"
-                value={sourceUrl}
-                onChange={(e) => setSourceUrl(e.target.value)}
-                placeholder="https://www.ejemplo.com/receta-original"
+                id="servings"
+                type="number"
+                value={formData.servings}
+                onChange={(e) => setFormData({ ...formData, servings: Number.parseInt(e.target.value) || 1 })}
               />
-              <p className="text-sm text-gray-500">Añade un enlace a la página web de donde has obtenido esta receta</p>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="video_url">URL del video (opcional)</Label>
-              <Input
-                id="video_url"
-                type="url"
-                value={videoUrl}
-                onChange={(e) => setVideoUrl(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=..."
-              />
-              <p className="text-sm text-gray-500">
-                Añade un enlace a un video que muestre cómo preparar esta receta (YouTube, Vimeo, etc.)
-              </p>
+            <div>
+              <Label htmlFor="difficulty">Dificultad</Label>
+              <Select
+                value={formData.difficulty}
+                onValueChange={(value) => setFormData({ ...formData, difficulty: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="easy">Fácil</SelectItem>
+                  <SelectItem value="medium">Medio</SelectItem>
+                  <SelectItem value="hard">Difícil</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+          </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label>Categorías</Label>
-                <Button type="button" variant="outline" size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nueva categoría
-                </Button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {categories.map((category) => (
-                  <div key={category.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`category-${category.id}`}
-                      checked={selectedCategories.includes(category.id)}
-                      onCheckedChange={(checked) => handleCategoryChange(category.id, checked as boolean)}
-                    />
-                    <Label htmlFor={`category-${category.id}`} className="text-sm">
-                      {category.name}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div>
+            <Label htmlFor="calories">Calorías</Label>
+            <Input
+              id="calories"
+              type="number"
+              value={formData.calories}
+              onChange={(e) => setFormData({ ...formData, calories: Number.parseInt(e.target.value) || 0 })}
+            />
+          </div>
 
-            <p className="text-sm text-gray-500">* Los campos marcados con asterisco son obligatorios</p>
+          <div>
+            <Label htmlFor="image_url">URL de imagen</Label>
+            <Input
+              id="image_url"
+              value={formData.image_url}
+              onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+            />
+          </div>
 
-            <div className="flex gap-4">
-              <Button asChild variant="outline" className="flex-1 bg-transparent">
-                <Link href={`/recipes/${recipe.id}`}>Cancelar</Link>
-              </Button>
-              <Button type="submit" disabled={isSubmitting} className="flex-1">
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Guardando cambios...
-                  </>
-                ) : (
-                  "Guardar cambios"
-                )}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+          <div>
+            <Label htmlFor="source_url">URL de origen</Label>
+            <Input
+              id="source_url"
+              value={formData.source_url}
+              onChange={(e) => setFormData({ ...formData, source_url: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="video_url">URL de video</Label>
+            <Input
+              id="video_url"
+              value={formData.video_url}
+              onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+            />
+          </div>
+
+          <div className="flex gap-4">
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Guardando..." : "Guardar Cambios"}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => router.back()}>
+              Cancelar
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }
