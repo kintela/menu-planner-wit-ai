@@ -21,20 +21,26 @@ export default function AddRecipePage() {
       try {
         setCategoriesLoading(true)
         setCategoriesError(null)
+
+        // Add timeout to prevent infinite loading
+        const timeoutId = setTimeout(() => {
+          setCategoriesError("Tiempo de espera agotado al cargar categorías")
+          setCategoriesLoading(false)
+        }, 10000) // 10 seconds timeout
+
         const supabase = createClient()
 
         console.log("Intentando cargar categorías...")
         const { data, error } = await supabase.from("categories").select("*").order("name")
+
+        clearTimeout(timeoutId) // Clear timeout if request completes
 
         if (error) {
           console.error("Error loading categories:", error)
           setCategoriesError(`Error al cargar categorías: ${error.message}`)
         } else {
           setCategories(data || [])
-
-          if (!data || data.length === 0) {
-            setCategoriesError("No hay categorías disponibles.")
-          }
+          console.log("Categorías cargadas:", data?.length || 0)
         }
       } catch (error) {
         console.error("Error loading categories:", error)
