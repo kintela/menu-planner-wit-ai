@@ -48,6 +48,12 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
     console.log("Form submitted - starting handleSubmit")
 
+    if (!session?.access_token) {
+      console.log("No session or access token, redirecting to login")
+      router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
+      return
+    }
+
     setIsSubmitting(true)
     setError(null)
 
@@ -69,6 +75,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify(updateData),
       })

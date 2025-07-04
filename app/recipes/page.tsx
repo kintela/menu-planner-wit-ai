@@ -1,38 +1,47 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/supabase/server"
 import { RecipesPageClient } from "@/components/recipes-page-client"
+import type { Recipe, Category } from "@/lib/types"
 
-async function getRecipes() {
-  const supabase = createClient()
+async function getRecipes(): Promise<Recipe[]> {
+  const supabase = createServerClient()
 
   try {
-    // Primero obtener las recetas básicas
-    const { data: recipes, error } = await supabase.from("recipes").select("*").order("name", { ascending: true })
+    console.log("Fetching recipes...")
 
-    if (error) {
-      console.error("Error fetching recipes:", error)
+    // Primero obtener las recetas básicas
+    const { data: recipes, error: recipesError } = await supabase
+      .from("recipes")
+      .select("*")
+      .order("created_at", { ascending: false })
+
+    if (recipesError) {
+      console.error("Error fetching recipes:", recipesError)
       return []
     }
 
     if (!recipes || recipes.length === 0) {
+      console.log("No recipes found")
       return []
     }
 
-    // Obtener los perfiles de usuario por separado
+    console.log(`Found ${recipes.length} recipes`)
+
+    // Obtener información de usuarios para las recetas
     const userIds = [...new Set(recipes.map((recipe) => recipe.user_id).filter(Boolean))]
-    let userProfiles = []
+    let userProfiles: any[] = []
 
     if (userIds.length > 0) {
       const { data: profiles } = await supabase
         .from("user_profiles")
-        .select("id, email, full_name, first_name, last_name, alias, avatar_url")
+        .select("id, email, full_name, alias, avatar_url")
         .in("id", userIds)
 
       userProfiles = profiles || []
     }
 
-    // Obtener las categorías de las recetas por separado
+    // Obtener categorías para las recetas
     const recipeIds = recipes.map((recipe) => recipe.id)
-    let recipeCategories = []
+    let recipeCategories: any[] = []
 
     if (recipeIds.length > 0) {
       const { data: categories } = await supabase
@@ -50,23 +59,30 @@ async function getRecipes() {
     }
 
     // Combinar los datos
-    const recipesWithData = recipes.map((recipe) => ({
-      ...recipe,
-      user_profiles: userProfiles.find((profile) => profile.id === recipe.user_id) || null,
-      recipe_categories: recipeCategories
+    const recipesWithDetails = recipes.map((recipe) => {
+      const userProfile = userProfiles.find((profile) => profile.id === recipe.user_id)
+      const categories = recipeCategories
         .filter((rc) => rc.recipe_id === recipe.id)
-        .map((rc) => ({ categories: rc.categories })),
-    }))
+        .map((rc) => rc.categories)
+        .filter(Boolean)
 
-    return recipesWithData
+      return {
+        ...recipe,
+        user_profiles: userProfile || null,
+        categories: categories,
+      }
+    })
+
+    console.log("Recipes with details prepared successfully")
+    return recipesWithDetails as Recipe[]
   } catch (error) {
-    console.error("Error fetching recipes:", error)
+    console.error("Error in getRecipes:", error)
     return []
   }
 }
 
-async function getCategories() {
-  const supabase = createClient()
+async function getCategories(): Promise<Category[]> {
+  const supabase = createServerClient()
 
   try {
     const { data: categories, error } = await supabase.from("categories").select("*").order("name")
@@ -78,7 +94,7 @@ async function getCategories() {
 
     return categories || []
   } catch (error) {
-    console.error("Error fetching categories:", error)
+    console.error("Error in getCategories:", error)
     return []
   }
 }
@@ -86,9 +102,5 @@ async function getCategories() {
 export default async function RecipesPage() {
   const [recipes, categories] = await Promise.all([getRecipes(), getCategories()])
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <RecipesPageClient initialRecipes={recipes} initialCategories={categories} />
-    </div>
-  )
+  return <RecipesPageClient initialRecipes={recipes} categories={categories} />
 }
