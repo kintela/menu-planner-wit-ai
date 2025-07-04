@@ -1,23 +1,15 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { PlusCircle } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
-import type { Category } from "@/lib/types"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Plus, X } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import type { Category } from "@/lib/types"
 
 interface CategorySelectorProps {
   categories: Category[]
@@ -25,27 +17,11 @@ interface CategorySelectorProps {
   onCategoriesChange: (categories: number[]) => void
 }
 
-export function CategorySelector({
-  categories: initialCategories,
-  selectedCategories,
-  onCategoriesChange,
-}: CategorySelectorProps) {
-  const { toast } = useToast()
-  const [categories, setCategories] = useState<Category[]>(initialCategories)
+export function CategorySelector({ categories, selectedCategories, onCategoriesChange }: CategorySelectorProps) {
+  const [showNewCategoryForm, setShowNewCategoryForm] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState("")
-  const [isAddingCategory, setIsAddingCategory] = useState(false)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-
-  // Efecto para actualizar las categorías cuando cambian las props
-  useEffect(() => {
-    setCategories(initialCategories)
-  }, [initialCategories])
-
-  // Efecto para depuración
-  useEffect(() => {
-    console.log("CategorySelector - Categories:", categories)
-    console.log("CategorySelector - Selected Categories:", selectedCategories)
-  }, [categories, selectedCategories])
+  const [isCreating, setIsCreating] = useState(false)
+  const { toast } = useToast()
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
     if (checked) {
@@ -55,39 +31,13 @@ export function CategorySelector({
     }
   }
 
-  const handleAddCategory = async () => {
-    if (!newCategoryName.trim()) {
-      toast({
-        title: "Nombre requerido",
-        description: "Por favor, introduce un nombre para la categoría.",
-        variant: "destructive",
-      })
-      return
-    }
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) return
 
-    setIsAddingCategory(true)
-
+    setIsCreating(true)
     try {
       const supabase = createClient()
-
-      // Normalizar el nombre para la comparación (sin espacios extra, en minúsculas)
-      const normalizedName = newCategoryName.trim().toLowerCase()
-
-      // Comprobar si la categoría ya existe (comparación insensible a mayúsculas/minúsculas)
-      const existingCategory = categories.find((category) => category.name.toLowerCase() === normalizedName)
-
-      if (existingCategory) {
-        toast({
-          title: "Categoría existente",
-          description: `Ya existe una categoría llamada "${existingCategory.name}".`,
-          variant: "destructive",
-        })
-        setIsAddingCategory(false)
-        return
-      }
-
-      // Insertar la nueva categoría con el nombre original (manteniendo mayúsculas/minúsculas)
-      const { data: newCategory, error } = await supabase
+      const { data, error } = await supabase
         .from("categories")
         .insert({ name: newCategoryName.trim() })
         .select()
@@ -95,89 +45,88 @@ export function CategorySelector({
 
       if (error) throw error
 
-      // Actualizar la lista de categorías
-      setCategories([...categories, newCategory])
-
-      // Seleccionar la nueva categoría
-      onCategoriesChange([...selectedCategories, newCategory.id])
-
       toast({
-        title: "Categoría añadida",
-        description: `La categoría "${newCategoryName.trim()}" ha sido añadida.`,
+        title: "Categoría creada",
+        description: `La categoría "${newCategoryName}" se ha creado correctamente.`,
       })
 
-      // Limpiar el formulario
+      // Reset form
       setNewCategoryName("")
-      setIsDialogOpen(false)
+      setShowNewCategoryForm(false)
+
+      // Refresh the page to show the new category
+      window.location.reload()
     } catch (error) {
-      console.error("Error adding category:", error)
+      console.error("Error creating category:", error)
       toast({
         title: "Error",
-        description: "Ha ocurrido un error al añadir la categoría.",
+        description: "No se pudo crear la categoría.",
         variant: "destructive",
       })
     } finally {
-      setIsAddingCategory(false)
+      setIsCreating(false)
     }
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <Label className="text-base">Categorías</Label>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm">
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Nueva categoría
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-base font-medium">Categorías</CardTitle>
+        <Button type="button" variant="outline" size="sm" onClick={() => setShowNewCategoryForm(!showNewCategoryForm)}>
+          <Plus className="h-4 w-4 mr-1" />
+          Nueva categoría
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {showNewCategoryForm && (
+          <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted/50">
+            <Input
+              placeholder="Nombre de la categoría"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault()
+                  handleCreateCategory()
+                }
+              }}
+            />
+            <Button type="button" size="sm" onClick={handleCreateCategory} disabled={isCreating}>
+              {isCreating ? "..." : "Crear"}
             </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Añadir nueva categoría</DialogTitle>
-              <DialogDescription>Crea una nueva categoría para clasificar tus recetas.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="category-name">Nombre de la categoría</Label>
-                <Input
-                  id="category-name"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder="Ej: Postres, Vegetariano, Sin gluten..."
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleAddCategory} disabled={isAddingCategory}>
-                {isAddingCategory ? "Añadiendo..." : "Añadir categoría"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-        {categories && categories.length > 0 ? (
-          categories.map((category) => (
-            <div key={category.id} className="flex items-center space-x-2">
-              <Checkbox
-                id={`category-${category.id}`}
-                checked={selectedCategories.includes(category.id)}
-                onCheckedChange={(checked) => handleCategoryChange(category.id, checked as boolean)}
-              />
-              <Label htmlFor={`category-${category.id}`} className="cursor-pointer">
-                {category.name}
-              </Label>
-            </div>
-          ))
-        ) : (
-          <p className="col-span-full text-muted-foreground">No hay categorías disponibles.</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowNewCategoryForm(false)
+                setNewCategoryName("")
+              }}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         )}
-      </div>
-    </div>
+
+        {categories.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No hay categorías disponibles.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {categories.map((category) => (
+              <div key={category.id} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`category-${category.id}`}
+                  checked={selectedCategories.includes(Number(category.id))}
+                  onCheckedChange={(checked) => handleCategoryChange(Number(category.id), checked as boolean)}
+                />
+                <Label htmlFor={`category-${category.id}`} className="text-sm font-normal cursor-pointer">
+                  {category.name}
+                </Label>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
