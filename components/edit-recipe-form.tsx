@@ -75,32 +75,40 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       console.log("Recipe ID:", recipe.id)
 
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      const timeoutId = setTimeout(() => {
+        console.log("Request timeout - aborting")
+        controller.abort()
+      }, 5000) // 5 second timeout
 
-      const response = await fetch(`/api/recipes/${recipe.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-ID": user.id,
-        },
-        body: JSON.stringify(updateData),
-        signal: controller.signal,
-      })
+      try {
+        const response = await fetch(`/api/recipes/${recipe.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "X-User-ID": user.id,
+          },
+          body: JSON.stringify(updateData),
+          signal: controller.signal,
+        })
 
-      clearTimeout(timeoutId)
+        clearTimeout(timeoutId)
 
-      console.log("API response received, status:", response.status)
+        console.log("API response received, status:", response.status)
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.log("API error:", errorData)
-        throw new Error(errorData.error || "Error al actualizar la receta")
+        if (!response.ok) {
+          const errorData = await response.json()
+          console.log("API error:", errorData)
+          throw new Error(errorData.error || "Error al actualizar la receta")
+        }
+
+        const result = await response.json()
+        console.log("Recipe updated successfully:", result)
+        console.log("Redirecting to recipe page...")
+        router.push(`/recipes/${recipe.id}`)
+      } catch (fetchError) {
+        clearTimeout(timeoutId)
+        throw fetchError
       }
-
-      const result = await response.json()
-      console.log("Recipe updated successfully:", result)
-      console.log("Redirecting to recipe page...")
-      router.push(`/recipes/${recipe.id}`)
     } catch (err) {
       console.error("Error updating recipe:", err)
       if (err instanceof Error && err.name === "AbortError") {
