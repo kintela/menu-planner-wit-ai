@@ -13,6 +13,7 @@ import { Loader2, Plus, ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/components/auth/auth-provider"
+import { useToast } from "@/hooks/use-toast"
 import type { Recipe, Category } from "@/lib/types"
 
 interface EditRecipeFormProps {
@@ -23,6 +24,7 @@ interface EditRecipeFormProps {
 
 export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: EditRecipeFormProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const { user, loading: authLoading } = useAuth()
 
   // Form states
@@ -73,12 +75,13 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       console.log("Making API request to update recipe...")
       console.log("User ID:", user.id)
       console.log("Recipe ID:", recipe.id)
+      console.log("Update data:", updateData)
 
       const controller = new AbortController()
       const timeoutId = setTimeout(() => {
         console.log("Request timeout - aborting")
         controller.abort()
-      }, 5000) // 5 second timeout
+      }, 10000) // 10 second timeout
 
       try {
         const response = await fetch(`/api/recipes/${recipe.id}`, {
@@ -103,8 +106,15 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
         const result = await response.json()
         console.log("Recipe updated successfully:", result)
+
+        toast({
+          title: "Éxito",
+          description: "Receta actualizada correctamente",
+        })
+
         console.log("Redirecting to recipe page...")
         router.push(`/recipes/${recipe.id}`)
+        router.refresh()
       } catch (fetchError) {
         clearTimeout(timeoutId)
         throw fetchError
@@ -116,6 +126,12 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       } else {
         setError(err instanceof Error ? err.message : "Error al actualizar la receta")
       }
+
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Error al actualizar la receta",
+        variant: "destructive",
+      })
     } finally {
       console.log("Setting isSubmitting to false")
       setIsSubmitting(false)
