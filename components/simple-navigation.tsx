@@ -10,32 +10,68 @@ import { getSupabaseClient } from "@/lib/supabase/client"
 
 export function SimpleNavigation() {
   const [user, setUser] = useState<any>(null)
+  const [userProfile, setUserProfile] = useState<any>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
-    const fetchUser = async () => {
+    const fetchUserAndProfile = async () => {
       try {
         const supabase = getSupabaseClient()
         const {
           data: { user },
         } = await supabase.auth.getUser()
+
         setUser(user)
+
+        if (user) {
+          // Fetch user profile
+          const { data: profile } = await supabase.from("user_profiles").select("*").eq("id", user.id).single()
+
+          setUserProfile(profile)
+
+          // Get avatar URL from storage if profile has avatar
+          if (profile?.avatar_url) {
+            const { data } = supabase.storage.from("avatars").getPublicUrl(profile.avatar_url)
+
+            setAvatarUrl(data.publicUrl)
+          }
+        }
       } catch (error) {
-        console.error("Error fetching user:", error)
+        console.error("Error fetching user and profile:", error)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchUser()
+    fetchUserAndProfile()
 
     // Listen for auth changes
     const supabase = getSupabaseClient()
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const currentUser = session?.user ?? null
+      setUser(currentUser)
+
+      if (currentUser) {
+        // Fetch profile for new user
+        const { data: profile } = await supabase.from("user_profiles").select("*").eq("id", currentUser.id).single()
+
+        setUserProfile(profile)
+
+        if (profile?.avatar_url) {
+          const { data } = supabase.storage.from("avatars").getPublicUrl(profile.avatar_url)
+
+          setAvatarUrl(data.publicUrl)
+        } else {
+          setAvatarUrl(null)
+        }
+      } else {
+        setUserProfile(null)
+        setAvatarUrl(null)
+      }
     })
 
     return () => subscription.unsubscribe()
@@ -46,13 +82,24 @@ export function SimpleNavigation() {
       const supabase = getSupabaseClient()
       await supabase.auth.signOut()
       setUser(null)
+      setUserProfile(null)
+      setAvatarUrl(null)
       router.push("/")
     } catch (error) {
       console.error("Error signing out:", error)
     }
   }
 
-  const getUserInitials = (email: string) => {
+  const getUserInitials = (email: string, name?: string) => {
+    if (name) {
+      const nameParts = name.trim().split(" ")
+      if (nameParts.length >= 2) {
+        return (nameParts[0][0] + nameParts[1][0]).toUpperCase()
+      } else {
+        return nameParts[0].slice(0, 2).toUpperCase()
+      }
+    }
+
     if (!email) return "U"
 
     // Try to get initials from email name part
@@ -104,12 +151,9 @@ export function SimpleNavigation() {
           ) : user ? (
             <div className="flex items-center space-x-3">
               <Avatar className="h-8 w-8">
-                <AvatarImage
-                  src={user.user_metadata?.avatar_url || user.user_metadata?.picture}
-                  alt={user.email || "Usuario"}
-                />
+                <AvatarImage src={avatarUrl || undefined} alt={userProfile?.full_name || user.email || "Usuario"} />
                 <AvatarFallback className="bg-blue-100 text-blue-700 text-sm font-medium">
-                  {getUserInitials(user.email || "")}
+                  {getUserInitials(user.email || "", userProfile?.full_name)}
                 </AvatarFallback>
               </Avatar>
               <Button
