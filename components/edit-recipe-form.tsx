@@ -123,54 +123,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    const updateData = {
-      name: name.trim(),
-      ingredients: ingredients.trim(),
-      preparation: preparation.trim(),
-      image_url: imageUrl.trim() || null,
-      calories: calories ? Number.parseInt(calories) : null,
-      source_url: sourceUrl.trim() || null,
-      video_url: videoUrl.trim() || null,
-      categories: selectedCategories,
-    }
-
-    if (!user && !session) {
-      // Try to get session directly if useAuth didn't provide it
-      try {
-        const supabase = getSupabaseClient()
-        const {
-          data: { session: directSession },
-        } = await supabase.auth.getSession()
-
-        if (!directSession?.user) {
-          console.log("No user or session in handleSubmit, redirecting to login")
-          router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
-          return
-        }
-
-        // Update the request to use the direct session
-        const response = await fetch(`/api/recipes/${recipe.id}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${directSession.access_token}`,
-          },
-          body: JSON.stringify(updateData),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || "Error al actualizar la receta")
-        }
-
-        router.push(`/recipes/${recipe.id}`)
-      } catch (err) {
-        console.error("Error getting session for submit:", err)
-        router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
-        return
-      }
-    }
-
     if (canEdit === false) {
       setError("No tienes permisos para editar esta receta")
       return
@@ -180,13 +132,43 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     setError(null)
 
     try {
-      console.log("Submitting update with session token:", session.access_token ? "Present" : "Missing")
+      const updateData = {
+        name: name.trim(),
+        ingredients: ingredients.trim(),
+        preparation: preparation.trim(),
+        image_url: imageUrl.trim() || null,
+        calories: calories ? Number.parseInt(calories) : null,
+        source_url: sourceUrl.trim() || null,
+        video_url: videoUrl.trim() || null,
+        categories: selectedCategories,
+      }
+
+      let sessionToken = session?.access_token
+
+      // If no session token from useAuth, try to get it directly
+      if (!sessionToken) {
+        console.log("No session token from useAuth, getting directly...")
+        const supabase = getSupabaseClient()
+        const {
+          data: { session: directSession },
+        } = await supabase.auth.getSession()
+
+        if (!directSession?.access_token) {
+          console.log("No session token found, redirecting to login")
+          router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
+          return
+        }
+
+        sessionToken = directSession.access_token
+      }
+
+      console.log("Submitting update with session token:", sessionToken ? "Present" : "Missing")
 
       const response = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${sessionToken}`,
         },
         body: JSON.stringify(updateData),
       })
