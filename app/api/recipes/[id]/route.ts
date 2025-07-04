@@ -51,6 +51,59 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Verificar autenticación
+    const authHeader = request.headers.get("authorization")
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "No autorizado - Token requerido" }, { status: 401 })
+    }
+
+    const token = authHeader.replace("Bearer ", "")
+
+    // Crear cliente con el token del usuario
+    const userSupabase = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+    const {
+      data: { user },
+      error: authError,
+    } = await userSupabase.auth.getUser(token)
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "No autorizado - Token inválido" }, { status: 401 })
+    }
+
+    // Obtener la receta para verificar permisos
+    const { data: recipe, error: fetchError } = await supabase
+      .from("recipes")
+      .select("user_id, name")
+      .eq("id", params.id)
+      .single()
+
+    if (fetchError) {
+      return NextResponse.json({ error: "Receta no encontrada" }, { status: 404 })
+    }
+
+    // Verificar si es el propietario
+    const isOwner = recipe.user_id === user.id
+
+    // Verificar si es admin
+    let isAdmin = false
+    try {
+      const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
+      isAdmin = profile?.role === "admin"
+    } catch (err) {
+      console.error("Error checking admin status:", err)
+    }
+
+    // Solo el propietario o admin pueden editar
+    if (!isOwner && !isAdmin) {
+      return NextResponse.json(
+        {
+          error: "Forbidden - Solo puedes editar tus propias recetas",
+        },
+        { status: 403 },
+      )
+    }
+
     const updates = await request.json()
 
     // Extraer categorías si están presentes
@@ -58,7 +111,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
     console.log("Updating recipe with data:", updateData)
 
-    const { data: recipe, error } = await supabase
+    const { data: updatedRecipe, error } = await supabase
       .from("recipes")
       .update(updateData)
       .eq("id", params.id)
@@ -90,8 +143,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       }
     }
 
-    console.log("Recipe updated successfully:", recipe)
-    return NextResponse.json(recipe)
+    console.log("Recipe updated successfully:", updatedRecipe)
+    return NextResponse.json(updatedRecipe)
   } catch (error) {
     console.error("API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

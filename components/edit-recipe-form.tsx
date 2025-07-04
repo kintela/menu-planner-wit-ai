@@ -167,6 +167,29 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     setIsLoading(true)
 
     try {
+      // Verificar autenticación
+      if (!user) {
+        toast({
+          title: "Error de autenticación",
+          description: "Debes iniciar sesión para editar recetas.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Obtener el token de sesión
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        toast({
+          title: "Sesión expirada",
+          description: "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
+          variant: "destructive",
+        })
+        return
+      }
+
       const formData = new FormData(e.currentTarget)
       const name = formData.get("name") as string
 
@@ -197,13 +220,30 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify(updateData),
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Error ${response.status}: ${errorText}`)
+        const errorData = await response.json()
+        if (response.status === 401) {
+          toast({
+            title: "No autorizado",
+            description: "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
+            variant: "destructive",
+          })
+          return
+        }
+        if (response.status === 403) {
+          toast({
+            title: "Sin permisos",
+            description: "Solo puedes editar tus propias recetas.",
+            variant: "destructive",
+          })
+          return
+        }
+        throw new Error(errorData.error || `Error ${response.status}`)
       }
 
       const result = await response.json()
