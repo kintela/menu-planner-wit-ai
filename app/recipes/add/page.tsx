@@ -3,7 +3,7 @@
 import { useAuth } from "@/components/auth/auth-provider"
 import { AddRecipeForm } from "@/components/add-recipe-form"
 import { Loader2, AlertCircle, Plus } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import type { Category } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -13,19 +13,19 @@ import Link from "next/link"
 export default function AddRecipePage() {
   const { user, loading } = useAuth()
   const [categories, setCategories] = useState<Category[]>([])
-  const [categoriesLoading, setCategoriesLoading] = useState(false)
-  const [categoriesError, setCategoriesError] = useState<string | null>(null)
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false)
+  const loadingRef = useRef(false)
 
   useEffect(() => {
     async function loadCategories() {
-      try {
-        setCategoriesLoading(true)
-        setCategoriesError(null)
+      // Prevent multiple simultaneous loads
+      if (loadingRef.current || categoriesLoaded) return
 
+      try {
+        loadingRef.current = true
         const supabase = createClient()
 
-        console.log("Intentando cargar categorías...")
-
+        console.log("Cargando categorías...")
         const { data, error } = await supabase.from("categories").select("*").order("name")
 
         if (error) {
@@ -39,15 +39,16 @@ export default function AddRecipePage() {
         console.error("Error loading categories:", error)
         setCategories([])
       } finally {
-        setCategoriesLoading(false)
+        loadingRef.current = false
+        setCategoriesLoaded(true)
       }
     }
 
-    // Only load categories if user is authenticated and auth is not loading
-    if (user && !loading) {
+    // Only load if user is authenticated and categories haven't been loaded yet
+    if (user && !loading && !categoriesLoaded) {
       loadCategories()
     }
-  }, [user, loading]) // Removed categoriesLoading from dependencies to prevent infinite loop
+  }, [user, loading, categoriesLoaded])
 
   if (loading) {
     return (
@@ -91,7 +92,8 @@ export default function AddRecipePage() {
     )
   }
 
-  if (categoriesLoading) {
+  // Show loading only if categories haven't been loaded yet and we're currently loading
+  if (!categoriesLoaded && loadingRef.current) {
     return (
       <div className="container mx-auto py-8 px-4">
         <div className="max-w-2xl mx-auto">
