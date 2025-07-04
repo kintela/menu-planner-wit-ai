@@ -264,8 +264,7 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
 
       // Redirigir después de un breve delay
       setTimeout(() => {
-        router.push("/recipes")
-        router.refresh()
+        window.location.href = "/recipes"
       }, 1500)
     } catch (error) {
       console.error("Error completo en handleSubmit:", error)
