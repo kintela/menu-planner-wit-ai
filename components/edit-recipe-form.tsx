@@ -42,12 +42,41 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const [estimatedCalories, setEstimatedCalories] = useState<number | null>(null)
   const [manualCalories, setManualCalories] = useState<string>("")
   const [useManualCalories, setUseManualCalories] = useState(false)
+  const [name, setName] = useState<string>("")
+  const [preparation, setPreparation] = useState<string>("")
+  const [sourceUrl, setSourceUrl] = useState<string>("")
+  const [videoUrl, setVideoUrl] = useState<string>("")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const supabase = getSupabaseClient()
 
+  // Verificar autenticación al cargar el componente
+  useEffect(() => {
+    const checkAuth = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session || !user) {
+        toast({
+          title: "Acceso denegado",
+          description: "Debes iniciar sesión para editar recetas.",
+          variant: "destructive",
+        })
+        router.push("/login")
+        return
+      }
+    }
+
+    checkAuth()
+  }, [user, supabase.auth, router, toast])
+
   // Inicializar el formulario con los datos de la receta
   useEffect(() => {
+    // Inicializar nombre
+    setName(recipe.name || "")
+
+    // Convertir ingredientes a string
     let ingredientsText = ""
     if (Array.isArray(recipe.ingredients)) {
       ingredientsText = recipe.ingredients.join("\n")
@@ -56,11 +85,26 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     }
     setIngredients(ingredientsText)
 
+    // Inicializar preparación
+    let preparationText = ""
+    if (Array.isArray(recipe.preparation)) {
+      preparationText = recipe.preparation.join("\n")
+    } else if (typeof recipe.preparation === "string") {
+      preparationText = recipe.preparation
+    }
+    setPreparation(preparationText)
+
+    // Configurar URLs
+    setSourceUrl(recipe.source_url || "")
+    setVideoUrl(recipe.video_url || "")
+
+    // Configurar calorías
     if (recipe.calories) {
       setManualCalories(recipe.calories.toString())
       setUseManualCalories(true)
     }
 
+    // Configurar imagen
     if (recipe.image_url) {
       setImageUrl(recipe.image_url)
       setImagePreview(recipe.image_url)
@@ -174,6 +218,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
           description: "Debes iniciar sesión para editar recetas.",
           variant: "destructive",
         })
+        router.push("/login")
         return
       }
 
@@ -187,11 +232,9 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
           description: "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
           variant: "destructive",
         })
+        router.push("/login")
         return
       }
-
-      const formData = new FormData(e.currentTarget)
-      const name = formData.get("name") as string
 
       if (!name?.trim()) {
         toast({
@@ -202,14 +245,14 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         return
       }
 
-      // Preparar datos básicos
+      // Preparar datos básicos usando los estados del componente
       const updateData = {
         name: name.trim(),
         ingredients: ingredients.trim(),
-        preparation: (formData.get("preparation") as string)?.trim() || "",
+        preparation: preparation.trim(),
         image_url: uploadedImageUrl || imageUrl || recipe.image_url,
-        video_url: (formData.get("video_url") as string)?.trim() || null,
-        source_url: (formData.get("source_url") as string)?.trim() || null,
+        video_url: videoUrl?.trim() || null,
+        source_url: sourceUrl?.trim() || null,
         calories: useManualCalories && manualCalories ? Number.parseInt(manualCalories) : estimatedCalories,
         categories: selectedCategories,
       }
@@ -233,6 +276,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
             description: "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
             variant: "destructive",
           })
+          router.push("/login")
           return
         }
         if (response.status === 403) {
@@ -270,12 +314,24 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     }
   }
 
+  // Si no hay usuario, mostrar mensaje de carga o redirigir
+  if (!user) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <span className="ml-2">Verificando autenticación...</span>
+        </div>
+      </Card>
+    )
+  }
+
   return (
     <Card className="p-6">
       <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
           <Label htmlFor="name">Nombre de la receta *</Label>
-          <Input id="name" name="name" required defaultValue={recipe.name || ""} />
+          <Input id="name" name="name" required value={name} onChange={(e) => setName(e.target.value)} />
         </div>
 
         <div className="space-y-2">
@@ -334,13 +390,8 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
             name="preparation"
             placeholder="Describe los pasos para preparar la receta"
             className="min-h-32"
-            defaultValue={
-              Array.isArray(recipe.preparation)
-                ? recipe.preparation.join("\n")
-                : typeof recipe.preparation === "string"
-                  ? recipe.preparation
-                  : ""
-            }
+            value={preparation}
+            onChange={(e) => setPreparation(e.target.value)}
           />
         </div>
 
@@ -451,7 +502,8 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
             name="source_url"
             type="url"
             placeholder="https://www.ejemplo.com/receta-original"
-            defaultValue={recipe.source_url || ""}
+            value={sourceUrl}
+            onChange={(e) => setSourceUrl(e.target.value)}
           />
         </div>
 
@@ -462,7 +514,8 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
             name="video_url"
             type="url"
             placeholder="https://www.youtube.com/watch?v=..."
-            defaultValue={recipe.video_url || ""}
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
           />
         </div>
 
