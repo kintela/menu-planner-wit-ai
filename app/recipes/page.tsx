@@ -1,78 +1,49 @@
 import { createClient } from "@/lib/supabase/server"
 import { RecipesPageClient } from "@/components/recipes-page-client"
-import type { Recipe, Category } from "@/lib/types"
 
-async function getRecipes(): Promise<Recipe[]> {
+async function getRecipes() {
+  const supabase = createClient()
+
   try {
-    console.log("Starting to fetch recipes...")
-    const supabase = createClient()
-
-    // First, get all recipes with basic info
-    const { data: recipes, error: recipesError } = await supabase
+    const { data: recipes, error } = await supabase
       .from("recipes")
-      .select("*")
-      .order("name", { ascending: true })
-
-    if (recipesError) {
-      console.error("Error fetching recipes:", recipesError)
-      return []
-    }
-
-    if (!recipes || recipes.length === 0) {
-      console.log("No recipes found")
-      return []
-    }
-
-    console.log(`Found ${recipes.length} recipes`)
-
-    // Get user profiles separately
-    const userIds = [...new Set(recipes.map((recipe) => recipe.user_id).filter(Boolean))]
-    const { data: profiles } = await supabase
-      .from("user_profiles")
-      .select("id, email, full_name, alias, avatar_url")
-      .in("id", userIds)
-
-    // Get recipe categories separately
-    const recipeIds = recipes.map((recipe) => recipe.id)
-    const { data: recipeCategories } = await supabase
-      .from("recipe_categories")
       .select(`
-        recipe_id,
-        categories (
+        *,
+        user_profiles (
           id,
-          name
+          email,
+          full_name,
+          first_name,
+          last_name,
+          alias,
+          avatar_url
+        ),
+        recipe_categories (
+          categories (
+            id,
+            name
+          )
         )
       `)
-      .in("recipe_id", recipeIds)
+      .order("name", { ascending: true })
 
-    // Combine the data
-    const recipesWithProfiles = recipes.map((recipe) => {
-      const profile = profiles?.find((p) => p.id === recipe.user_id)
-      const categories =
-        recipeCategories
-          ?.filter((rc) => rc.recipe_id === recipe.id)
-          ?.map((rc) => rc.categories)
-          ?.filter(Boolean) || []
+    if (error) {
+      console.error("Error fetching recipes:", error)
+      return []
+    }
 
-      return {
-        ...recipe,
-        user_profiles: profile || null,
-        categories,
-      }
-    })
-
-    console.log("Successfully combined recipe data")
-    return recipesWithProfiles
+    return recipes || []
   } catch (error) {
-    console.error("Error in getRecipes:", error)
+    console.error("Error fetching recipes:", error)
     return []
   }
 }
 
-async function getCategories(): Promise<Category[]> {
+async function getCategories() {
+  const supabase = createClient()
+
   try {
-    const supabase = createClient()
-    const { data: categories, error } = await supabase.from("categories").select("*").order("name", { ascending: true })
+    const { data: categories, error } = await supabase.from("categories").select("*").order("name")
 
     if (error) {
       console.error("Error fetching categories:", error)
@@ -81,7 +52,7 @@ async function getCategories(): Promise<Category[]> {
 
     return categories || []
   } catch (error) {
-    console.error("Error in getCategories:", error)
+    console.error("Error fetching categories:", error)
     return []
   }
 }
@@ -89,5 +60,9 @@ async function getCategories(): Promise<Category[]> {
 export default async function RecipesPage() {
   const [recipes, categories] = await Promise.all([getRecipes(), getCategories()])
 
-  return <RecipesPageClient initialRecipes={recipes} categories={categories} />
+  return (
+    <div className="container mx-auto px-4 py-8">
+      <RecipesPageClient initialRecipes={recipes} initialCategories={categories} />
+    </div>
+  )
 }
