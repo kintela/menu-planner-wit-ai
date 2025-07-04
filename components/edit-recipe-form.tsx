@@ -14,7 +14,6 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { Recipe, Category } from "@/lib/types"
-import { getSupabaseClient } from "@/lib/supabase/client"
 
 interface EditRecipeFormProps {
   recipe: Recipe
@@ -39,7 +38,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   // Component states
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [canEdit, setCanEdit] = useState<boolean>(true) // Default to true to avoid blocking
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
     setSelectedCategories((prev) => (checked ? [...prev, categoryId] : prev.filter((id) => id !== categoryId)))
@@ -54,22 +52,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     setError(null)
 
     try {
-      console.log("Getting Supabase client...")
-      const supabase = getSupabaseClient()
-
-      console.log("Getting current session...")
-      const {
-        data: { session: currentSession },
-      } = await supabase.auth.getSession()
-
-      console.log("Current session:", currentSession ? "Found" : "Not found")
-
-      if (!currentSession?.access_token) {
-        console.log("No access token, redirecting to login")
-        router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
-        return
-      }
-
       console.log("Preparing update data...")
       const updateData = {
         name: name.trim(),
@@ -87,7 +69,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${currentSession.access_token}`,
         },
         body: JSON.stringify(updateData),
       })
