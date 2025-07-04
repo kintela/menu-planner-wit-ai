@@ -81,7 +81,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       const timeoutId = setTimeout(() => {
         console.log("Request timeout - aborting")
         controller.abort()
-      }, 10000) // 10 second timeout
+      }, 30000) // Increased to 30 seconds
 
       try {
         const response = await fetch(`/api/recipes/${recipe.id}`, {
@@ -113,8 +113,8 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         })
 
         console.log("Redirecting to recipe page...")
-        router.push(`/recipes/${recipe.id}`)
-        router.refresh()
+        // Force a hard navigation to ensure fresh data
+        window.location.href = `/recipes/${recipe.id}`
       } catch (fetchError) {
         clearTimeout(timeoutId)
         throw fetchError
@@ -123,15 +123,20 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       console.error("Error updating recipe:", err)
       if (err instanceof Error && err.name === "AbortError") {
         setError("La petición tardó demasiado tiempo. Inténtalo de nuevo.")
+        toast({
+          title: "Error",
+          description: "La petición tardó demasiado tiempo. Inténtalo de nuevo.",
+          variant: "destructive",
+        })
       } else {
-        setError(err instanceof Error ? err.message : "Error al actualizar la receta")
+        const errorMessage = err instanceof Error ? err.message : "Error al actualizar la receta"
+        setError(errorMessage)
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        })
       }
-
-      toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Error al actualizar la receta",
-        variant: "destructive",
-      })
     } finally {
       console.log("Setting isSubmitting to false")
       setIsSubmitting(false)
