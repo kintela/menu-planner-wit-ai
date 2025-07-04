@@ -24,7 +24,7 @@ interface EditRecipeFormProps {
 
 export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: EditRecipeFormProps) {
   const router = useRouter()
-  const { user, session, loading: authLoading } = useAuth()
+  const { user: authUser, loading: authLoading } = useAuth()
 
   // Form states
   const [name, setName] = useState(recipe.name || "")
@@ -40,37 +40,65 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [canEdit, setCanEdit] = useState<boolean | null>(null)
+  const [user, setUser] = useState<any>(null)
+  const [session, setSession] = useState<any>(null)
 
   // Check authentication and permissions
   useEffect(() => {
     async function checkPermissions() {
-      console.log("Checking permissions - authLoading:", authLoading, "user:", user, "session:", session)
-
-      if (authLoading) {
-        console.log("Still loading auth state...")
-        return
-      }
-
-      // If no user, redirect to login
-      if (!user || !session) {
-        console.log("No user or session found, redirecting to login")
-        router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
-        return
-      }
-
-      console.log("User authenticated:", user.id, "Recipe owner:", recipe.user_id)
+      console.log("Checking permissions - authLoading:", authLoading, "authUser:", authUser)
 
       try {
         const supabase = getSupabaseClient()
+        let currentUser = authUser
+        let currentSession = null
+
+        // If useAuth doesn't provide user, check session directly
+        if (!authUser && !authLoading) {
+          console.log("useAuth didn't provide user, checking session directly...")
+          const {
+            data: { session },
+            error: sessionError,
+          } = await supabase.auth.getSession()
+
+          if (sessionError) {
+            console.error("Session error:", sessionError)
+          } else if (session?.user) {
+            console.log("Found user via direct session check:", session.user.id)
+            currentUser = session.user
+            currentSession = session
+          }
+        } else if (authUser) {
+          // Get session for the authenticated user
+          const {
+            data: { session },
+          } = await supabase.auth.getSession()
+          currentSession = session
+        }
+
+        // If still no user after both checks, redirect to login
+        if (!currentUser) {
+          console.log("No user found after all checks, redirecting to login")
+          router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
+          return
+        }
+
+        console.log("User authenticated:", currentUser.id, "Recipe owner:", recipe.user_id)
+        setUser(currentUser)
+        setSession(currentSession)
 
         // Check if user is the owner
-        const isOwner = recipe.user_id === user.id
+        const isOwner = recipe.user_id === currentUser.id
         console.log("Is owner:", isOwner)
 
         // Check if user is admin
         let isAdmin = false
         try {
-          const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
+          const { data: profile } = await supabase
+            .from("user_profiles")
+            .select("role")
+            .eq("id", currentUser.id)
+            .single()
           isAdmin = profile?.role === "admin"
           console.log("Is admin:", isAdmin, "Profile:", profile)
         } catch (err) {
@@ -90,8 +118,11 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       }
     }
 
-    checkPermissions()
-  }, [user, session, authLoading, recipe.id, recipe.user_id, router])
+    // Only run check when auth loading is complete or we have a user
+    if (!authLoading || authUser) {
+      checkPermissions()
+    }
+  }, [authUser, authLoading, recipe.id, recipe.user_id, router])
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
     setSelectedCategories((prev) => (checked ? [...prev, categoryId] : prev.filter((id) => id !== categoryId)))
@@ -126,7 +157,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         categories: selectedCategories,
       }
 
-      console.log("Submitting update with session token:", session.access_token ? "Present" : "Missing")
+      console.log("Submitting update with session token:", session?.access_token ? "Present" : "Missing")
 
       const response = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PUT",
