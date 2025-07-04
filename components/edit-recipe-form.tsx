@@ -46,7 +46,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   // Check authentication and permissions
   useEffect(() => {
     async function checkPermissions() {
-      console.log("Checking permissions - authLoading:", authLoading, "authUser:", authUser)
+      if (authLoading) return
 
       try {
         const supabase = getSupabaseClient()
@@ -54,45 +54,33 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         let currentSession = null
 
         // If useAuth doesn't provide user, check session directly
-        if (!authUser && !authLoading) {
-          console.log("useAuth didn't provide user, checking session directly...")
+        if (!authUser) {
           const {
             data: { session },
-            error: sessionError,
           } = await supabase.auth.getSession()
-
-          if (sessionError) {
-            console.error("Session error:", sessionError)
-          } else if (session?.user) {
-            console.log("Found user via direct session check:", session.user.id)
+          if (session?.user) {
             currentUser = session.user
             currentSession = session
           }
-        } else if (authUser) {
-          // Get session for the authenticated user
+        } else {
           const {
             data: { session },
           } = await supabase.auth.getSession()
           currentSession = session
         }
 
-        // If still no user after both checks, redirect to login
         if (!currentUser) {
-          console.log("No user found after all checks, redirecting to login")
           router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
           return
         }
 
-        console.log("User authenticated:", currentUser.id, "Recipe owner:", recipe.user_id)
         setUser(currentUser)
         setSession(currentSession)
 
-        // Check if user is the owner
+        // Check permissions
         const isOwner = recipe.user_id === currentUser.id
-        console.log("Is owner:", isOwner)
-
-        // Check if user is admin
         let isAdmin = false
+
         try {
           const { data: profile } = await supabase
             .from("user_profiles")
@@ -100,13 +88,11 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
             .eq("id", currentUser.id)
             .single()
           isAdmin = profile?.role === "admin"
-          console.log("Is admin:", isAdmin, "Profile:", profile)
         } catch (err) {
           console.error("Error checking admin status:", err)
         }
 
         const hasPermission = isOwner || isAdmin
-        console.log("Has permission:", hasPermission)
         setCanEdit(hasPermission)
 
         if (!hasPermission) {
@@ -118,11 +104,8 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       }
     }
 
-    // Only run check when auth loading is complete or we have a user
-    if (!authLoading || authUser) {
-      checkPermissions()
-    }
-  }, [authUser, authLoading, recipe.id, recipe.user_id, router])
+    checkPermissions()
+  }, [authLoading, authUser, recipe.id, recipe.user_id, router])
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
     setSelectedCategories((prev) => (checked ? [...prev, categoryId] : prev.filter((id) => id !== categoryId)))
@@ -132,7 +115,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     e.preventDefault()
 
     if (!user || !session) {
-      console.log("No user or session in handleSubmit, redirecting to login")
       router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
       return
     }
@@ -156,8 +138,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         video_url: videoUrl.trim() || null,
         categories: selectedCategories,
       }
-
-      console.log("Submitting update with session token:", session?.access_token ? "Present" : "Missing")
 
       const response = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PUT",
