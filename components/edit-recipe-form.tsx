@@ -44,30 +44,41 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   // Check authentication and permissions
   useEffect(() => {
     async function checkPermissions() {
-      if (authLoading) return
+      console.log("Checking permissions - authLoading:", authLoading, "user:", user, "session:", session)
+
+      if (authLoading) {
+        console.log("Still loading auth state...")
+        return
+      }
 
       // If no user, redirect to login
       if (!user || !session) {
+        console.log("No user or session found, redirecting to login")
         router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
         return
       }
+
+      console.log("User authenticated:", user.id, "Recipe owner:", recipe.user_id)
 
       try {
         const supabase = getSupabaseClient()
 
         // Check if user is the owner
         const isOwner = recipe.user_id === user.id
+        console.log("Is owner:", isOwner)
 
         // Check if user is admin
         let isAdmin = false
         try {
           const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
           isAdmin = profile?.role === "admin"
+          console.log("Is admin:", isAdmin, "Profile:", profile)
         } catch (err) {
           console.error("Error checking admin status:", err)
         }
 
         const hasPermission = isOwner || isAdmin
+        console.log("Has permission:", hasPermission)
         setCanEdit(hasPermission)
 
         if (!hasPermission) {
@@ -90,6 +101,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     e.preventDefault()
 
     if (!user || !session) {
+      console.log("No user or session in handleSubmit, redirecting to login")
       router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
       return
     }
@@ -113,6 +125,8 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         video_url: videoUrl.trim() || null,
         categories: selectedCategories,
       }
+
+      console.log("Submitting update with session token:", session.access_token ? "Present" : "Missing")
 
       const response = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PUT",
