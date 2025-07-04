@@ -75,7 +75,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       console.log("Making API request to update recipe...")
       console.log("User ID:", user.id)
       console.log("Recipe ID:", recipe.id)
-      console.log("Update data:", updateData)
 
       const response = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PUT",
@@ -88,13 +87,22 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
       console.log("API response received, status:", response.status)
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.log("API error:", errorData)
-        throw new Error(errorData.error || "Error al actualizar la receta")
+      const responseText = await response.text()
+      console.log("Raw response:", responseText)
+
+      let result
+      try {
+        result = JSON.parse(responseText)
+      } catch (parseError) {
+        console.error("Failed to parse response as JSON:", parseError)
+        throw new Error("Respuesta inválida del servidor")
       }
 
-      const result = await response.json()
+      if (!response.ok) {
+        console.log("API error:", result)
+        throw new Error(result.error || "Error al actualizar la receta")
+      }
+
       console.log("Recipe updated successfully:", result)
 
       toast({
