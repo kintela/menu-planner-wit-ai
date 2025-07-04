@@ -51,26 +51,49 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         return
       }
 
-      // If no user, redirect to login
-      if (!user || !session) {
-        console.log("No user or session found, redirecting to login")
-        router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
-        return
-      }
-
-      console.log("User authenticated:", user.id, "Recipe owner:", recipe.user_id)
-
       try {
         const supabase = getSupabaseClient()
+        let currentUser = user
+        let currentSession = session
+
+        // If useAuth doesn't provide user, check session directly
+        if (!user || !session) {
+          console.log("useAuth didn't provide user/session, checking directly...")
+          const {
+            data: { session: directSession },
+            error: sessionError,
+          } = await supabase.auth.getSession()
+
+          if (sessionError) {
+            console.error("Session error:", sessionError)
+          } else if (directSession?.user) {
+            console.log("Found user via direct session check:", directSession.user.id)
+            currentUser = directSession.user
+            currentSession = directSession
+          }
+        }
+
+        // If still no user after both checks, redirect to login
+        if (!currentUser || !currentSession) {
+          console.log("No user or session found after all checks, redirecting to login")
+          router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
+          return
+        }
+
+        console.log("User authenticated:", currentUser.id, "Recipe owner:", recipe.user_id)
 
         // Check if user is the owner
-        const isOwner = recipe.user_id === user.id
+        const isOwner = recipe.user_id === currentUser.id
         console.log("Is owner:", isOwner)
 
         // Check if user is admin
         let isAdmin = false
         try {
-          const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
+          const { data: profile } = await supabase
+            .from("user_profiles")
+            .select("role")
+            .eq("id", currentUser.id)
+            .single()
           isAdmin = profile?.role === "admin"
           console.log("Is admin:", isAdmin, "Profile:", profile)
         } catch (err) {
@@ -100,10 +123,52 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!user || !session) {
-      console.log("No user or session in handleSubmit, redirecting to login")
-      router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
-      return
+    const updateData = {
+      name: name.trim(),
+      ingredients: ingredients.trim(),
+      preparation: preparation.trim(),
+      image_url: imageUrl.trim() || null,
+      calories: calories ? Number.parseInt(calories) : null,
+      source_url: sourceUrl.trim() || null,
+      video_url: videoUrl.trim() || null,
+      categories: selectedCategories,
+    }
+
+    if (!user && !session) {
+      // Try to get session directly if useAuth didn't provide it
+      try {
+        const supabase = getSupabaseClient()
+        const {
+          data: { session: directSession },
+        } = await supabase.auth.getSession()
+
+        if (!directSession?.user) {
+          console.log("No user or session in handleSubmit, redirecting to login")
+          router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
+          return
+        }
+
+        // Update the request to use the direct session
+        const response = await fetch(`/api/recipes/${recipe.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${directSession.access_token}`,
+          },
+          body: JSON.stringify(updateData),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Error al actualizar la receta")
+        }
+
+        router.push(`/recipes/${recipe.id}`)
+      } catch (err) {
+        console.error("Error getting session for submit:", err)
+        router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
+        return
+      }
     }
 
     if (canEdit === false) {
@@ -115,17 +180,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     setError(null)
 
     try {
-      const updateData = {
-        name: name.trim(),
-        ingredients: ingredients.trim(),
-        preparation: preparation.trim(),
-        image_url: imageUrl.trim() || null,
-        calories: calories ? Number.parseInt(calories) : null,
-        source_url: sourceUrl.trim() || null,
-        video_url: videoUrl.trim() || null,
-        categories: selectedCategories,
-      }
-
       console.log("Submitting update with session token:", session.access_token ? "Present" : "Missing")
 
       const response = await fetch(`/api/recipes/${recipe.id}`, {
