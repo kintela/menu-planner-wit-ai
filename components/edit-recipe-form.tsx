@@ -68,20 +68,22 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         source_url: sourceUrl.trim() || null,
         video_url: videoUrl.trim() || null,
         categories: selectedCategories,
-        user_id: user.id, // Include user ID for server-side verification
       }
 
       console.log("Making API request to update recipe...")
+      console.log("User ID:", user.id)
+      console.log("Recipe ID:", recipe.id)
+
       const response = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "X-User-ID": user.id, // Pass user ID in header
+          "X-User-ID": user.id,
         },
         body: JSON.stringify(updateData),
       })
 
-      console.log("API response status:", response.status)
+      console.log("API response received, status:", response.status)
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -89,7 +91,9 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         throw new Error(errorData.error || "Error al actualizar la receta")
       }
 
-      console.log("Recipe updated successfully, redirecting...")
+      const result = await response.json()
+      console.log("Recipe updated successfully:", result)
+      console.log("Redirecting to recipe page...")
       router.push(`/recipes/${recipe.id}`)
     } catch (err) {
       console.error("Error updating recipe:", err)

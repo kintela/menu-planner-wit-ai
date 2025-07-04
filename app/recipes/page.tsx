@@ -2,10 +2,10 @@ import { createClient } from "@/lib/supabase/server"
 import { RecipesPageClient } from "@/components/recipes-page-client"
 import type { Recipe, Category } from "@/lib/types"
 
-async function getRecipes() {
-  const supabase = createClient()
-
+async function getRecipes(): Promise<Recipe[]> {
   try {
+    const supabase = createClient()
+
     // First, get all recipes with basic info
     const { data: recipes, error: recipesError } = await supabase
       .from("recipes")
@@ -23,41 +23,50 @@ async function getRecipes() {
 
     // Get user profiles for all unique user IDs
     const userIds = [...new Set(recipes.map((recipe) => recipe.user_id).filter(Boolean))]
-    const { data: userProfiles } = await supabase.from("user_profiles").select("*").in("id", userIds)
+    const { data: profiles } = await supabase.from("user_profiles").select("*").in("id", userIds)
 
-    // Get recipe categories
+    // Get categories for all recipes
     const recipeIds = recipes.map((recipe) => recipe.id)
     const { data: recipeCategories } = await supabase
       .from("recipe_categories")
-      .select("recipe_id, category_id, categories(id, name)")
+      .select(
+        `
+        recipe_id,
+        categories (
+          id,
+          name
+        )
+      `,
+      )
       .in("recipe_id", recipeIds)
 
     // Combine the data
     const recipesWithDetails = recipes.map((recipe) => {
-      const userProfile = userProfiles?.find((profile) => profile.id === recipe.user_id)
-      const categories = recipeCategories
-        ?.filter((rc) => rc.recipe_id === recipe.id)
-        .map((rc) => rc.categories)
-        .filter(Boolean)
+      // Find user profile
+      const userProfile = profiles?.find((profile) => profile.id === recipe.user_id)
+
+      // Find categories for this recipe
+      const recipeCategs = recipeCategories?.filter((rc) => rc.recipe_id === recipe.id) || []
+      const categories = recipeCategs.map((rc) => rc.categories).filter(Boolean)
 
       return {
         ...recipe,
         user_profiles: userProfile || null,
-        categories: categories || [],
+        categories: categories,
       }
     })
 
-    return recipesWithDetails as Recipe[]
+    return recipesWithDetails
   } catch (error) {
     console.error("Error in getRecipes:", error)
     return []
   }
 }
 
-async function getCategories() {
-  const supabase = createClient()
-
+async function getCategories(): Promise<Category[]> {
   try {
+    const supabase = createClient()
+
     const { data: categories, error } = await supabase.from("categories").select("*").order("name", { ascending: true })
 
     if (error) {
@@ -65,7 +74,7 @@ async function getCategories() {
       return []
     }
 
-    return categories as Category[]
+    return categories || []
   } catch (error) {
     console.error("Error in getCategories:", error)
     return []

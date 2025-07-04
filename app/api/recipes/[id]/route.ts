@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { createClient as createServerClient } from "@/lib/supabase/server"
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
@@ -44,41 +43,29 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
+    console.log("PUT request received for recipe:", params.id)
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!supabaseUrl || !supabaseServiceKey) {
+      console.error("Missing Supabase configuration")
       return NextResponse.json({ error: "Supabase configuration missing" }, { status: 500 })
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Try server-side authentication first
-    const serverSupabase = createServerClient()
-    const {
-      data: { user: serverUser },
-      error: serverAuthError,
-    } = await serverSupabase.auth.getUser()
-
-    let currentUserId = null
-
-    if (serverUser && !serverAuthError) {
-      currentUserId = serverUser.id
-      console.log("Server-side auth successful:", currentUserId)
-    } else {
-      // Fallback to header-based user ID
-      const userIdFromHeader = request.headers.get("x-user-id")
-      if (userIdFromHeader) {
-        currentUserId = userIdFromHeader
-        console.log("Using header user ID:", currentUserId)
-      }
-    }
+    // Get user ID from header
+    const currentUserId = request.headers.get("x-user-id")
+    console.log("User ID from header:", currentUserId)
 
     if (!currentUserId) {
+      console.error("No user ID provided")
       return NextResponse.json({ error: "No autorizado - Usuario no identificado" }, { status: 401 })
     }
 
-    // Obtener la receta para verificar permisos
+    // Get the recipe to verify permissions
+    console.log("Fetching recipe for permission check...")
     const { data: recipe, error: fetchError } = await supabase
       .from("recipes")
       .select("user_id, name")
@@ -86,23 +73,28 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       .single()
 
     if (fetchError) {
+      console.error("Error fetching recipe:", fetchError)
       return NextResponse.json({ error: "Receta no encontrada" }, { status: 404 })
     }
 
-    // Verificar si es el propietario
+    console.log("Recipe owner:", recipe.user_id, "Current user:", currentUserId)
+
+    // Check if user is the owner
     const isOwner = recipe.user_id === currentUserId
 
-    // Verificar si es admin
+    // Check if user is admin
     let isAdmin = false
     try {
       const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", currentUserId).single()
       isAdmin = profile?.role === "admin"
+      console.log("User role:", profile?.role, "Is admin:", isAdmin)
     } catch (err) {
       console.error("Error checking admin status:", err)
     }
 
-    // Solo el propietario o admin pueden editar
+    // Only owner or admin can edit
     if (!isOwner && !isAdmin) {
+      console.error("Permission denied - not owner or admin")
       return NextResponse.json(
         {
           error: "Forbidden - Solo puedes editar tus propias recetas",
@@ -111,9 +103,10 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       )
     }
 
+    console.log("Permission check passed, parsing request body...")
     const updates = await request.json()
 
-    // Extraer categorías si están presentes
+    // Extract categories if present
     const { categories, id, created_at, created_by, user_profiles, user_id, ...updateData } = updates
 
     console.log("Updating recipe with data:", updateData)
@@ -130,13 +123,14 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       return NextResponse.json({ error: "Failed to update recipe" }, { status: 500 })
     }
 
-    // Actualizar categorías si están presentes
+    // Update categories if present
     if (categories && Array.isArray(categories)) {
       try {
-        // Eliminar categorías existentes
+        console.log("Updating categories:", categories)
+        // Delete existing categories
         await supabase.from("recipe_categories").delete().eq("recipe_id", params.id)
 
-        // Insertar nuevas categorías
+        // Insert new categories
         if (categories.length > 0) {
           const categoryRelations = categories.map((categoryId: number) => ({
             recipe_id: params.id,
@@ -144,9 +138,10 @@ export async function PUT(request: Request, { params }: { params: { id: string }
           }))
           await supabase.from("recipe_categories").insert(categoryRelations)
         }
+        console.log("Categories updated successfully")
       } catch (categoryError) {
         console.error("Error updating categories:", categoryError)
-        // No fallar por esto
+        // Don't fail for this
       }
     }
 
@@ -169,7 +164,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Obtener el user_id del header de autorización o del cuerpo de la petición
+    // Get user_id from authorization header or request body
     const authHeader = request.headers.get("authorization")
     const userIdFromHeader = request.headers.get("x-user-id")
 
@@ -178,11 +173,11 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       userId: userIdFromHeader,
     })
 
-    // Verificar si es una eliminación forzada
+    // Check if it's a forced deletion
     const url = new URL(request.url)
     const forceDelete = url.searchParams.get("force") === "true"
 
-    // Obtener la receta con su información completa
+    // Get the recipe with its complete information
     const { data: recipe, error: fetchError } = await supabase
       .from("recipes")
       .select("user_id, image_url, name")
@@ -196,21 +191,21 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     console.log("Recipe data:", recipe)
 
-    // Si no hay user_id en el header, intentar obtenerlo del cuerpo de la petición
+    // If no user_id in header, try to get it from request body
     const currentUserId = userIdFromHeader
     if (!currentUserId) {
-      // Como fallback, permitir la eliminación si no hay verificación de usuario
-      // (esto se puede ajustar según los requisitos de seguridad)
+      // As fallback, allow deletion if no user verification
+      // (this can be adjusted according to security requirements)
       console.log("No user ID provided, allowing deletion")
     } else {
-      // Verificar que el usuario es el propietario de la receta
+      // Verify that user is the owner of the recipe
       if (recipe.user_id !== currentUserId) {
         console.error("User ID mismatch:", { recipeUserId: recipe.user_id, currentUserId })
         return NextResponse.json({ error: "Forbidden: No puedes eliminar recetas de otros usuarios" }, { status: 403 })
       }
     }
 
-    // Si no es eliminación forzada, verificar si la receta está en algún menú
+    // If not forced deletion, check if recipe is in any menu
     if (!forceDelete) {
       const { data: menuItems, error: menuError } = await supabase
         .from("menu_items")
@@ -219,10 +214,10 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
       if (menuError) {
         console.error("Error checking menu items:", menuError)
-        // Continuar aunque haya error en la verificación de menús
+        // Continue even if there's error checking menus
       }
 
-      // Si está en menús, devolver información sobre ello
+      // If it's in menus, return information about it
       if (menuItems && menuItems.length > 0) {
         return NextResponse.json(
           {
@@ -235,7 +230,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       }
     }
 
-    // Si es eliminación forzada, eliminar primero de los menús
+    // If forced deletion, delete from menus first
     if (forceDelete) {
       const { error: menuDeleteError } = await supabase.from("menu_items").delete().eq("recipe_id", params.id)
 
@@ -245,7 +240,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       }
     }
 
-    // Eliminar la receta de la base de datos
+    // Delete the recipe from database
     const { error: deleteError } = await supabase.from("recipes").delete().eq("id", params.id)
 
     if (deleteError) {
@@ -253,10 +248,10 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "Failed to delete recipe" }, { status: 500 })
     }
 
-    // Eliminar la imagen del storage si existe
+    // Delete image from storage if exists
     if (recipe.image_url && recipe.image_url.includes("supabase")) {
       try {
-        // Extraer el nombre del archivo de la URL
+        // Extract file name from URL
         const urlParts = recipe.image_url.split("/")
         const fileName = urlParts[urlParts.length - 1]
 
@@ -265,14 +260,14 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
           if (storageError) {
             console.error("Error deleting image from storage:", storageError)
-            // No fallar la eliminación de la receta por esto
+            // Don't fail recipe deletion for this
           } else {
             console.log("Image deleted from storage:", fileName)
           }
         }
       } catch (storageError) {
         console.error("Error processing image deletion:", storageError)
-        // No fallar la eliminación de la receta por esto
+        // Don't fail recipe deletion for this
       }
     }
 
