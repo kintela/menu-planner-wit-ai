@@ -26,16 +26,31 @@ export function SimpleNavigation() {
         setUser(user)
 
         if (user) {
+          console.log("Fetching profile for user:", user.id)
+
           // Fetch user profile
-          const { data: profile } = await supabase.from("user_profiles").select("*").eq("id", user.id).single()
+          const { data: profile, error: profileError } = await supabase
+            .from("user_profiles")
+            .select("*")
+            .eq("id", user.id)
+            .single()
+
+          console.log("Profile data:", profile)
+          console.log("Profile error:", profileError)
 
           setUserProfile(profile)
 
           // Get avatar URL from storage if profile has avatar
           if (profile?.avatar_url) {
-            const { data } = supabase.storage.from("avatars").getPublicUrl(profile.avatar_url)
+            console.log("Avatar URL from profile:", profile.avatar_url)
 
-            setAvatarUrl(data.publicUrl)
+            const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(profile.avatar_url)
+
+            console.log("Generated public URL:", urlData.publicUrl)
+            setAvatarUrl(urlData.publicUrl)
+          } else {
+            console.log("No avatar_url in profile")
+            setAvatarUrl(null)
           }
         }
       } catch (error) {
@@ -62,9 +77,9 @@ export function SimpleNavigation() {
         setUserProfile(profile)
 
         if (profile?.avatar_url) {
-          const { data } = supabase.storage.from("avatars").getPublicUrl(profile.avatar_url)
+          const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(profile.avatar_url)
 
-          setAvatarUrl(data.publicUrl)
+          setAvatarUrl(urlData.publicUrl)
         } else {
           setAvatarUrl(null)
         }
@@ -151,7 +166,12 @@ export function SimpleNavigation() {
           ) : user ? (
             <div className="flex items-center space-x-3">
               <Avatar className="h-8 w-8">
-                <AvatarImage src={avatarUrl || undefined} alt={userProfile?.full_name || user.email || "Usuario"} />
+                <AvatarImage
+                  src={avatarUrl || undefined}
+                  alt={userProfile?.full_name || user.email || "Usuario"}
+                  onError={() => console.log("Avatar image failed to load:", avatarUrl)}
+                  onLoad={() => console.log("Avatar image loaded successfully:", avatarUrl)}
+                />
                 <AvatarFallback className="bg-blue-100 text-blue-700 text-sm font-medium">
                   {getUserInitials(user.email || "", userProfile?.full_name)}
                 </AvatarFallback>
