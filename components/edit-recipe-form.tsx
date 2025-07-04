@@ -231,20 +231,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     const video_url = (formData.get("video_url") as string) || null
     const source_url = (formData.get("source_url") as string) || null
 
-    // Usar el estado local para ingredientes
-    const finalIngredients = ingredients.trim()
-
-    console.log("Datos del formulario:", {
-      name,
-      ingredients,
-      preparation,
-      video_url,
-      source_url,
-      selectedCategories,
-      imageUrl,
-      uploadedImageUrl,
-    })
-
     // Validación del nombre (único campo obligatorio)
     if (!name.trim()) {
       toast({
@@ -258,70 +244,26 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
     try {
       // Determinar la URL de la imagen
-      let finalImageUrl = null
+      let finalImageUrl = recipe.image_url // Mantener la imagen existente por defecto
 
-      // Prioridad 1: Si hay una imagen que se subió durante esta sesión
       if (uploadedImageUrl) {
         finalImageUrl = uploadedImageUrl
-        console.log("Usando imagen subida:", finalImageUrl)
-      }
-      // Prioridad 2: Si estamos en el tab de URL y hay una URL válida
-      else if (imageTab === "url" && imageUrl.trim()) {
+      } else if (imageTab === "url" && imageUrl.trim()) {
         finalImageUrl = imageUrl.trim()
-        console.log("Usando URL de imagen:", finalImageUrl)
       }
-      // Prioridad 3: Si hay un archivo seleccionado pero no subido aún
-      else if (imageTab === "upload" && imageFile && !uploadedImageUrl) {
-        try {
-          console.log("Subiendo imagen antes de guardar...")
-          const uploadFormData = new FormData()
-          uploadFormData.append("file", imageFile)
-
-          const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
-            method: "POST",
-            body: uploadFormData,
-          })
-
-          if (!response.ok) {
-            throw new Error(`Error al subir la imagen: ${response.statusText}`)
-          }
-
-          const data = await response.json()
-          if (data.url) {
-            finalImageUrl = data.url
-            setUploadedImageUrl(data.url)
-            console.log("Imagen subida exitosamente:", finalImageUrl)
-          }
-        } catch (uploadError) {
-          console.error("Error uploading image:", uploadError)
-          toast({
-            title: "Error al subir la imagen",
-            description: "No se pudo subir la imagen. La receta se guardará sin imagen.",
-            variant: "destructive",
-          })
-        }
-      }
-      // Prioridad 4: Mantener la imagen existente si no hay cambios
-      else if (!imageFile && !imageUrl.trim() && recipe.image_url) {
-        finalImageUrl = recipe.image_url
-        console.log("Manteniendo imagen existente:", finalImageUrl)
-      }
-
-      console.log("URL final de imagen que se guardará:", finalImageUrl)
 
       // Determinar las calorías finales
       let finalCalories = null
-
       if (useManualCalories && manualCalories) {
         finalCalories = Number.parseInt(manualCalories)
       } else if (estimatedCalories) {
         finalCalories = estimatedCalories
       }
 
-      // Actualizar la receta usando la API route
+      // Preparar datos de actualización
       const updateData = {
         name: name.trim(),
-        ingredients: finalIngredients || "",
+        ingredients: ingredients.trim() || "",
         preparation: preparation.trim() || "",
         image_url: finalImageUrl,
         video_url: video_url?.trim() || null,
@@ -329,63 +271,41 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         calories: finalCalories,
       }
 
-      console.log("Datos que se van a actualizar en la BD:", updateData)
-      console.log("Updating recipe with data:", updateData)
+      console.log("Actualizando receta con datos:", updateData)
 
-      // Usar la API route para actualizar la receta
-      console.log("Iniciando actualización de receta...")
+      // Actualizar receta directamente con timeout manual
+      const updatePromise = supabase.from("recipes").update(updateData).eq("id", recipe.id).select()
 
-      // Actualizar directamente con Supabase en lugar de usar la API route
-      console.log("Iniciando actualización directa con Supabase...")
-      const { data: updateResult, error: updateError } = await supabase
-        .from("recipes")
-        .update(updateData)
-        .eq("id", recipe.id)
-        .select()
+      // Timeout manual de 10 segundos
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Operación cancelada por timeout")), 10000)
+      })
 
-      console.log("Respuesta de Supabase:", { updateResult, updateError })
+      const { data: updateResult, error: updateError } = (await Promise.race([updatePromise, timeoutPromise])) as any
 
       if (updateError) {
-        console.error("Error de Supabase:", updateError)
-        throw new Error(`Error al actualizar receta: ${updateError.message}`)
+        throw new Error(`Error al actualizar: ${updateError.message}`)
       }
 
-      console.log("Receta actualizada exitosamente con Supabase:", updateResult)
+      console.log("Receta actualizada:", updateResult)
 
-      // Actualizar las categorías seleccionadas
-      console.log("Actualizando categorías...")
-
-      // Primero eliminar todas las categorías existentes
-      const { error: deleteError } = await supabase.from("recipe_categories").delete().eq("recipe_id", recipe.id)
-
-      if (deleteError) {
-        console.error("Error al eliminar categorías:", deleteError)
-        // No lanzar error, continuar con la actualización
-      } else {
-        console.log("Categorías existentes eliminadas")
-      }
-
-      // Luego insertar las nuevas categorías seleccionadas
+      // Actualizar categorías de forma simple
       if (selectedCategories.length > 0) {
-        const categoryRelations = selectedCategories.map((categoryId) => ({
-          recipe_id: recipe.id,
-          category_id: categoryId,
-        }))
+        try {
+          // Eliminar categorías existentes
+          await supabase.from("recipe_categories").delete().eq("recipe_id", recipe.id)
 
-        console.log("Insertando categorías:", categoryRelations)
+          // Insertar nuevas categorías
+          const categoryRelations = selectedCategories.map((categoryId) => ({
+            recipe_id: recipe.id,
+            category_id: categoryId,
+          }))
 
-        const { error: categoryError } = await supabase.from("recipe_categories").insert(categoryRelations)
-
-        if (categoryError) {
-          console.error("Error al insertar categorías:", categoryError)
-          // No lanzar error, la receta ya se actualizó correctamente
-          toast({
-            title: "Receta actualizada con advertencia",
-            description: "La receta se actualizó pero hubo un problema con las categorías.",
-            variant: "destructive",
-          })
-        } else {
-          console.log("Categorías insertadas exitosamente")
+          await supabase.from("recipe_categories").insert(categoryRelations)
+          console.log("Categorías actualizadas")
+        } catch (categoryError) {
+          console.error("Error con categorías:", categoryError)
+          // No fallar por esto
         }
       }
 
@@ -394,14 +314,10 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         description: "La receta se ha actualizado correctamente.",
       })
 
-      console.log("=== ACTUALIZACIÓN COMPLETADA EXITOSAMENTE ===")
-
-      // Redirigir usando window.location para forzar navegación completa
-      setTimeout(() => {
-        window.location.href = `/recipes/${recipe.id}`
-      }, 1000)
+      // Redirigir inmediatamente
+      window.location.href = `/recipes/${recipe.id}`
     } catch (error) {
-      console.error("=== ERROR EN ACTUALIZACIÓN ===", error)
+      console.error("Error en actualización:", error)
       toast({
         title: "Error al guardar",
         description: `Ha ocurrido un error: ${error instanceof Error ? error.message : "Error desconocido"}`,
