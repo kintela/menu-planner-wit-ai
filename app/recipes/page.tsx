@@ -5,34 +5,60 @@ async function getRecipes() {
   const supabase = createClient()
 
   try {
-    const { data: recipes, error } = await supabase
-      .from("recipes")
-      .select(`
-       *,
-       user_profiles (
-         id,
-         email,
-         full_name,
-         first_name,
-         last_name,
-         alias,
-         avatar_url
-       ),
-       recipe_categories (
-         categories (
-           id,
-           name
-         )
-       )
-     `)
-      .order("name", { ascending: true })
+    // Primero obtener las recetas básicas
+    const { data: recipes, error } = await supabase.from("recipes").select("*").order("name", { ascending: true })
 
     if (error) {
       console.error("Error fetching recipes:", error)
       return []
     }
 
-    return recipes || []
+    if (!recipes || recipes.length === 0) {
+      return []
+    }
+
+    // Obtener los perfiles de usuario por separado
+    const userIds = [...new Set(recipes.map((recipe) => recipe.user_id).filter(Boolean))]
+    let userProfiles = []
+
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("user_profiles")
+        .select("id, email, full_name, first_name, last_name, alias, avatar_url")
+        .in("id", userIds)
+
+      userProfiles = profiles || []
+    }
+
+    // Obtener las categorías de las recetas por separado
+    const recipeIds = recipes.map((recipe) => recipe.id)
+    let recipeCategories = []
+
+    if (recipeIds.length > 0) {
+      const { data: categories } = await supabase
+        .from("recipe_categories")
+        .select(`
+          recipe_id,
+          categories (
+            id,
+            name
+          )
+        `)
+        .in("recipe_id", recipeIds)
+
+      recipeCategories = categories || []
+    }
+
+    // Combinar los datos
+    const recipesWithData = recipes.map((recipe) => ({
+      ...recipe,
+      user_profiles: userProfiles.find((profile) => profile.id === recipe.user_id) || null,
+      recipe_categories: recipeCategories
+        .filter((rc) => rc.recipe_id === recipe.id)
+        .map((rc) => ({ categories: rc.categories })),
+    }))
+
+    return recipesWithData
   } catch (error) {
     console.error("Error fetching recipes:", error)
     return []
