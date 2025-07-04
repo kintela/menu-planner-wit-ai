@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Loader2, Plus, ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { useAuth } from "@/components/auth/auth-provider"
 import type { Recipe, Category } from "@/lib/types"
 import { getSupabaseClient } from "@/lib/supabase/client"
 
@@ -23,6 +24,7 @@ interface EditRecipeFormProps {
 
 export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: EditRecipeFormProps) {
   const router = useRouter()
+  const { user, session, loading: authLoading } = useAuth()
 
   // Form states
   const [name, setName] = useState(recipe.name || "")
@@ -38,51 +40,37 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [canEdit, setCanEdit] = useState<boolean | null>(null)
-  const [user, setUser] = useState<any>(null)
-  const [session, setSession] = useState<any>(null)
-  const [authLoading, setAuthLoading] = useState(true)
 
   // Check authentication and permissions
   useEffect(() => {
-    async function checkAuth() {
+    async function checkPermissions() {
+      console.log("Checking permissions - authLoading:", authLoading, "user:", user, "session:", session)
+
+      if (authLoading) {
+        console.log("Still loading auth state...")
+        return
+      }
+
+      // If no user, redirect to login
+      if (!user || !session) {
+        console.log("No user or session found, redirecting to login")
+        router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
+        return
+      }
+
+      console.log("User authenticated:", user.id, "Recipe owner:", recipe.user_id)
+
       try {
         const supabase = getSupabaseClient()
 
-        // Get current session
-        const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession()
-        console.log("Session check:", { session: session ? "Present" : "None", error: sessionError })
-
-        if (sessionError) {
-          console.error("Session error:", sessionError)
-          setAuthLoading(false)
-          return
-        }
-
-        if (!session || !session.user) {
-          console.log("No session or user found, redirecting to login")
-          router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
-          return
-        }
-
-        console.log("User authenticated:", session.user.id, "Recipe owner:", recipe.user_id)
-        setUser(session.user)
-        setSession(session)
-
         // Check if user is the owner
-        const isOwner = recipe.user_id === session.user.id
+        const isOwner = recipe.user_id === user.id
         console.log("Is owner:", isOwner)
 
         // Check if user is admin
         let isAdmin = false
         try {
-          const { data: profile } = await supabase
-            .from("user_profiles")
-            .select("role")
-            .eq("id", session.user.id)
-            .single()
+          const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
           isAdmin = profile?.role === "admin"
           console.log("Is admin:", isAdmin, "Profile:", profile)
         } catch (err) {
@@ -97,15 +85,13 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
           setError("No tienes permisos para editar esta receta")
         }
       } catch (err) {
-        console.error("Error in auth check:", err)
+        console.error("Error checking permissions:", err)
         setError("Error al verificar permisos")
-      } finally {
-        setAuthLoading(false)
       }
     }
 
-    checkAuth()
-  }, [recipe.id, recipe.user_id, router])
+    checkPermissions()
+  }, [user, session, authLoading, recipe.id, recipe.user_id, router])
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
     setSelectedCategories((prev) => (checked ? [...prev, categoryId] : prev.filter((id) => id !== categoryId)))
