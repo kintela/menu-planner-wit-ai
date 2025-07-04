@@ -10,9 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "latest",
-    "@chakra-ui/react": "latest",
     "@edge-runtime/vm": "latest",
-    "@emotion/react": "latest",
     "@hookform/resolvers": "^3.9.1",
     "@jest/globals": "latest",
     "@radix-ui/react-accordion": "1.2.2",
