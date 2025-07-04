@@ -333,25 +333,41 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       console.log("Datos que se van a actualizar en la BD:", updateData)
       console.log("Updating recipe with data:", updateData)
 
-      // Usar la API route para actualizar la receta SIN timeout
+      // Usar la API route para actualizar la receta
       console.log("Iniciando actualización de receta...")
-      const updateResponse = await fetch(`/api/recipes/${recipe.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updateData),
-      })
 
-      console.log("Respuesta de actualización recibida:", updateResponse.status)
+      try {
+        const updateResponse = await fetch(`/api/recipes/${recipe.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(updateData),
+        })
 
-      if (!updateResponse.ok) {
-        const errorData = await updateResponse.json()
-        throw new Error(`Error al actualizar receta: ${errorData.error || updateResponse.statusText}`)
+        console.log("Respuesta de actualización recibida:", updateResponse.status, updateResponse.statusText)
+
+        if (!updateResponse.ok) {
+          const errorText = await updateResponse.text()
+          console.error("Error response:", errorText)
+          throw new Error(`Error al actualizar receta: ${updateResponse.status} ${updateResponse.statusText}`)
+        }
+
+        let updateResult
+        try {
+          updateResult = await updateResponse.json()
+          console.log("Resultado de actualización:", updateResult)
+        } catch (jsonError) {
+          console.error("Error parsing JSON response:", jsonError)
+          // Si no se puede parsear el JSON, asumir que la actualización fue exitosa
+          updateResult = { success: true }
+        }
+
+        console.log("Receta actualizada exitosamente, procediendo con categorías...")
+      } catch (fetchError) {
+        console.error("Error en fetch de actualización:", fetchError)
+        throw new Error(`Error de red al actualizar receta: ${fetchError.message}`)
       }
-
-      const updateResult = await updateResponse.json()
-      console.log("Resultado de actualización:", updateResult)
 
       // Actualizar las categorías seleccionadas
       console.log("Actualizando categorías...")
