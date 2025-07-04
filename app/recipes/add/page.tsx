@@ -13,11 +13,14 @@ import Link from "next/link"
 export default function AddRecipePage() {
   const { user, loading } = useAuth()
   const [categories, setCategories] = useState<Category[]>([])
-  const [categoriesLoading, setCategoriesLoading] = useState(true)
+  const [categoriesLoading, setCategoriesLoading] = useState(false)
   const [categoriesError, setCategoriesError] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadCategories() {
+      // Don't load if already loading or if auth is still loading
+      if (categoriesLoading || loading) return
+
       try {
         setCategoriesLoading(true)
         setCategoriesError(null)
@@ -26,13 +29,10 @@ export default function AddRecipePage() {
 
         console.log("Intentando cargar categorías...")
 
-        // Try to load categories with a more generous timeout and retry logic
         const { data, error } = await supabase.from("categories").select("*").order("name")
 
         if (error) {
           console.error("Error loading categories:", error)
-          // Don't treat this as a fatal error - just proceed without categories
-          console.log("Procediendo sin categorías debido al error:", error.message)
           setCategories([])
         } else {
           setCategories(data || [])
@@ -40,19 +40,20 @@ export default function AddRecipePage() {
         }
       } catch (error) {
         console.error("Error loading categories:", error)
-        // Don't treat this as a fatal error - just proceed without categories
-        console.log("Procediendo sin categorías debido al error de conexión")
         setCategories([])
       } finally {
         setCategoriesLoading(false)
       }
     }
 
-    // Only load categories if user is authenticated or auth is not loading
-    if (user || !loading) {
+    // Only load categories if user is authenticated and auth is not loading
+    if (user && !loading) {
       loadCategories()
+    } else if (!loading && !user) {
+      // If not authenticated and auth finished loading, stop category loading
+      setCategoriesLoading(false)
     }
-  }, [user, loading])
+  }, [user, loading, categoriesLoading])
 
   if (loading) {
     return (
