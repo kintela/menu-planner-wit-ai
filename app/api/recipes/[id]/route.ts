@@ -57,7 +57,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Supabase configuration missing" }, { status: 500 })
     }
 
+    console.log("Creating Supabase client...")
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    console.log("Parsing request body...")
     const body = await request.json()
     const userId = request.headers.get("x-user-id")
 
@@ -69,7 +72,6 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Usuario no autenticado" }, { status: 401 })
     }
 
-    // Actualizar la receta directamente sin verificar permisos
     console.log("Updating recipe...")
     const updateData = {
       name: body.name,
@@ -79,54 +81,67 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       calories: body.calories,
       source_url: body.source_url,
       video_url: body.video_url,
-      updated_at: new Date().toISOString(),
     }
 
     console.log("Update data:", updateData)
+    console.log("About to execute Supabase update...")
 
-    const { data: updatedRecipe, error: updateError } = await supabase
-      .from("recipes")
-      .update(updateData)
-      .eq("id", params.id)
-      .select()
-      .single()
+    try {
+      const { data: updatedRecipe, error: updateError } = await supabase
+        .from("recipes")
+        .update(updateData)
+        .eq("id", params.id)
+        .select()
 
-    if (updateError) {
-      console.error("Error updating recipe:", updateError)
-      return NextResponse.json({ error: "Error al actualizar la receta: " + updateError.message }, { status: 500 })
-    }
+      console.log("Supabase update completed")
+      console.log("Update error:", updateError)
+      console.log("Updated recipe:", updatedRecipe)
 
-    console.log("Recipe updated successfully:", updatedRecipe)
-
-    // Actualizar categorías si están presentes
-    if (body.categories && Array.isArray(body.categories)) {
-      console.log("Updating categories...")
-
-      try {
-        // Eliminar categorías existentes
-        await supabase.from("recipe_categories").delete().eq("recipe_id", params.id)
-
-        // Insertar nuevas categorías
-        if (body.categories.length > 0) {
-          const categoryInserts = body.categories.map((categoryId: number) => ({
-            recipe_id: Number.parseInt(params.id),
-            category_id: categoryId,
-          }))
-
-          const { error: categoryError } = await supabase.from("recipe_categories").insert(categoryInserts)
-
-          if (categoryError) {
-            console.error("Error updating categories:", categoryError)
-          } else {
-            console.log("Categories updated successfully")
-          }
-        }
-      } catch (categoryError) {
-        console.error("Error in category update:", categoryError)
+      if (updateError) {
+        console.error("Error updating recipe:", updateError)
+        return NextResponse.json({ error: "Error al actualizar la receta: " + updateError.message }, { status: 500 })
       }
-    }
 
-    return NextResponse.json({ success: true, recipe: updatedRecipe })
+      if (!updatedRecipe || updatedRecipe.length === 0) {
+        console.log("No recipe was updated")
+        return NextResponse.json({ error: "No se pudo actualizar la receta" }, { status: 404 })
+      }
+
+      console.log("Recipe updated successfully:", updatedRecipe[0])
+
+      // Actualizar categorías si están presentes
+      if (body.categories && Array.isArray(body.categories)) {
+        console.log("Updating categories...")
+
+        try {
+          // Eliminar categorías existentes
+          await supabase.from("recipe_categories").delete().eq("recipe_id", params.id)
+
+          // Insertar nuevas categorías
+          if (body.categories.length > 0) {
+            const categoryInserts = body.categories.map((categoryId: number) => ({
+              recipe_id: Number.parseInt(params.id),
+              category_id: categoryId,
+            }))
+
+            const { error: categoryError } = await supabase.from("recipe_categories").insert(categoryInserts)
+
+            if (categoryError) {
+              console.error("Error updating categories:", categoryError)
+            } else {
+              console.log("Categories updated successfully")
+            }
+          }
+        } catch (categoryError) {
+          console.error("Error in category update:", categoryError)
+        }
+      }
+
+      return NextResponse.json({ success: true, recipe: updatedRecipe[0] })
+    } catch (supabaseError) {
+      console.error("Supabase operation failed:", supabaseError)
+      return NextResponse.json({ error: "Error en la operación de base de datos" }, { status: 500 })
+    }
   } catch (error) {
     console.error("Error in PUT /api/recipes/[id]:", error)
     return NextResponse.json({ error: "Error interno del servidor: " + (error as Error).message }, { status: 500 })

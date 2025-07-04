@@ -74,6 +74,9 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       console.log("User ID:", user.id)
       console.log("Recipe ID:", recipe.id)
 
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+
       const response = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PUT",
         headers: {
@@ -81,7 +84,10 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
           "X-User-ID": user.id,
         },
         body: JSON.stringify(updateData),
+        signal: controller.signal,
       })
+
+      clearTimeout(timeoutId)
 
       console.log("API response received, status:", response.status)
 
@@ -97,7 +103,11 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       router.push(`/recipes/${recipe.id}`)
     } catch (err) {
       console.error("Error updating recipe:", err)
-      setError(err instanceof Error ? err.message : "Error al actualizar la receta")
+      if (err instanceof Error && err.name === "AbortError") {
+        setError("La petición tardó demasiado tiempo. Inténtalo de nuevo.")
+      } else {
+        setError(err instanceof Error ? err.message : "Error al actualizar la receta")
+      }
     } finally {
       console.log("Setting isSubmitting to false")
       setIsSubmitting(false)

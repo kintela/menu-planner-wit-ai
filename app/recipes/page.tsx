@@ -5,7 +5,7 @@ async function getRecipes() {
   try {
     const supabase = createClient()
 
-    // Obtener recetas
+    // Obtener recetas con información del usuario
     const { data: recipes, error: recipesError } = await supabase
       .from("recipes")
       .select(`
