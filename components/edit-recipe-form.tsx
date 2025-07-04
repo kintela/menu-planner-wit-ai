@@ -40,73 +40,46 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [canEdit, setCanEdit] = useState<boolean | null>(null)
-  const [currentUser, setCurrentUser] = useState<any>(null)
-  const [currentSession, setCurrentSession] = useState<any>(null)
 
   // Check authentication and permissions
   useEffect(() => {
     async function checkPermissions() {
-      console.log("Checking permissions - authLoading:", authLoading, "user:", user, "session:", session)
-
       if (authLoading) {
-        console.log("Still loading auth state...")
         return
       }
 
       try {
         const supabase = getSupabaseClient()
-        let authUser = user
-        let authSession = session
 
-        // Always check session directly as fallback
+        // Get current session
         const {
-          data: { session: directSession },
-          error: sessionError,
+          data: { session: currentSession },
         } = await supabase.auth.getSession()
 
-        if (sessionError) {
-          console.error("Session error:", sessionError)
-        }
-
-        // Use direct session if useAuth didn't provide one
-        if (!authUser && directSession?.user) {
-          console.log("Using direct session user:", directSession.user.id)
-          authUser = directSession.user
-          authSession = directSession
-        } else if (!authSession && directSession) {
-          console.log("Using direct session for auth session")
-          authSession = directSession
-        }
-
-        // Store current user and session for form submission
-        setCurrentUser(authUser)
-        setCurrentSession(authSession)
-
-        // If still no user after both checks, redirect to login
-        if (!authUser || !authSession) {
-          console.log("No user or session found after all checks, redirecting to login")
+        if (!currentSession?.user) {
           router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
           return
         }
 
-        console.log("User authenticated:", authUser.id, "Recipe owner:", recipe.user_id)
+        const currentUser = currentSession.user
 
         // Check if user is the owner
-        const isOwner = recipe.user_id === authUser.id
-        console.log("Is owner:", isOwner)
+        const isOwner = recipe.user_id === currentUser.id
 
         // Check if user is admin
         let isAdmin = false
         try {
-          const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", authUser.id).single()
+          const { data: profile } = await supabase
+            .from("user_profiles")
+            .select("role")
+            .eq("id", currentUser.id)
+            .single()
           isAdmin = profile?.role === "admin"
-          console.log("Is admin:", isAdmin, "Profile:", profile)
         } catch (err) {
           console.error("Error checking admin status:", err)
         }
 
         const hasPermission = isOwner || isAdmin
-        console.log("Has permission:", hasPermission)
         setCanEdit(hasPermission)
 
         if (!hasPermission) {
@@ -119,7 +92,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     }
 
     checkPermissions()
-  }, [user, session, authLoading, recipe.id, recipe.user_id, router])
+  }, [authLoading, recipe.id, recipe.user_id, router])
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
     setSelectedCategories((prev) => (checked ? [...prev, categoryId] : prev.filter((id) => id !== categoryId)))
@@ -133,16 +106,20 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       return
     }
 
-    if (!currentUser || !currentSession) {
-      console.log("No current user or session in handleSubmit, redirecting to login")
-      router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
-      return
-    }
-
     setIsSubmitting(true)
     setError(null)
 
     try {
+      const supabase = getSupabaseClient()
+      const {
+        data: { session: currentSession },
+      } = await supabase.auth.getSession()
+
+      if (!currentSession?.access_token) {
+        router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
+        return
+      }
+
       const updateData = {
         name: name.trim(),
         ingredients: ingredients.trim(),
@@ -153,8 +130,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         video_url: videoUrl.trim() || null,
         categories: selectedCategories,
       }
-
-      console.log("Submitting update with session token:", currentSession.access_token ? "Present" : "Missing")
 
       const response = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PUT",
