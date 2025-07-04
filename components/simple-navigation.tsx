@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Home, Book, Calendar, User, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getSupabaseClient } from "@/lib/supabase/client"
 
 export function SimpleNavigation() {
@@ -51,6 +52,20 @@ export function SimpleNavigation() {
     }
   }
 
+  const getUserInitials = (email: string) => {
+    if (!email) return "U"
+
+    // Try to get initials from email name part
+    const namePart = email.split("@")[0]
+    const parts = namePart.split(/[._-]/)
+
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase()
+    } else {
+      return namePart.slice(0, 2).toUpperCase()
+    }
+  }
+
   return (
     <nav className="bg-white border-b border-gray-200 px-4 py-3">
       <div className="container mx-auto flex items-center justify-between">
@@ -88,7 +103,15 @@ export function SimpleNavigation() {
             <div className="text-sm text-gray-500">Cargando...</div>
           ) : user ? (
             <div className="flex items-center space-x-3">
-              <span className="text-sm text-gray-700 hidden sm:block">{user.email}</span>
+              <Avatar className="h-8 w-8">
+                <AvatarImage
+                  src={user.user_metadata?.avatar_url || user.user_metadata?.picture}
+                  alt={user.email || "Usuario"}
+                />
+                <AvatarFallback className="bg-blue-100 text-blue-700 text-sm font-medium">
+                  {getUserInitials(user.email || "")}
+                </AvatarFallback>
+              </Avatar>
               <Button
                 variant="outline"
                 size="sm"
