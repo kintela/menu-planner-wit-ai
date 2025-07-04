@@ -1,9 +1,9 @@
-import { createServerClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { RecipesPageClient } from "@/components/recipes-page-client"
 import type { Recipe, Category } from "@/lib/types"
 
 async function getRecipes(): Promise<Recipe[]> {
-  const supabase = createServerClient()
+  const supabase = createClient()
 
   try {
     console.log("Fetching recipes...")
@@ -82,7 +82,7 @@ async function getRecipes(): Promise<Recipe[]> {
 }
 
 async function getCategories(): Promise<Category[]> {
-  const supabase = createServerClient()
+  const supabase = createClient()
 
   try {
     const { data: categories, error } = await supabase.from("categories").select("*").order("name")
