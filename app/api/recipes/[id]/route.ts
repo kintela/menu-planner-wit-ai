@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { createClient as createServerClient } from "@/lib/supabase/server"
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
@@ -52,23 +53,29 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Verificar autenticación
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "No autorizado - Token requerido" }, { status: 401 })
+    // Try server-side authentication first
+    const serverSupabase = createServerClient()
+    const {
+      data: { user: serverUser },
+      error: serverAuthError,
+    } = await serverSupabase.auth.getUser()
+
+    let currentUserId = null
+
+    if (serverUser && !serverAuthError) {
+      currentUserId = serverUser.id
+      console.log("Server-side auth successful:", currentUserId)
+    } else {
+      // Fallback to header-based user ID
+      const userIdFromHeader = request.headers.get("x-user-id")
+      if (userIdFromHeader) {
+        currentUserId = userIdFromHeader
+        console.log("Using header user ID:", currentUserId)
+      }
     }
 
-    const token = authHeader.replace("Bearer ", "")
-
-    // Crear cliente con el token del usuario
-    const userSupabase = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-    const {
-      data: { user },
-      error: authError,
-    } = await userSupabase.auth.getUser(token)
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "No autorizado - Token inválido" }, { status: 401 })
+    if (!currentUserId) {
+      return NextResponse.json({ error: "No autorizado - Usuario no identificado" }, { status: 401 })
     }
 
     // Obtener la receta para verificar permisos
@@ -83,12 +90,12 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     }
 
     // Verificar si es el propietario
-    const isOwner = recipe.user_id === user.id
+    const isOwner = recipe.user_id === currentUserId
 
     // Verificar si es admin
     let isAdmin = false
     try {
-      const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
+      const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", currentUserId).single()
       isAdmin = profile?.role === "admin"
     } catch (err) {
       console.error("Error checking admin status:", err)
@@ -107,7 +114,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const updates = await request.json()
 
     // Extraer categorías si están presentes
-    const { categories, id, created_at, created_by, user_profiles, ...updateData } = updates
+    const { categories, id, created_at, created_by, user_profiles, user_id, ...updateData } = updates
 
     console.log("Updating recipe with data:", updateData)
 

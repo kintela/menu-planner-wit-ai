@@ -14,7 +14,6 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { Recipe, Category } from "@/lib/types"
-import { getSupabaseClient } from "@/lib/supabase/client"
 
 interface EditRecipeFormProps {
   recipe: Recipe
@@ -59,19 +58,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     setError(null)
 
     try {
-      console.log("Getting current session...")
-      const supabase = getSupabaseClient()
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession()
-
-      if (sessionError || !session?.access_token) {
-        console.log("No valid session, redirecting to login")
-        router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
-        return
-      }
-
       console.log("Preparing update data...")
       const updateData = {
         name: name.trim(),
@@ -82,6 +68,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         source_url: sourceUrl.trim() || null,
         video_url: videoUrl.trim() || null,
         categories: selectedCategories,
+        user_id: user.id, // Include user ID for server-side verification
       }
 
       console.log("Making API request to update recipe...")
@@ -89,7 +76,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
+          "X-User-ID": user.id, // Pass user ID in header
         },
         body: JSON.stringify(updateData),
       })
