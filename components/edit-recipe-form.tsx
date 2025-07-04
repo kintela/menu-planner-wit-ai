@@ -331,23 +331,17 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       }
 
       console.log("Datos que se van a actualizar en la BD:", updateData)
+      console.log("Updating recipe with data:", updateData)
 
-      // Crear timeout para evitar que se cuelgue
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Timeout: La actualización tardó demasiado")), 30000)
-      })
-
-      // Usar la API route para actualizar la receta con timeout
-      const updatePromise = fetch(`/api/recipes/${recipe.id}`, {
+      // Usar la API route para actualizar la receta SIN timeout
+      console.log("Iniciando actualización de receta...")
+      const updateResponse = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(updateData),
       })
-
-      console.log("Iniciando actualización de receta...")
-      const updateResponse = (await Promise.race([updatePromise, timeoutPromise])) as Response
 
       console.log("Respuesta de actualización recibida:", updateResponse.status)
 
@@ -363,16 +357,15 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       console.log("Actualizando categorías...")
       const supabase = getSupabaseClient()
 
-      // Crear timeout para categorías
-      const categoryTimeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Timeout: Actualización de categorías tardó demasiado")), 15000)
-      })
-
       // Primero eliminar todas las categorías existentes
-      const deletePromise = supabase.from("recipe_categories").delete().eq("recipe_id", recipe.id)
+      const { error: deleteError } = await supabase.from("recipe_categories").delete().eq("recipe_id", recipe.id)
 
-      await Promise.race([deletePromise, categoryTimeoutPromise])
-      console.log("Categorías existentes eliminadas")
+      if (deleteError) {
+        console.error("Error al eliminar categorías:", deleteError)
+        // No lanzar error, continuar con la actualización
+      } else {
+        console.log("Categorías existentes eliminadas")
+      }
 
       // Luego insertar las nuevas categorías seleccionadas
       if (selectedCategories.length > 0) {
@@ -383,12 +376,16 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
         console.log("Insertando categorías:", categoryRelations)
 
-        const insertPromise = supabase.from("recipe_categories").insert(categoryRelations)
-        const { error: categoryError } = (await Promise.race([insertPromise, categoryTimeoutPromise])) as any
+        const { error: categoryError } = await supabase.from("recipe_categories").insert(categoryRelations)
 
         if (categoryError) {
           console.error("Error al insertar categorías:", categoryError)
-          throw new Error(`Error al guardar categorías: ${categoryError.message}`)
+          // No lanzar error, la receta ya se actualizó correctamente
+          toast({
+            title: "Receta actualizada con advertencia",
+            description: "La receta se actualizó pero hubo un problema con las categorías.",
+            variant: "destructive",
+          })
         } else {
           console.log("Categorías insertadas exitosamente")
         }
