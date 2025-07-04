@@ -36,20 +36,29 @@ export function SimpleNavigation() {
             .single()
 
           console.log("Profile data:", profile)
-          console.log("Profile error:", profileError)
-
           setUserProfile(profile)
 
-          // Get avatar URL from storage if profile has avatar
-          if (profile?.avatar_url) {
-            console.log("Avatar URL from profile:", profile.avatar_url)
+          // Look for avatar in the avatars bucket under user's folder
+          const { data: files, error: listError } = await supabase.storage.from("avatars").list(user.id, {
+            limit: 1,
+            sortBy: { column: "created_at", order: "desc" },
+          })
 
-            const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(profile.avatar_url)
+          console.log("Files in avatar folder:", files)
+          console.log("List error:", listError)
+
+          if (files && files.length > 0) {
+            const avatarFile = files[0]
+            const avatarPath = `${user.id}/${avatarFile.name}`
+
+            console.log("Avatar path:", avatarPath)
+
+            const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(avatarPath)
 
             console.log("Generated public URL:", urlData.publicUrl)
             setAvatarUrl(urlData.publicUrl)
           } else {
-            console.log("No avatar_url in profile")
+            console.log("No avatar files found for user")
             setAvatarUrl(null)
           }
         }
@@ -73,11 +82,19 @@ export function SimpleNavigation() {
       if (currentUser) {
         // Fetch profile for new user
         const { data: profile } = await supabase.from("user_profiles").select("*").eq("id", currentUser.id).single()
-
         setUserProfile(profile)
 
-        if (profile?.avatar_url) {
-          const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(profile.avatar_url)
+        // Look for avatar in the avatars bucket under user's folder
+        const { data: files } = await supabase.storage.from("avatars").list(currentUser.id, {
+          limit: 1,
+          sortBy: { column: "created_at", order: "desc" },
+        })
+
+        if (files && files.length > 0) {
+          const avatarFile = files[0]
+          const avatarPath = `${currentUser.id}/${avatarFile.name}`
+
+          const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(avatarPath)
 
           setAvatarUrl(urlData.publicUrl)
         } else {
@@ -153,7 +170,7 @@ export function SimpleNavigation() {
               href="/weekly-menu"
               className="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors"
             >
-              <Calendar className="h-4 w-4" />
+              <Calendar className="h-5 w-5" />
               <span>Planificar</span>
             </Link>
           </div>
