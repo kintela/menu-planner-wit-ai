@@ -46,6 +46,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const [useManualCalories, setUseManualCalories] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
+  const supabase = getSupabaseClient() // Declare supabase here
 
   // Inicializar el formulario con los datos de la receta
   useEffect(() => {
@@ -146,15 +147,13 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         try {
           console.log("Actualizando URL de imagen en la base de datos:", data.url)
 
-          const updateResponse = await fetch(`/api/recipes/${recipe.id}`, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
+          const updateResponse = await supabase
+            .from("recipes")
+            .update({
               image_url: data.url,
-            }),
-          })
+            })
+            .eq("id", recipe.id)
+            .select()
 
           if (!updateResponse.ok) {
             throw new Error(`Error al actualizar la URL de la imagen: ${updateResponse.statusText}`)
@@ -336,42 +335,25 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       // Usar la API route para actualizar la receta
       console.log("Iniciando actualización de receta...")
 
-      try {
-        const updateResponse = await fetch(`/api/recipes/${recipe.id}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(updateData),
-        })
+      // Actualizar directamente con Supabase en lugar de usar la API route
+      console.log("Iniciando actualización directa con Supabase...")
+      const { data: updateResult, error: updateError } = await supabase
+        .from("recipes")
+        .update(updateData)
+        .eq("id", recipe.id)
+        .select()
 
-        console.log("Respuesta de actualización recibida:", updateResponse.status, updateResponse.statusText)
+      console.log("Respuesta de Supabase:", { updateResult, updateError })
 
-        if (!updateResponse.ok) {
-          const errorText = await updateResponse.text()
-          console.error("Error response:", errorText)
-          throw new Error(`Error al actualizar receta: ${updateResponse.status} ${updateResponse.statusText}`)
-        }
-
-        let updateResult
-        try {
-          updateResult = await updateResponse.json()
-          console.log("Resultado de actualización:", updateResult)
-        } catch (jsonError) {
-          console.error("Error parsing JSON response:", jsonError)
-          // Si no se puede parsear el JSON, asumir que la actualización fue exitosa
-          updateResult = { success: true }
-        }
-
-        console.log("Receta actualizada exitosamente, procediendo con categorías...")
-      } catch (fetchError) {
-        console.error("Error en fetch de actualización:", fetchError)
-        throw new Error(`Error de red al actualizar receta: ${fetchError.message}`)
+      if (updateError) {
+        console.error("Error de Supabase:", updateError)
+        throw new Error(`Error al actualizar receta: ${updateError.message}`)
       }
+
+      console.log("Receta actualizada exitosamente con Supabase:", updateResult)
 
       // Actualizar las categorías seleccionadas
       console.log("Actualizando categorías...")
-      const supabase = getSupabaseClient()
 
       // Primero eliminar todas las categorías existentes
       const { error: deleteError } = await supabase.from("recipe_categories").delete().eq("recipe_id", recipe.id)
