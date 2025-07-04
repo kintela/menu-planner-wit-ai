@@ -91,7 +91,7 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
             <Link
               href="/recipes/add"
               className="inline-flex items-center justify-center px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 text-decoration-none"
-              style={{ textDecoration: "none" }}
+              style={{ textDecoration: "none", backgroundColor: "#2563eb !important", color: "white !important" }}
             >
               Añadir Receta
             </Link>
@@ -105,7 +105,7 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
                 <Link
                   href="/recipes/add"
                   className="inline-flex items-center justify-center px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 text-decoration-none"
-                  style={{ textDecoration: "none" }}
+                  style={{ textDecoration: "none", backgroundColor: "#2563eb !important", color: "white !important" }}
                 >
                   Añadir Primera Receta
                 </Link>
@@ -132,7 +132,7 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
           <Link
             href="/recipes/add"
             className="inline-flex items-center justify-center px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 text-decoration-none"
-            style={{ textDecoration: "none" }}
+            style={{ textDecoration: "none", backgroundColor: "#2563eb !important", color: "white !important" }}
           >
             Añadir Receta
           </Link>
@@ -214,7 +214,7 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
                   <Link
                     href="/recipes/add"
                     className="inline-flex items-center justify-center px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 text-decoration-none"
-                    style={{ textDecoration: "none" }}
+                    style={{ textDecoration: "none", backgroundColor: "#2563eb !important", color: "white !important" }}
                   >
                     Añadir Receta
                   </Link>
