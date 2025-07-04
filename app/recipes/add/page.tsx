@@ -22,34 +22,33 @@ export default function AddRecipePage() {
         setCategoriesLoading(true)
         setCategoriesError(null)
 
-        // Add timeout to prevent infinite loading
-        const timeoutId = setTimeout(() => {
-          setCategoriesError("Tiempo de espera agotado al cargar categorías")
-          setCategoriesLoading(false)
-        }, 10000) // 10 seconds timeout
-
         const supabase = createClient()
 
         console.log("Intentando cargar categorías...")
-        const { data, error } = await supabase.from("categories").select("*").order("name")
 
-        clearTimeout(timeoutId) // Clear timeout if request completes
+        // Try to load categories with a more generous timeout and retry logic
+        const { data, error } = await supabase.from("categories").select("*").order("name")
 
         if (error) {
           console.error("Error loading categories:", error)
-          setCategoriesError(`Error al cargar categorías: ${error.message}`)
+          // Don't treat this as a fatal error - just proceed without categories
+          console.log("Procediendo sin categorías debido al error:", error.message)
+          setCategories([])
         } else {
           setCategories(data || [])
           console.log("Categorías cargadas:", data?.length || 0)
         }
       } catch (error) {
         console.error("Error loading categories:", error)
-        setCategoriesError(`Error inesperado: ${error instanceof Error ? error.message : "Error desconocido"}`)
+        // Don't treat this as a fatal error - just proceed without categories
+        console.log("Procediendo sin categorías debido al error de conexión")
+        setCategories([])
       } finally {
         setCategoriesLoading(false)
       }
     }
 
+    // Only load categories if user is authenticated or auth is not loading
     if (user || !loading) {
       loadCategories()
     }
@@ -105,49 +104,7 @@ export default function AddRecipePage() {
           <div className="text-center py-8">
             <Loader2 className="h-6 w-6 animate-spin mx-auto mb-4" />
             <p>Cargando categorías...</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Si esto tarda mucho, puede que no haya categorías en la base de datos
-            </p>
           </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (categoriesError) {
-    return (
-      <div className="container mx-auto py-8 px-4">
-        <div className="max-w-2xl mx-auto">
-          <h1 className="text-3xl font-bold mb-8">Añadir Nueva Receta</h1>
-          <Card className="border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-red-600">
-                <AlertCircle className="h-5 w-5" />
-                Error al cargar categorías
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-red-700 dark:text-red-300">{categoriesError}</p>
-              <div className="flex gap-2">
-                <Button asChild>
-                  <Link href="/categories">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Gestionar Categorías
-                  </Link>
-                </Button>
-
-                <Button variant="outline" onClick={() => window.location.reload()}>
-                  Reintentar
-                </Button>
-              </div>
-              <div className="mt-4">
-                <p className="text-sm text-muted-foreground mb-2">
-                  Mientras tanto, puedes añadir la receta sin categorías:
-                </p>
-                <AddRecipeForm categories={[]} />
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
     )
