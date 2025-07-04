@@ -483,7 +483,7 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
           onCategoriesChange={setSelectedCategories}
         />
 
-        <div className="text-sm text-muted-foreground mb-4">* Los campos marcados con asterisco son obligatorios</div>
+        <div className="text-sm text-muted-foreground mb-4">* Solo el nombre es obligatorio</div>
 
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading ? (
