@@ -4,9 +4,10 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ChefHat, Flame, User, Video, Eye, X, ArrowRight, Edit } from "lucide-react"
+import { ChefHat, Flame, User, Video, Eye, X, ArrowRight, Edit, Lock } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
+import { useAuth } from "@/components/auth/auth-provider"
 
 interface Recipe {
   id: number
@@ -42,6 +43,7 @@ interface RecipeCardProps {
 }
 
 export function RecipeCard({ recipe }: RecipeCardProps) {
+  const { user } = useAuth()
   const [showVideoModal, setShowVideoModal] = useState(false)
   const [showSourceModal, setShowSourceModal] = useState(false)
   const [imageError, setImageError] = useState(false)
@@ -70,6 +72,9 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
       "Usuario anónimo"
     )
   }
+
+  // Check if current user can edit this recipe
+  const canEdit = user && recipe.user_id === user.id
 
   return (
     <>
@@ -180,12 +185,26 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
                 <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
             </Link>
-            <Link href={`/recipes/${recipe.id}/edit`} className="flex-1">
-              <Button size="sm" className="w-full bg-green-600 hover:bg-green-700 text-white border-0">
+
+            {/* Edit button - only show if user can edit */}
+            {canEdit ? (
+              <Link href={`/recipes/${recipe.id}/edit`} className="flex-1">
+                <Button size="sm" className="w-full bg-green-600 hover:bg-green-700 text-white border-0">
+                  Editar
+                  <Edit className="h-4 w-4 ml-2" />
+                </Button>
+              </Link>
+            ) : (
+              <Button
+                size="sm"
+                className="flex-1 bg-gray-400 text-gray-600 cursor-not-allowed"
+                disabled
+                title={!user ? "Inicia sesión para editar recetas" : "Solo puedes editar tus propias recetas"}
+              >
+                {!user ? <Lock className="h-4 w-4 mr-2" /> : <Edit className="h-4 w-4 mr-2" />}
                 Editar
-                <Edit className="h-4 w-4 ml-2" />
               </Button>
-            </Link>
+            )}
           </div>
         </CardContent>
       </Card>

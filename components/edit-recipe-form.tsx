@@ -2,23 +2,19 @@
 
 import type React from "react"
 
-import { useState, useRef, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Loader2, Upload, X, Calculator } from "lucide-react"
-import Image from "next/image"
-
-import { getSupabaseClient } from "@/lib/supabase/client"
-import { useAuth } from "@/components/auth/auth-provider"
-import type { Category, Recipe } from "@/lib/types"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
-import { useToast } from "@/hooks/use-toast"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CategorySelector } from "@/components/category-selector"
-import { calculateCalories } from "@/lib/calories-calculator"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Loader2, Plus, ArrowLeft } from "lucide-react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { useAuth } from "@/components/auth/auth-provider"
+import type { Recipe, Category } from "@/lib/types"
+import { getSupabaseClient } from "@/lib/supabase/client"
 
 interface EditRecipeFormProps {
   recipe: Recipe
@@ -28,236 +24,95 @@ interface EditRecipeFormProps {
 
 export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: EditRecipeFormProps) {
   const router = useRouter()
-  const { toast } = useToast()
-  const { user } = useAuth()
-  const [isLoading, setIsLoading] = useState(false)
-  const [isImageUploading, setIsImageUploading] = useState(false)
+  const { user, session, loading: authLoading } = useAuth()
+
+  // Form states
+  const [name, setName] = useState(recipe.name || "")
+  const [ingredients, setIngredients] = useState(recipe.ingredients || "")
+  const [preparation, setPreparation] = useState(recipe.preparation || "")
+  const [imageUrl, setImageUrl] = useState(recipe.image_url || "")
+  const [calories, setCalories] = useState(recipe.calories?.toString() || "")
+  const [sourceUrl, setSourceUrl] = useState(recipe.source_url || "")
+  const [videoUrl, setVideoUrl] = useState(recipe.video_url || "")
   const [selectedCategories, setSelectedCategories] = useState<number[]>(selectedCategoryIds)
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(recipe.image_url || null)
-  const [imageUrl, setImageUrl] = useState<string>(recipe.image_url || "")
-  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
-  const [imageTab, setImageTab] = useState<string>("url")
-  const [ingredients, setIngredients] = useState<string>("")
-  const [estimatedCalories, setEstimatedCalories] = useState<number | null>(null)
-  const [manualCalories, setManualCalories] = useState<string>("")
-  const [useManualCalories, setUseManualCalories] = useState(false)
-  const [name, setName] = useState<string>("")
-  const [preparation, setPreparation] = useState<string>("")
-  const [sourceUrl, setSourceUrl] = useState<string>("")
-  const [videoUrl, setVideoUrl] = useState<string>("")
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const formRef = useRef<HTMLFormElement>(null)
-  const supabase = getSupabaseClient()
 
-  // Verificar autenticación al cargar el componente
+  // Component states
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [canEdit, setCanEdit] = useState<boolean | null>(null)
+
+  // Check authentication and permissions
   useEffect(() => {
-    const checkAuth = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+    async function checkPermissions() {
+      if (authLoading) return
 
-      if (!session || !user) {
-        toast({
-          title: "Acceso denegado",
-          description: "Debes iniciar sesión para editar recetas.",
-          variant: "destructive",
-        })
-        router.push("/login")
+      // If no user, redirect to login
+      if (!user || !session) {
+        router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
         return
       }
-    }
 
-    checkAuth()
-  }, [user, supabase.auth, router, toast])
+      try {
+        const supabase = getSupabaseClient()
 
-  // Inicializar el formulario con los datos de la receta
-  useEffect(() => {
-    // Inicializar nombre
-    setName(recipe.name || "")
+        // Check if user is the owner
+        const isOwner = recipe.user_id === user.id
 
-    // Convertir ingredientes a string
-    let ingredientsText = ""
-    if (Array.isArray(recipe.ingredients)) {
-      ingredientsText = recipe.ingredients.join("\n")
-    } else if (typeof recipe.ingredients === "string") {
-      ingredientsText = recipe.ingredients
-    }
-    setIngredients(ingredientsText)
+        // Check if user is admin
+        let isAdmin = false
+        try {
+          const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
+          isAdmin = profile?.role === "admin"
+        } catch (err) {
+          console.error("Error checking admin status:", err)
+        }
 
-    // Inicializar preparación
-    let preparationText = ""
-    if (Array.isArray(recipe.preparation)) {
-      preparationText = recipe.preparation.join("\n")
-    } else if (typeof recipe.preparation === "string") {
-      preparationText = recipe.preparation
-    }
-    setPreparation(preparationText)
+        const hasPermission = isOwner || isAdmin
+        setCanEdit(hasPermission)
 
-    // Configurar URLs
-    setSourceUrl(recipe.source_url || "")
-    setVideoUrl(recipe.video_url || "")
-
-    // Configurar calorías
-    if (recipe.calories) {
-      setManualCalories(recipe.calories.toString())
-      setUseManualCalories(true)
-    }
-
-    // Configurar imagen
-    if (recipe.image_url) {
-      setImageUrl(recipe.image_url)
-      setImagePreview(recipe.image_url)
-    }
-  }, [recipe])
-
-  // Calcular calorías cuando cambian los ingredientes
-  useEffect(() => {
-    if (ingredients.trim() && !useManualCalories) {
-      const calories = calculateCalories(ingredients)
-      setEstimatedCalories(calories)
-    } else {
-      setEstimatedCalories(null)
-    }
-  }, [ingredients, useManualCalories])
-
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    if (!file.type.startsWith("image/")) {
-      toast({
-        title: "Formato no válido",
-        description: "Por favor, selecciona un archivo de imagen (JPEG, PNG, etc.)",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "Archivo demasiado grande",
-        description: "La imagen no debe superar los 5MB",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setImageFile(file)
-    setImageUrl("")
-
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string)
-    }
-    reader.readAsDataURL(file)
-
-    try {
-      setIsImageUploading(true)
-      const formData = new FormData()
-      formData.append("file", file)
-
-      const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
-        method: "POST",
-        body: formData,
-      })
-
-      if (!response.ok) {
-        throw new Error(`Error al subir la imagen: ${response.statusText}`)
+        if (!hasPermission) {
+          setError("No tienes permisos para editar esta receta")
+        }
+      } catch (err) {
+        console.error("Error checking permissions:", err)
+        setError("Error al verificar permisos")
       }
-
-      const data = await response.json()
-      if (data.url) {
-        setUploadedImageUrl(data.url)
-        setImageUrl(data.url)
-        toast({
-          title: "Imagen guardada",
-          description: "La imagen se ha subido correctamente.",
-        })
-      }
-    } catch (error) {
-      console.error("Error uploading image:", error)
-      toast({
-        title: "Error al subir la imagen",
-        description: "No se pudo subir la imagen",
-        variant: "destructive",
-      })
-    } finally {
-      setIsImageUploading(false)
     }
+
+    checkPermissions()
+  }, [user, session, authLoading, recipe.id, recipe.user_id, router])
+
+  const handleCategoryChange = (categoryId: number, checked: boolean) => {
+    setSelectedCategories((prev) => (checked ? [...prev, categoryId] : prev.filter((id) => id !== categoryId)))
   }
 
-  const handleRemoveImage = () => {
-    setImageFile(null)
-    setImagePreview(null)
-    setImageUrl("")
-    setUploadedImageUrl(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
-  }
-
-  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setImageUrl(e.target.value)
-    setImageFile(null)
-    setImagePreview(e.target.value)
-    setUploadedImageUrl(null)
-  }
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (isLoading) return
-    setIsLoading(true)
+    if (!user || !session) {
+      router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
+      return
+    }
+
+    if (canEdit === false) {
+      setError("No tienes permisos para editar esta receta")
+      return
+    }
+
+    setIsSubmitting(true)
+    setError(null)
 
     try {
-      // Verificar autenticación
-      if (!user) {
-        toast({
-          title: "Error de autenticación",
-          description: "Debes iniciar sesión para editar recetas.",
-          variant: "destructive",
-        })
-        router.push("/login")
-        return
-      }
-
-      // Obtener el token de sesión
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!session?.access_token) {
-        toast({
-          title: "Sesión expirada",
-          description: "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
-          variant: "destructive",
-        })
-        router.push("/login")
-        return
-      }
-
-      if (!name?.trim()) {
-        toast({
-          title: "Nombre requerido",
-          description: "Por favor, introduce un nombre para la receta.",
-          variant: "destructive",
-        })
-        return
-      }
-
-      // Preparar datos básicos usando los estados del componente
       const updateData = {
         name: name.trim(),
         ingredients: ingredients.trim(),
         preparation: preparation.trim(),
-        image_url: uploadedImageUrl || imageUrl || recipe.image_url,
-        video_url: videoUrl?.trim() || null,
-        source_url: sourceUrl?.trim() || null,
-        calories: useManualCalories && manualCalories ? Number.parseInt(manualCalories) : estimatedCalories,
+        image_url: imageUrl.trim() || null,
+        calories: calories ? Number.parseInt(calories) : null,
+        source_url: sourceUrl.trim() || null,
+        video_url: videoUrl.trim() || null,
         categories: selectedCategories,
       }
-
-      console.log("Enviando datos:", updateData)
 
       const response = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PUT",
@@ -270,279 +125,202 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
       if (!response.ok) {
         const errorData = await response.json()
-        if (response.status === 401) {
-          toast({
-            title: "No autorizado",
-            description: "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
-            variant: "destructive",
-          })
-          router.push("/login")
-          return
-        }
-        if (response.status === 403) {
-          toast({
-            title: "Sin permisos",
-            description: "Solo puedes editar tus propias recetas.",
-            variant: "destructive",
-          })
-          return
-        }
-        throw new Error(errorData.error || `Error ${response.status}`)
+        throw new Error(errorData.error || "Error al actualizar la receta")
       }
 
-      const result = await response.json()
-      console.log("Resultado:", result)
-
-      toast({
-        title: "¡Receta actualizada!",
-        description: "La receta se ha actualizado correctamente.",
-      })
-
-      // Redirigir después de un breve delay
-      setTimeout(() => {
-        window.location.href = `/recipes/${recipe.id}`
-      }, 500)
-    } catch (error) {
-      console.error("Error:", error)
-      toast({
-        title: "Error al guardar",
-        description: error instanceof Error ? error.message : "Error desconocido",
-        variant: "destructive",
-      })
+      router.push(`/recipes/${recipe.id}`)
+    } catch (err) {
+      console.error("Error updating recipe:", err)
+      setError(err instanceof Error ? err.message : "Error al actualizar la receta")
     } finally {
-      setIsLoading(false)
+      setIsSubmitting(false)
     }
   }
 
-  // Si no hay usuario, mostrar mensaje de carga o redirigir
-  if (!user) {
+  // Show loading while checking authentication
+  if (authLoading || canEdit === null) {
     return (
-      <Card className="p-6">
-        <div className="flex items-center justify-center py-8">
+      <div className="container py-10">
+        <div className="flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Verificando autenticación...</span>
+          <span className="ml-2">Verificando permisos...</span>
         </div>
-      </Card>
+      </div>
+    )
+  }
+
+  // Show error if no permissions
+  if (canEdit === false || error) {
+    return (
+      <div className="container py-10">
+        <div className="max-w-md mx-auto">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-red-600">Acceso Denegado</CardTitle>
+              <CardDescription>{error || "No tienes permisos para editar esta receta"}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full">
+                <Link href="/recipes">Volver a recetas</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     )
   }
 
   return (
-    <Card className="p-6">
-      <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-2">
-          <Label htmlFor="name">Nombre de la receta *</Label>
-          <Input id="name" name="name" required value={name} onChange={(e) => setName(e.target.value)} />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="ingredients">Ingredientes</Label>
-          <Textarea
-            id="ingredients"
-            name="ingredients"
-            placeholder="Escribe los ingredientes, uno por línea"
-            className="min-h-32"
-            value={ingredients}
-            onChange={(e) => setIngredients(e.target.value)}
-          />
-        </div>
-
-        <div className="space-y-4 border rounded-lg p-4">
-          <div className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              id="use-manual-calories"
-              checked={useManualCalories}
-              onChange={(e) => setUseManualCalories(e.target.checked)}
-              className="rounded"
-            />
-            <Label htmlFor="use-manual-calories" className="cursor-pointer">
-              Introducir calorías manualmente
-            </Label>
+    <div className="max-w-2xl mx-auto">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/recipes/${recipe.id}`} className="flex items-center gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Volver
+              </Link>
+            </Button>
+            <CardTitle>Editar Receta</CardTitle>
+            <div className="w-20"></div>
           </div>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-red-700 text-sm">{error}</p>
+              </div>
+            )}
 
-          {useManualCalories ? (
             <div className="space-y-2">
-              <Label htmlFor="manual-calories">Calorías totales</Label>
+              <Label htmlFor="name">Nombre de la receta *</Label>
               <Input
-                id="manual-calories"
-                type="number"
-                min="0"
-                max="5000"
-                placeholder="ej: 450"
-                value={manualCalories}
-                onChange={(e) => setManualCalories(e.target.value)}
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ej: Paella valenciana"
+                required
               />
             </div>
-          ) : (
-            estimatedCalories !== null && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calculator className="h-4 w-4" />
-                <span>Calorías estimadas: ~{estimatedCalories} cal</span>
-              </div>
-            )
-          )}
-        </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="preparation">Preparación</Label>
-          <Textarea
-            id="preparation"
-            name="preparation"
-            placeholder="Describe los pasos para preparar la receta"
-            className="min-h-32"
-            value={preparation}
-            onChange={(e) => setPreparation(e.target.value)}
-          />
-        </div>
+            <div className="space-y-2">
+              <Label htmlFor="ingredients">Ingredientes *</Label>
+              <Textarea
+                id="ingredients"
+                value={ingredients}
+                onChange={(e) => setIngredients(e.target.value)}
+                placeholder="Lista los ingredientes necesarios..."
+                className="min-h-[100px]"
+                required
+              />
+            </div>
 
-        <div className="space-y-2">
-          <Label>Imagen del plato</Label>
-          <Tabs value={imageTab} onValueChange={setImageTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="url">URL de imagen</TabsTrigger>
-              <TabsTrigger value="upload">Subir imagen</TabsTrigger>
-            </TabsList>
-            <TabsContent value="url" className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="image_url">URL de la imagen</Label>
-                <Input
-                  id="image_url"
-                  type="url"
-                  placeholder="https://ejemplo.com/imagen.jpg"
-                  value={imageUrl}
-                  onChange={handleUrlChange}
-                />
+            <div className="space-y-2">
+              <Label htmlFor="preparation">Preparación *</Label>
+              <Textarea
+                id="preparation"
+                value={preparation}
+                onChange={(e) => setPreparation(e.target.value)}
+                placeholder="Describe los pasos para preparar la receta..."
+                className="min-h-[150px]"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="calories">Calorías (opcional)</Label>
+              <Input
+                id="calories"
+                type="number"
+                value={calories}
+                onChange={(e) => setCalories(e.target.value)}
+                placeholder="Ej: 350"
+                min="0"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="image_url">URL de imagen (opcional)</Label>
+              <Input
+                id="image_url"
+                type="url"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="https://ejemplo.com/imagen.jpg"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="source_url">URL de origen (opcional)</Label>
+              <Input
+                id="source_url"
+                type="url"
+                value={sourceUrl}
+                onChange={(e) => setSourceUrl(e.target.value)}
+                placeholder="https://www.ejemplo.com/receta-original"
+              />
+              <p className="text-sm text-gray-500">Añade un enlace a la página web de donde has obtenido esta receta</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="video_url">URL del video (opcional)</Label>
+              <Input
+                id="video_url"
+                type="url"
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+              />
+              <p className="text-sm text-gray-500">
+                Añade un enlace a un video que muestre cómo preparar esta receta (YouTube, Vimeo, etc.)
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label>Categorías</Label>
+                <Button type="button" variant="outline" size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nueva categoría
+                </Button>
               </div>
-              {imageUrl && (
-                <div className="relative w-full aspect-video">
-                  <Image
-                    src={imageUrl || "/placeholder.svg"}
-                    alt="Vista previa"
-                    fill
-                    className="object-cover rounded-md"
-                    onError={() => setImagePreview(null)}
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2"
-                    onClick={handleRemoveImage}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-            </TabsContent>
-            <TabsContent value="upload">
-              {imagePreview && imageTab === "upload" ? (
-                <div className="relative w-full aspect-video mb-4">
-                  <Image
-                    src={imagePreview || "/placeholder.svg"}
-                    alt="Vista previa"
-                    fill
-                    className="object-cover rounded-md"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2"
-                    onClick={handleRemoveImage}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                  {uploadedImageUrl && (
-                    <div className="absolute bottom-2 right-2 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-md">
-                      ✅ Imagen guardada
-                    </div>
-                  )}
-                  {isImageUploading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                      <div className="bg-white p-4 rounded-md flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Subiendo imagen...</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center justify-center w-full">
-                  <label
-                    htmlFor="image"
-                    className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted"
-                  >
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <Upload className="w-8 h-8 mb-4 text-muted-foreground" />
-                      <p className="mb-2 text-sm text-muted-foreground">
-                        <span className="font-semibold">Haz clic para subir</span> o arrastra y suelta
-                      </p>
-                      <p className="text-xs text-muted-foreground">PNG, JPG o GIF (máx. 5MB)</p>
-                    </div>
-                    <input
-                      id="image"
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleImageChange}
-                      disabled={isImageUploading}
+              <div className="grid grid-cols-2 gap-4">
+                {categories.map((category) => (
+                  <div key={category.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`category-${category.id}`}
+                      checked={selectedCategories.includes(category.id)}
+                      onCheckedChange={(checked) => handleCategoryChange(category.id, checked as boolean)}
                     />
-                  </label>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
-        </div>
+                    <Label htmlFor={`category-${category.id}`} className="text-sm">
+                      {category.name}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="source_url">URL de la fuente (opcional)</Label>
-          <Input
-            id="source_url"
-            name="source_url"
-            type="url"
-            placeholder="https://www.ejemplo.com/receta-original"
-            value={sourceUrl}
-            onChange={(e) => setSourceUrl(e.target.value)}
-          />
-        </div>
+            <p className="text-sm text-gray-500">* Los campos marcados con asterisco son obligatorios</p>
 
-        <div className="space-y-2">
-          <Label htmlFor="video_url">URL del video (opcional)</Label>
-          <Input
-            id="video_url"
-            name="video_url"
-            type="url"
-            placeholder="https://www.youtube.com/watch?v=..."
-            value={videoUrl}
-            onChange={(e) => setVideoUrl(e.target.value)}
-          />
-        </div>
-
-        <CategorySelector
-          categories={categories}
-          selectedCategories={selectedCategories}
-          onCategoriesChange={setSelectedCategories}
-        />
-
-        <div className="text-sm text-muted-foreground mb-4">* Los campos marcados con asterisco son obligatorios</div>
-
-        <div className="flex justify-end space-x-4">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Guardando cambios...
-              </>
-            ) : (
-              "Guardar cambios"
-            )}
-          </Button>
-        </div>
-      </form>
-    </Card>
+            <div className="flex gap-4">
+              <Button asChild variant="outline" className="flex-1 bg-transparent">
+                <Link href={`/recipes/${recipe.id}`}>Cancelar</Link>
+              </Button>
+              <Button type="submit" disabled={isSubmitting} className="flex-1">
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Guardando cambios...
+                  </>
+                ) : (
+                  "Guardar cambios"
+                )}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
