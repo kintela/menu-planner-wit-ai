@@ -190,8 +190,6 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
         finalCalories = estimatedCalories
       }
 
-      const supabase = createClient()
-
       // Preparar datos para insertar
       const recipeData = {
         name: name.trim(),
@@ -207,18 +205,33 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
 
       console.log("Datos de la receta a insertar:", recipeData)
 
-      // Insertar la receta
-      const { data: recipe, error } = await supabase.from("recipes").insert(recipeData).select().single()
+      // Crear cliente de Supabase
+      const supabase = createClient()
+
+      console.log("Cliente de Supabase creado, iniciando inserción...")
+
+      // Insertar la receta con timeout
+      const insertPromise = supabase.from("recipes").insert(recipeData).select().single()
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Timeout: La inserción tardó demasiado")), 30000)
+      })
+
+      const { data: recipe, error } = (await Promise.race([insertPromise, timeoutPromise])) as any
 
       if (error) {
         console.error("Error creating recipe:", error)
-        throw error
+        throw new Error(`Error de base de datos: ${error.message}`)
       }
 
-      console.log("Receta creada:", recipe)
+      if (!recipe) {
+        throw new Error("No se recibió respuesta de la base de datos")
+      }
+
+      console.log("Receta creada exitosamente:", recipe)
 
       // Insertar las categorías seleccionadas
-      if (selectedCategories.length > 0 && recipe) {
+      if (selectedCategories.length > 0) {
         const categoryRelations = selectedCategories.map((categoryId) => ({
           recipe_id: recipe.id,
           category_id: categoryId,
@@ -236,27 +249,39 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
             description: "La receta se creó pero hubo un problema con las categorías.",
             variant: "destructive",
           })
+        } else {
+          console.log("Categorías asociadas correctamente")
         }
       }
 
       // Mostrar toast de éxito
       toast({
-        title: "Receta añadida",
+        title: "¡Éxito!",
         description: "La receta se ha añadido correctamente.",
       })
+
+      console.log("Proceso completado, redirigiendo...")
 
       // Redirigir después de un breve delay
       setTimeout(() => {
         router.push("/recipes")
-      }, 1000)
+        router.refresh()
+      }, 1500)
     } catch (error) {
-      console.error("Error adding recipe:", error)
+      console.error("Error completo en handleSubmit:", error)
+
+      let errorMessage = "Error desconocido"
+      if (error instanceof Error) {
+        errorMessage = error.message
+      }
+
       toast({
-        title: "Error",
-        description: `Ha ocurrido un error al añadir la receta: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        title: "Error al guardar",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
+      console.log("Finalizando proceso, setIsLoading(false)")
       setIsLoading(false)
     }
   }
