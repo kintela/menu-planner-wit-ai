@@ -40,6 +40,8 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [canEdit, setCanEdit] = useState<boolean | null>(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [currentSession, setCurrentSession] = useState<any>(null)
 
   // Check authentication and permissions
   useEffect(() => {
@@ -53,47 +55,50 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
       try {
         const supabase = getSupabaseClient()
-        let currentUser = user
-        let currentSession = session
+        let authUser = user
+        let authSession = session
 
-        // If useAuth doesn't provide user, check session directly
-        if (!user || !session) {
-          console.log("useAuth didn't provide user/session, checking directly...")
-          const {
-            data: { session: directSession },
-            error: sessionError,
-          } = await supabase.auth.getSession()
+        // Always check session directly as fallback
+        const {
+          data: { session: directSession },
+          error: sessionError,
+        } = await supabase.auth.getSession()
 
-          if (sessionError) {
-            console.error("Session error:", sessionError)
-          } else if (directSession?.user) {
-            console.log("Found user via direct session check:", directSession.user.id)
-            currentUser = directSession.user
-            currentSession = directSession
-          }
+        if (sessionError) {
+          console.error("Session error:", sessionError)
         }
 
+        // Use direct session if useAuth didn't provide one
+        if (!authUser && directSession?.user) {
+          console.log("Using direct session user:", directSession.user.id)
+          authUser = directSession.user
+          authSession = directSession
+        } else if (!authSession && directSession) {
+          console.log("Using direct session for auth session")
+          authSession = directSession
+        }
+
+        // Store current user and session for form submission
+        setCurrentUser(authUser)
+        setCurrentSession(authSession)
+
         // If still no user after both checks, redirect to login
-        if (!currentUser || !currentSession) {
+        if (!authUser || !authSession) {
           console.log("No user or session found after all checks, redirecting to login")
           router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
           return
         }
 
-        console.log("User authenticated:", currentUser.id, "Recipe owner:", recipe.user_id)
+        console.log("User authenticated:", authUser.id, "Recipe owner:", recipe.user_id)
 
         // Check if user is the owner
-        const isOwner = recipe.user_id === currentUser.id
+        const isOwner = recipe.user_id === authUser.id
         console.log("Is owner:", isOwner)
 
         // Check if user is admin
         let isAdmin = false
         try {
-          const { data: profile } = await supabase
-            .from("user_profiles")
-            .select("role")
-            .eq("id", currentUser.id)
-            .single()
+          const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", authUser.id).single()
           isAdmin = profile?.role === "admin"
           console.log("Is admin:", isAdmin, "Profile:", profile)
         } catch (err) {
@@ -128,6 +133,12 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       return
     }
 
+    if (!currentUser || !currentSession) {
+      console.log("No current user or session in handleSubmit, redirecting to login")
+      router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
+      return
+    }
+
     setIsSubmitting(true)
     setError(null)
 
@@ -143,32 +154,13 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         categories: selectedCategories,
       }
 
-      let sessionToken = session?.access_token
-
-      // If no session token from useAuth, try to get it directly
-      if (!sessionToken) {
-        console.log("No session token from useAuth, getting directly...")
-        const supabase = getSupabaseClient()
-        const {
-          data: { session: directSession },
-        } = await supabase.auth.getSession()
-
-        if (!directSession?.access_token) {
-          console.log("No session token found, redirecting to login")
-          router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
-          return
-        }
-
-        sessionToken = directSession.access_token
-      }
-
-      console.log("Submitting update with session token:", sessionToken ? "Present" : "Missing")
+      console.log("Submitting update with session token:", currentSession.access_token ? "Present" : "Missing")
 
       const response = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${sessionToken}`,
+          Authorization: `Bearer ${currentSession.access_token}`,
         },
         body: JSON.stringify(updateData),
       })
