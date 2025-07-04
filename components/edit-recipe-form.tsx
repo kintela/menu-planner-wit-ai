@@ -46,7 +46,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const [useManualCalories, setUseManualCalories] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
-  const supabase = getSupabaseClient() // Declare supabase here
+  const supabase = getSupabaseClient()
 
   // Inicializar el formulario con los datos de la receta
   useEffect(() => {
@@ -141,39 +141,12 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
       if (data.url) {
         setUploadedImageUrl(data.url)
-        setImageUrl(data.url) // También actualizar imageUrl para consistencia
+        setImageUrl(data.url)
 
-        // Actualizar inmediatamente la URL de la imagen en la base de datos
-        try {
-          console.log("Actualizando URL de imagen en la base de datos:", data.url)
-
-          const updateResponse = await supabase
-            .from("recipes")
-            .update({
-              image_url: data.url,
-            })
-            .eq("id", recipe.id)
-            .select()
-
-          if (!updateResponse.ok) {
-            throw new Error(`Error al actualizar la URL de la imagen: ${updateResponse.statusText}`)
-          }
-
-          const updateResult = await updateResponse.json()
-          console.log("Resultado de actualización de imagen:", updateResult)
-
-          toast({
-            title: "Imagen guardada",
-            description: "La imagen se ha subido y guardado en la base de datos correctamente.",
-          })
-        } catch (updateError) {
-          console.error("Error al actualizar la URL de la imagen:", updateError)
-          toast({
-            title: "Error al guardar la URL",
-            description: "La imagen se subió pero no se pudo guardar la URL en la base de datos.",
-            variant: "destructive",
-          })
-        }
+        toast({
+          title: "Imagen guardada",
+          description: "La imagen se ha subido correctamente.",
+        })
       } else {
         throw new Error("No se recibió URL de la imagen")
       }
@@ -209,12 +182,9 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
 
-    // Prevenir doble envío
     if (isLoading) return
-
     setIsLoading(true)
 
-    // Verificar que el usuario esté autenticado
     if (!user) {
       toast({
         title: "Error de autenticación",
@@ -231,7 +201,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     const video_url = (formData.get("video_url") as string) || null
     const source_url = (formData.get("source_url") as string) || null
 
-    // Validación del nombre (único campo obligatorio)
     if (!name.trim()) {
       toast({
         title: "Nombre requerido",
@@ -244,8 +213,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
     try {
       // Determinar la URL de la imagen
-      let finalImageUrl = recipe.image_url // Mantener la imagen existente por defecto
-
+      let finalImageUrl = recipe.image_url
       if (uploadedImageUrl) {
         finalImageUrl = uploadedImageUrl
       } else if (imageTab === "url" && imageUrl.trim()) {
@@ -260,61 +228,38 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         finalCalories = estimatedCalories
       }
 
-      // Preparar datos de actualización
-      const updateData = {
-        name: name.trim(),
-        ingredients: ingredients.trim() || "",
-        preparation: preparation.trim() || "",
-        image_url: finalImageUrl,
-        video_url: video_url?.trim() || null,
-        source_url: source_url?.trim() || null,
-        calories: finalCalories,
-      }
-
-      console.log("Actualizando receta con datos:", updateData)
-
-      // Actualizar receta directamente con timeout manual
-      const updatePromise = supabase.from("recipes").update(updateData).eq("id", recipe.id).select()
-
-      // Timeout manual de 10 segundos
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Operación cancelada por timeout")), 10000)
+      // Usar la API route para actualizar
+      const response = await fetch(`/api/recipes/${recipe.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          ingredients: ingredients.trim() || "",
+          preparation: preparation.trim() || "",
+          image_url: finalImageUrl,
+          video_url: video_url?.trim() || null,
+          source_url: source_url?.trim() || null,
+          calories: finalCalories,
+          categories: selectedCategories,
+        }),
       })
 
-      const { data: updateResult, error: updateError } = (await Promise.race([updatePromise, timeoutPromise])) as any
-
-      if (updateError) {
-        throw new Error(`Error al actualizar: ${updateError.message}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Error al actualizar la receta")
       }
 
-      console.log("Receta actualizada:", updateResult)
-
-      // Actualizar categorías de forma simple
-      if (selectedCategories.length > 0) {
-        try {
-          // Eliminar categorías existentes
-          await supabase.from("recipe_categories").delete().eq("recipe_id", recipe.id)
-
-          // Insertar nuevas categorías
-          const categoryRelations = selectedCategories.map((categoryId) => ({
-            recipe_id: recipe.id,
-            category_id: categoryId,
-          }))
-
-          await supabase.from("recipe_categories").insert(categoryRelations)
-          console.log("Categorías actualizadas")
-        } catch (categoryError) {
-          console.error("Error con categorías:", categoryError)
-          // No fallar por esto
-        }
-      }
+      const result = await response.json()
+      console.log("Receta actualizada:", result)
 
       toast({
         title: "¡Receta actualizada!",
         description: "La receta se ha actualizado correctamente.",
       })
 
-      // Redirigir inmediatamente
+      // Redirigir
       window.location.href = `/recipes/${recipe.id}`
     } catch (error) {
       console.error("Error en actualización:", error)
