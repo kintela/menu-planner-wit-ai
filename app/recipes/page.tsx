@@ -12,7 +12,7 @@ async function getRecipes(): Promise<Recipe[]> {
     const { data: recipes, error: recipesError } = await supabase
       .from("recipes")
       .select("*")
-      .order("created_at", { ascending: false })
+      .order("name", { ascending: true })
 
     if (recipesError) {
       console.error("Error fetching recipes:", recipesError)
