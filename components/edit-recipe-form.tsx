@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { Recipe, Category } from "@/lib/types"
+import { getSupabaseClient } from "@/lib/supabase/client"
 
 interface EditRecipeFormProps {
   recipe: Recipe
@@ -23,7 +24,7 @@ interface EditRecipeFormProps {
 
 export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: EditRecipeFormProps) {
   const router = useRouter()
-  const { user, session, loading: authLoading } = useAuth()
+  const { user, loading: authLoading } = useAuth()
 
   // Form states
   const [name, setName] = useState(recipe.name || "")
@@ -48,8 +49,8 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
     console.log("Form submitted - starting handleSubmit")
 
-    if (!session?.access_token) {
-      console.log("No session or access token, redirecting to login")
+    if (!user) {
+      console.log("No user found, redirecting to login")
       router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
       return
     }
@@ -58,6 +59,19 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     setError(null)
 
     try {
+      console.log("Getting current session...")
+      const supabase = getSupabaseClient()
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
+
+      if (sessionError || !session?.access_token) {
+        console.log("No valid session, redirecting to login")
+        router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
+        return
+      }
+
       console.log("Preparing update data...")
       const updateData = {
         name: name.trim(),
