@@ -36,9 +36,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(recipe.image_url || null)
   const [imageUrl, setImageUrl] = useState<string>(recipe.image_url || "")
-
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
-
   const [imageTab, setImageTab] = useState<string>("url")
   const [ingredients, setIngredients] = useState<string>("")
   const [estimatedCalories, setEstimatedCalories] = useState<number | null>(null)
@@ -50,7 +48,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
 
   // Inicializar el formulario con los datos de la receta
   useEffect(() => {
-    // Convertir ingredientes a string
     let ingredientsText = ""
     if (Array.isArray(recipe.ingredients)) {
       ingredientsText = recipe.ingredients.join("\n")
@@ -59,13 +56,11 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     }
     setIngredients(ingredientsText)
 
-    // Configurar calorías
     if (recipe.calories) {
       setManualCalories(recipe.calories.toString())
       setUseManualCalories(true)
     }
 
-    // Configurar imagen
     if (recipe.image_url) {
       setImageUrl(recipe.image_url)
       setImagePreview(recipe.image_url)
@@ -86,7 +81,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Validar que sea una imagen
     if (!file.type.startsWith("image/")) {
       toast({
         title: "Formato no válido",
@@ -96,7 +90,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       return
     }
 
-    // Validar tamaño (máximo 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast({
         title: "Archivo demasiado grande",
@@ -109,22 +102,14 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     setImageFile(file)
     setImageUrl("")
 
-    // Crear una URL para la vista previa
     const reader = new FileReader()
     reader.onloadend = () => {
       setImagePreview(reader.result as string)
     }
     reader.readAsDataURL(file)
 
-    // Subir la imagen inmediatamente
     try {
       setIsImageUploading(true)
-
-      toast({
-        title: "Subiendo imagen",
-        description: "Por favor espera mientras se sube la imagen...",
-      })
-
       const formData = new FormData()
       formData.append("file", file)
 
@@ -138,23 +123,19 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       }
 
       const data = await response.json()
-
       if (data.url) {
         setUploadedImageUrl(data.url)
         setImageUrl(data.url)
-
         toast({
           title: "Imagen guardada",
           description: "La imagen se ha subido correctamente.",
         })
-      } else {
-        throw new Error("No se recibió URL de la imagen")
       }
     } catch (error) {
       console.error("Error uploading image:", error)
       toast({
         title: "Error al subir la imagen",
-        description: `No se pudo subir la imagen: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        description: "No se pudo subir la imagen",
         variant: "destructive",
       })
     } finally {
@@ -162,7 +143,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     }
   }
 
-  const handleRemoveImage = async () => {
+  const handleRemoveImage = () => {
     setImageFile(null)
     setImagePreview(null)
     setImageUrl("")
@@ -185,87 +166,63 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
     if (isLoading) return
     setIsLoading(true)
 
-    if (!user) {
-      toast({
-        title: "Error de autenticación",
-        description: "Debes estar autenticado para editar una receta.",
-        variant: "destructive",
-      })
-      setIsLoading(false)
-      return
-    }
-
-    const formData = new FormData(e.currentTarget)
-    const name = formData.get("name") as string
-    const preparation = formData.get("preparation") as string
-    const video_url = (formData.get("video_url") as string) || null
-    const source_url = (formData.get("source_url") as string) || null
-
-    if (!name.trim()) {
-      toast({
-        title: "Nombre requerido",
-        description: "Por favor, introduce un nombre para la receta.",
-        variant: "destructive",
-      })
-      setIsLoading(false)
-      return
-    }
-
     try {
-      // Determinar la URL de la imagen
-      let finalImageUrl = recipe.image_url
-      if (uploadedImageUrl) {
-        finalImageUrl = uploadedImageUrl
-      } else if (imageTab === "url" && imageUrl.trim()) {
-        finalImageUrl = imageUrl.trim()
+      const formData = new FormData(e.currentTarget)
+      const name = formData.get("name") as string
+
+      if (!name?.trim()) {
+        toast({
+          title: "Nombre requerido",
+          description: "Por favor, introduce un nombre para la receta.",
+          variant: "destructive",
+        })
+        return
       }
 
-      // Determinar las calorías finales
-      let finalCalories = null
-      if (useManualCalories && manualCalories) {
-        finalCalories = Number.parseInt(manualCalories)
-      } else if (estimatedCalories) {
-        finalCalories = estimatedCalories
+      // Preparar datos básicos
+      const updateData = {
+        name: name.trim(),
+        ingredients: ingredients.trim(),
+        preparation: (formData.get("preparation") as string)?.trim() || "",
+        image_url: uploadedImageUrl || imageUrl || recipe.image_url,
+        video_url: (formData.get("video_url") as string)?.trim() || null,
+        source_url: (formData.get("source_url") as string)?.trim() || null,
+        calories: useManualCalories && manualCalories ? Number.parseInt(manualCalories) : estimatedCalories,
+        categories: selectedCategories,
       }
 
-      // Usar la API route para actualizar
+      console.log("Enviando datos:", updateData)
+
       const response = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name: name.trim(),
-          ingredients: ingredients.trim() || "",
-          preparation: preparation.trim() || "",
-          image_url: finalImageUrl,
-          video_url: video_url?.trim() || null,
-          source_url: source_url?.trim() || null,
-          calories: finalCalories,
-          categories: selectedCategories,
-        }),
+        body: JSON.stringify(updateData),
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Error al actualizar la receta")
+        const errorText = await response.text()
+        throw new Error(`Error ${response.status}: ${errorText}`)
       }
 
       const result = await response.json()
-      console.log("Receta actualizada:", result)
+      console.log("Resultado:", result)
 
       toast({
         title: "¡Receta actualizada!",
         description: "La receta se ha actualizado correctamente.",
       })
 
-      // Redirigir
-      window.location.href = `/recipes/${recipe.id}`
+      // Redirigir después de un breve delay
+      setTimeout(() => {
+        window.location.href = `/recipes/${recipe.id}`
+      }, 500)
     } catch (error) {
-      console.error("Error en actualización:", error)
+      console.error("Error:", error)
       toast({
         title: "Error al guardar",
-        description: `Ha ocurrido un error: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        description: error instanceof Error ? error.message : "Error desconocido",
         variant: "destructive",
       })
     } finally {
@@ -286,14 +243,13 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
           <Textarea
             id="ingredients"
             name="ingredients"
-            placeholder="Escribe los ingredientes, uno por línea (ej: 200g de arroz, 1 pollo, 2 cebollas...)"
+            placeholder="Escribe los ingredientes, uno por línea"
             className="min-h-32"
             value={ingredients}
             onChange={(e) => setIngredients(e.target.value)}
           />
         </div>
 
-        {/* Sección de calorías */}
         <div className="space-y-4 border rounded-lg p-4">
           <div className="flex items-center space-x-2">
             <input
@@ -320,16 +276,12 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
                 value={manualCalories}
                 onChange={(e) => setManualCalories(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">Introduce el número total de calorías para toda la receta</p>
             </div>
           ) : (
             estimatedCalories !== null && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calculator className="h-4 w-4" />
-                <span>
-                  Calorías estimadas: ~{estimatedCalories} cal (total) / ~{Math.round(estimatedCalories / 4)} cal (por
-                  porción)
-                </span>
+                <span>Calorías estimadas: ~{estimatedCalories} cal</span>
               </div>
             )
           )}
@@ -377,14 +329,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
                     alt="Vista previa"
                     fill
                     className="object-cover rounded-md"
-                    onError={() => {
-                      toast({
-                        title: "Error al cargar la imagen",
-                        description: "La URL proporcionada no es válida o no es accesible.",
-                        variant: "destructive",
-                      })
-                      setImagePreview(null)
-                    }}
+                    onError={() => setImagePreview(null)}
                   />
                   <Button
                     type="button"
@@ -425,7 +370,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
                     <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                       <div className="bg-white p-4 rounded-md flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Subiendo y guardando imagen...</span>
+                        <span>Subiendo imagen...</span>
                       </div>
                     </div>
                   )}
@@ -468,9 +413,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
             placeholder="https://www.ejemplo.com/receta-original"
             defaultValue={recipe.source_url || ""}
           />
-          <p className="text-xs text-muted-foreground">
-            Añade un enlace a la página web de donde has obtenido esta receta
-          </p>
         </div>
 
         <div className="space-y-2">
@@ -482,9 +424,6 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
             placeholder="https://www.youtube.com/watch?v=..."
             defaultValue={recipe.video_url || ""}
           />
-          <p className="text-xs text-muted-foreground">
-            Añade un enlace a un video que muestre cómo preparar esta receta (YouTube, Vimeo, etc.)
-          </p>
         </div>
 
         <CategorySelector

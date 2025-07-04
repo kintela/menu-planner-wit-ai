@@ -53,8 +53,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const updates = await request.json()
 
-    // Remover campos que no deben ser actualizados
-    const { id, created_at, created_by, user_profiles, ...updateData } = updates
+    // Extraer categorías si están presentes
+    const { categories, id, created_at, created_by, user_profiles, ...updateData } = updates
 
     console.log("Updating recipe with data:", updateData)
 
@@ -68,6 +68,26 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     if (error) {
       console.error("Error updating recipe:", error)
       return NextResponse.json({ error: "Failed to update recipe" }, { status: 500 })
+    }
+
+    // Actualizar categorías si están presentes
+    if (categories && Array.isArray(categories)) {
+      try {
+        // Eliminar categorías existentes
+        await supabase.from("recipe_categories").delete().eq("recipe_id", params.id)
+
+        // Insertar nuevas categorías
+        if (categories.length > 0) {
+          const categoryRelations = categories.map((categoryId: number) => ({
+            recipe_id: params.id,
+            category_id: categoryId,
+          }))
+          await supabase.from("recipe_categories").insert(categoryRelations)
+        }
+      } catch (categoryError) {
+        console.error("Error updating categories:", categoryError)
+        // No fallar por esto
+      }
     }
 
     console.log("Recipe updated successfully:", recipe)
