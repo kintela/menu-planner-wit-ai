@@ -22,13 +22,13 @@ import {
 interface CategorySelectorProps {
   categories: Category[]
   selectedCategories: number[]
-  onCategoryChange: (categories: number[]) => void
+  onCategoriesChange: (categories: number[]) => void
 }
 
 export function CategorySelector({
   categories: initialCategories,
   selectedCategories,
-  onCategoryChange,
+  onCategoriesChange,
 }: CategorySelectorProps) {
   const { toast } = useToast()
   const [categories, setCategories] = useState<Category[]>(initialCategories)
@@ -49,9 +49,9 @@ export function CategorySelector({
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
     if (checked) {
-      onCategoryChange([...selectedCategories, categoryId])
+      onCategoriesChange([...selectedCategories, categoryId])
     } else {
-      onCategoryChange(selectedCategories.filter((id) => id !== categoryId))
+      onCategoriesChange(selectedCategories.filter((id) => id !== categoryId))
     }
   }
 
@@ -99,7 +99,7 @@ export function CategorySelector({
       setCategories([...categories, newCategory])
 
       // Seleccionar la nueva categoría
-      onCategoryChange([...selectedCategories, newCategory.id])
+      onCategoriesChange([...selectedCategories, newCategory.id])
 
       toast({
         title: "Categoría añadida",
