@@ -77,66 +77,43 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
       console.log("Recipe ID:", recipe.id)
       console.log("Update data:", updateData)
 
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => {
-        console.log("Request timeout - aborting")
-        controller.abort()
-      }, 30000) // Increased to 30 seconds
+      const response = await fetch(`/api/recipes/${recipe.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-ID": user.id,
+        },
+        body: JSON.stringify(updateData),
+      })
 
-      try {
-        const response = await fetch(`/api/recipes/${recipe.id}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "X-User-ID": user.id,
-          },
-          body: JSON.stringify(updateData),
-          signal: controller.signal,
-        })
+      console.log("API response received, status:", response.status)
 
-        clearTimeout(timeoutId)
-
-        console.log("API response received, status:", response.status)
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.log("API error:", errorData)
-          throw new Error(errorData.error || "Error al actualizar la receta")
-        }
-
-        const result = await response.json()
-        console.log("Recipe updated successfully:", result)
-
-        toast({
-          title: "Éxito",
-          description: "Receta actualizada correctamente",
-        })
-
-        console.log("Redirecting to recipe page...")
-        // Force a hard navigation to ensure fresh data
-        window.location.href = `/recipes/${recipe.id}`
-      } catch (fetchError) {
-        clearTimeout(timeoutId)
-        throw fetchError
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.log("API error:", errorData)
+        throw new Error(errorData.error || "Error al actualizar la receta")
       }
+
+      const result = await response.json()
+      console.log("Recipe updated successfully:", result)
+
+      toast({
+        title: "Éxito",
+        description: "Receta actualizada correctamente",
+      })
+
+      console.log("Redirecting to recipe page...")
+      // Use window.location for a hard refresh to ensure data is updated
+      window.location.href = `/recipes/${recipe.id}`
     } catch (err) {
       console.error("Error updating recipe:", err)
-      if (err instanceof Error && err.name === "AbortError") {
-        setError("La petición tardó demasiado tiempo. Inténtalo de nuevo.")
-        toast({
-          title: "Error",
-          description: "La petición tardó demasiado tiempo. Inténtalo de nuevo.",
-          variant: "destructive",
-        })
-      } else {
-        const errorMessage = err instanceof Error ? err.message : "Error al actualizar la receta"
-        setError(errorMessage)
-        toast({
-          title: "Error",
-          description: errorMessage,
-          variant: "destructive",
-        })
-      }
+      const errorMessage = err instanceof Error ? err.message : "Error al actualizar la receta"
+      setError(errorMessage)
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
     } finally {
       console.log("Setting isSubmitting to false")
       setIsSubmitting(false)

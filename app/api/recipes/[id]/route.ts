@@ -1,5 +1,4 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -16,9 +15,19 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Usuario no autenticado" }, { status: 401 })
     }
 
-    const supabase = createClient()
+    // Use environment variables directly
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    // Update the recipe directly without additional checks for speed
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error("Missing Supabase configuration")
+      return NextResponse.json({ error: "Configuración de base de datos faltante" }, { status: 500 })
+    }
+
+    console.log("Creating Supabase client...")
+    const { createClient } = await import("@supabase/supabase-js")
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
     const updateData = {
       name: body.name,
       ingredients: body.ingredients,
@@ -36,7 +45,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       .from("recipes")
       .update(updateData)
       .eq("id", params.id)
-      .eq("user_id", userId) // Ensure user owns the recipe
+      .eq("user_id", userId)
       .select()
       .single()
 
@@ -46,38 +55,73 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     if (!updatedRecipe) {
+      console.error("No recipe returned after update")
       return NextResponse.json({ error: "Receta no encontrada o no tienes permisos para editarla" }, { status: 404 })
     }
 
-    // Handle categories separately and quickly
+    console.log("Recipe updated successfully:", updatedRecipe)
+
+    // Handle categories if provided
     if (body.categories && Array.isArray(body.categories)) {
       console.log("Updating categories:", body.categories)
 
-      // Delete existing categories
-      await supabase.from("recipe_categories").delete().eq("recipe_id", params.id)
+      try {
+        // Delete existing categories
+        const { error: deleteError } = await supabase.from("recipe_categories").delete().eq("recipe_id", params.id)
 
-      // Insert new categories if any
-      if (body.categories.length > 0) {
-        const categoryInserts = body.categories.map((categoryId: number) => ({
-          recipe_id: Number.parseInt(params.id),
-          category_id: categoryId,
-        }))
+        if (deleteError) {
+          console.error("Error deleting existing categories:", deleteError)
+        }
 
-        await supabase.from("recipe_categories").insert(categoryInserts)
+        // Insert new categories if any
+        if (body.categories.length > 0) {
+          const categoryInserts = body.categories.map((categoryId: number) => ({
+            recipe_id: Number.parseInt(params.id),
+            category_id: categoryId,
+          }))
+
+          const { error: insertError } = await supabase.from("recipe_categories").insert(categoryInserts)
+
+          if (insertError) {
+            console.error("Error inserting categories:", insertError)
+          } else {
+            console.log("Categories updated successfully")
+          }
+        }
+      } catch (categoryError) {
+        console.error("Error handling categories:", categoryError)
+        // Don't fail the whole request for category errors
       }
     }
 
-    console.log("Recipe updated successfully:", updatedRecipe)
-    return NextResponse.json({ success: true, recipe: updatedRecipe })
+    console.log("Returning success response")
+    return NextResponse.json({
+      success: true,
+      recipe: updatedRecipe,
+      message: "Receta actualizada correctamente",
+    })
   } catch (error) {
     console.error("Error in PUT /api/recipes/[id]:", error)
-    return NextResponse.json({ error: "Error interno del servidor: " + (error as Error).message }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: "Error interno del servidor: " + (error as Error).message,
+      },
+      { status: 500 },
+    )
   }
 }
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const supabase = createClient()
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json({ error: "Supabase configuration missing" }, { status: 500 })
+    }
+
+    const { createClient } = await import("@supabase/supabase-js")
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const { data: recipe, error } = await supabase
       .from("recipes")
@@ -114,7 +158,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const supabase = createClient()
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return NextResponse.json({ error: "Supabase configuration missing" }, { status: 500 })
+    }
+
+    const { createClient } = await import("@supabase/supabase-js")
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const authHeader = request.headers.get("authorization")
     const userIdFromHeader = request.headers.get("x-user-id")
