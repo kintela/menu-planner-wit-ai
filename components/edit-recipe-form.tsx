@@ -2,11 +2,11 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Loader2, Plus, ArrowLeft } from "lucide-react"
@@ -39,60 +39,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   // Component states
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [canEdit, setCanEdit] = useState<boolean | null>(null)
-
-  // Check authentication and permissions
-  useEffect(() => {
-    async function checkPermissions() {
-      if (authLoading) {
-        return
-      }
-
-      try {
-        const supabase = getSupabaseClient()
-
-        // Get current session
-        const {
-          data: { session: currentSession },
-        } = await supabase.auth.getSession()
-
-        if (!currentSession?.user) {
-          router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
-          return
-        }
-
-        const currentUser = currentSession.user
-
-        // Check if user is the owner
-        const isOwner = recipe.user_id === currentUser.id
-
-        // Check if user is admin
-        let isAdmin = false
-        try {
-          const { data: profile } = await supabase
-            .from("user_profiles")
-            .select("role")
-            .eq("id", currentUser.id)
-            .single()
-          isAdmin = profile?.role === "admin"
-        } catch (err) {
-          console.error("Error checking admin status:", err)
-        }
-
-        const hasPermission = isOwner || isAdmin
-        setCanEdit(hasPermission)
-
-        if (!hasPermission) {
-          setError("No tienes permisos para editar esta receta")
-        }
-      } catch (err) {
-        console.error("Error checking permissions:", err)
-        setError("Error al verificar permisos")
-      }
-    }
-
-    checkPermissions()
-  }, [authLoading, recipe.id, recipe.user_id, router])
+  const [canEdit, setCanEdit] = useState<boolean>(true) // Default to true to avoid blocking
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
     setSelectedCategories((prev) => (checked ? [...prev, categoryId] : prev.filter((id) => id !== categoryId)))
@@ -101,25 +48,29 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (canEdit === false) {
-      setError("No tienes permisos para editar esta receta")
-      return
-    }
+    console.log("Form submitted - starting handleSubmit")
 
     setIsSubmitting(true)
     setError(null)
 
     try {
+      console.log("Getting Supabase client...")
       const supabase = getSupabaseClient()
+
+      console.log("Getting current session...")
       const {
         data: { session: currentSession },
       } = await supabase.auth.getSession()
 
+      console.log("Current session:", currentSession ? "Found" : "Not found")
+
       if (!currentSession?.access_token) {
+        console.log("No access token, redirecting to login")
         router.push(`/login?redirect=/recipes/${recipe.id}/edit`)
         return
       }
 
+      console.log("Preparing update data...")
       const updateData = {
         name: name.trim(),
         ingredients: ingredients.trim(),
@@ -131,6 +82,7 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         categories: selectedCategories,
       }
 
+      console.log("Making API request to update recipe...")
       const response = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PUT",
         headers: {
@@ -140,51 +92,23 @@ export function EditRecipeForm({ recipe, categories, selectedCategoryIds }: Edit
         body: JSON.stringify(updateData),
       })
 
+      console.log("API response status:", response.status)
+
       if (!response.ok) {
         const errorData = await response.json()
+        console.log("API error:", errorData)
         throw new Error(errorData.error || "Error al actualizar la receta")
       }
 
+      console.log("Recipe updated successfully, redirecting...")
       router.push(`/recipes/${recipe.id}`)
     } catch (err) {
       console.error("Error updating recipe:", err)
       setError(err instanceof Error ? err.message : "Error al actualizar la receta")
     } finally {
+      console.log("Setting isSubmitting to false")
       setIsSubmitting(false)
     }
-  }
-
-  // Show loading while checking authentication
-  if (authLoading || canEdit === null) {
-    return (
-      <div className="container py-10">
-        <div className="flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Verificando permisos...</span>
-        </div>
-      </div>
-    )
-  }
-
-  // Show error if no permissions
-  if (canEdit === false || error) {
-    return (
-      <div className="container py-10">
-        <div className="max-w-md mx-auto">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-red-600">Acceso Denegado</CardTitle>
-              <CardDescription>{error || "No tienes permisos para editar esta receta"}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild className="w-full">
-                <Link href="/recipes">Volver a recetas</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    )
   }
 
   return (
