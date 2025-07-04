@@ -18,9 +18,6 @@ export default function AddRecipePage() {
 
   useEffect(() => {
     async function loadCategories() {
-      // Don't load if already loading or if auth is still loading
-      if (categoriesLoading || loading) return
-
       try {
         setCategoriesLoading(true)
         setCategoriesError(null)
@@ -49,11 +46,8 @@ export default function AddRecipePage() {
     // Only load categories if user is authenticated and auth is not loading
     if (user && !loading) {
       loadCategories()
-    } else if (!loading && !user) {
-      // If not authenticated and auth finished loading, stop category loading
-      setCategoriesLoading(false)
     }
-  }, [user, loading, categoriesLoading])
+  }, [user, loading]) // Removed categoriesLoading from dependencies to prevent infinite loop
 
   if (loading) {
     return (
