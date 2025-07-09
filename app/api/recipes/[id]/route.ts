@@ -9,7 +9,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     console.log("User ID from header:", userId)
 
     if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "User not authenticated" }, { status: 401 })
     }
 
     const body = await request.json()
@@ -22,7 +22,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Use environment variables directly
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error("Missing Supabase configuration")
@@ -99,16 +99,19 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         console.log("Existing categories deleted")
 
         // Insert new categories if any
-        const categoryInserts = categories.map((categoryId: string) => ({
+        const categoryInserts = categories.map((categoryId: number) => ({
           recipe_id: Number.parseInt(params.id),
-          category_id: Number.parseInt(categoryId),
+          category_id: categoryId,
         }))
 
-        await supabase.from("recipe_categories").insert(categoryInserts)
-        console.log("New categories inserted")
+        const { error: categoryError } = await supabase.from("recipe_categories").insert(categoryInserts)
+
+        if (categoryError) {
+          console.error("Error handling categories (non-fatal):", categoryError)
+          // Don't fail the whole request for category errors
+        }
       } catch (categoryError) {
-        console.error("Error handling categories (non-fatal):", categoryError)
-        // Don't fail the whole request for category errors
+        console.error("Error processing categories:", categoryError)
       }
     }
 

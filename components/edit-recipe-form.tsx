@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,17 +17,11 @@ interface Recipe {
   name: string
   ingredients: string
   preparation: string
-  image_url?: string
-  calories?: number
-  source_url?: string
-  video_url?: string
-  user_id: string
-  recipe_categories?: Array<{
-    categories: {
-      id: number
-      name: string
-    }
-  }>
+  image_url: string | null
+  calories: number | null
+  source_url: string | null
+  video_url: string | null
+  categories: { id: number; name: string }[]
 }
 
 interface Category {
@@ -37,25 +31,42 @@ interface Category {
 
 interface EditRecipeFormProps {
   recipe: Recipe
-  categories: Category[]
 }
 
-export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
+export default function EditRecipeForm({ recipe }: EditRecipeFormProps) {
   const router = useRouter()
   const { toast } = useToast()
   const { user } = useSession()
-  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [formData, setFormData] = useState({
     name: recipe.name || "",
     ingredients: recipe.ingredients || "",
     preparation: recipe.preparation || "",
     image_url: recipe.image_url || "",
-    calories: recipe.calories?.toString() || "",
+    calories: recipe.calories || "",
     source_url: recipe.source_url || "",
     video_url: recipe.video_url || "",
-    categories: recipe.recipe_categories?.map((rc) => rc.categories.id.toString()) || [],
+    categories: recipe.categories?.map((c) => c.id) || [],
   })
+
+  const [categories, setCategories] = useState<Category[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    fetchCategories()
+  }, [])
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch("/api/categories")
+      if (response.ok) {
+        const data = await response.json()
+        setCategories(data)
+      }
+    } catch (error) {
+      console.error("Error fetching categories:", error)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,7 +74,7 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
     if (!user) {
       toast({
         title: "Error",
-        description: "Debes estar autenticado para editar recetas",
+        description: "You must be logged in to edit recipes",
         variant: "destructive",
       })
       return
@@ -79,7 +90,7 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
         ingredients: formData.ingredients,
         preparation: formData.preparation,
         image_url: formData.image_url || null,
-        calories: formData.calories ? Number.parseInt(formData.calories) : null,
+        calories: formData.calories ? Number.parseInt(formData.calories.toString()) : null,
         source_url: formData.source_url || null,
         video_url: formData.video_url || null,
         categories: formData.categories,
@@ -100,35 +111,35 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
       })
 
       console.log("Response status:", response.status)
-      const responseText = await response.text()
-      console.log("Response text:", responseText)
 
-      let result
+      let responseData
       try {
-        result = JSON.parse(responseText)
+        const responseText = await response.text()
+        console.log("Response text:", responseText)
+        responseData = JSON.parse(responseText)
       } catch (parseError) {
         console.error("Error parsing response:", parseError)
         throw new Error("Invalid response from server")
       }
 
-      if (!response.ok) {
-        throw new Error(result.error || "Error updating recipe")
+      console.log("Response data:", responseData)
+
+      if (response.ok && responseData.success) {
+        toast({
+          title: "Success",
+          description: "Recipe updated successfully",
+        })
+
+        console.log("Redirecting to recipe detail...")
+        window.location.href = `/recipes/${recipe.id}`
+      } else {
+        throw new Error(responseData.error || "Failed to update recipe")
       }
-
-      console.log("Recipe updated successfully:", result)
-
-      toast({
-        title: "Éxito",
-        description: "Receta actualizada correctamente",
-      })
-
-      // Redirect to recipe detail page
-      window.location.href = `/recipes/${recipe.id}`
     } catch (error) {
       console.error("Error updating recipe:", error)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Error al actualizar la receta",
+        description: error instanceof Error ? error.message : "Failed to update recipe",
         variant: "destructive",
       })
     } finally {
@@ -136,24 +147,22 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
     }
   }
 
-  const handleCategoryChange = (categoryId: string) => {
+  const handleCategoryChange = (categoryId: number, checked: boolean) => {
     setFormData((prev) => ({
       ...prev,
-      categories: prev.categories.includes(categoryId)
-        ? prev.categories.filter((id) => id !== categoryId)
-        : [...prev.categories, categoryId],
+      categories: checked ? [...prev.categories, categoryId] : prev.categories.filter((id) => id !== categoryId),
     }))
   }
 
   return (
     <Card className="max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle>Editar Receta</CardTitle>
+        <CardTitle>Edit Recipe</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="name">Nombre *</Label>
+            <Label htmlFor="name">Recipe Name *</Label>
             <Input
               id="name"
               value={formData.name}
@@ -163,7 +172,7 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
           </div>
 
           <div>
-            <Label htmlFor="ingredients">Ingredientes</Label>
+            <Label htmlFor="ingredients">Ingredients</Label>
             <Textarea
               id="ingredients"
               value={formData.ingredients}
@@ -173,17 +182,17 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
           </div>
 
           <div>
-            <Label htmlFor="preparation">Preparación</Label>
+            <Label htmlFor="preparation">Preparation</Label>
             <Textarea
               id="preparation"
               value={formData.preparation}
               onChange={(e) => setFormData((prev) => ({ ...prev, preparation: e.target.value }))}
-              rows={8}
+              rows={6}
             />
           </div>
 
           <div>
-            <Label htmlFor="calories">Calorías</Label>
+            <Label htmlFor="calories">Calories</Label>
             <Input
               id="calories"
               type="number"
@@ -193,7 +202,7 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
           </div>
 
           <div>
-            <Label htmlFor="image_url">URL de imagen</Label>
+            <Label htmlFor="image_url">Image URL</Label>
             <Input
               id="image_url"
               type="url"
@@ -203,7 +212,7 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
           </div>
 
           <div>
-            <Label htmlFor="source_url">URL de origen</Label>
+            <Label htmlFor="source_url">Source URL</Label>
             <Input
               id="source_url"
               type="url"
@@ -213,7 +222,7 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
           </div>
 
           <div>
-            <Label htmlFor="video_url">URL de video</Label>
+            <Label htmlFor="video_url">Video URL</Label>
             <Input
               id="video_url"
               type="url"
@@ -222,28 +231,30 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
             />
           </div>
 
-          <div>
-            <Label>Categorías</Label>
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              {categories.map((category) => (
-                <label key={category.id} className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.categories.includes(category.id.toString())}
-                    onChange={() => handleCategoryChange(category.id.toString())}
-                  />
-                  <span>{category.name}</span>
-                </label>
-              ))}
+          {categories.length > 0 && (
+            <div>
+              <Label>Categories</Label>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                {categories.map((category) => (
+                  <label key={category.id} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.categories.includes(category.id)}
+                      onChange={(e) => handleCategoryChange(category.id, e.target.checked)}
+                    />
+                    <span>{category.name}</span>
+                  </label>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="flex gap-4">
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Guardando..." : "Guardar cambios"}
+              {isSubmitting ? "Updating..." : "Update Recipe"}
             </Button>
             <Button type="button" variant="outline" onClick={() => router.back()}>
-              Cancelar
+              Cancel
             </Button>
           </div>
         </form>
