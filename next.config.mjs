@@ -19,7 +19,7 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://vercel.live/ https://vercel.com https://vercel.fides-cdn.ethyca.com/ https://va.vercel-scripts.com/v1/ https://js.stripe.com/ https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/ https://cdn.heapanalytics.com *.heapanalytics.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://vercel.live/ https://vercel.com https://vercel.fides-cdn.ethyca.com/ https://va.vercel-scripts.com/v1/ https://js.stripe.com/ https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/ https://cdn.heapanalytics.com *.heapanalytics.com blob:",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https: blob:",
               "font-src 'self' data:",
