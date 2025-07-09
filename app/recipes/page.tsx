@@ -58,11 +58,19 @@ async function getCategories() {
 }
 
 export default async function RecipesPage() {
-  const [recipes, categories] = await Promise.all([getRecipes(), getCategories()])
+  try {
+    const [recipes, categories] = await Promise.all([getRecipes(), getCategories()])
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <RecipesPageClient initialRecipes={recipes} initialCategories={categories} />
-    </div>
-  )
+    return <RecipesPageClient initialRecipes={recipes} initialCategories={categories} />
+  } catch (error) {
+    console.error("Error in RecipesPage:", error)
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="container mx-auto px-4 py-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">Error</h1>
+          <p className="text-red-600">Hubo un error al cargar las recetas. Por favor, intenta de nuevo.</p>
+        </div>
+      </div>
+    )
+  }
 }
