@@ -65,7 +65,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       setTimeout(() => reject(new Error("Database operation timeout")), 15000)
     })
 
-    const { data: updatedRecipe, error: updateError } = await Promise.race([updatePromise, timeoutPromise])
+    const result = await Promise.race([updatePromise, timeoutPromise])
+    const { data: updatedRecipe, error: updateError } = result as any
 
     console.log("Update query completed")
 
