@@ -1,18 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { createClient } from "@supabase/supabase-js"
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     console.log("PUT request received for recipe:", params.id)
 
-    const body = await request.json()
     const userId = request.headers.get("x-user-id")
-
     console.log("User ID from header:", userId)
-    console.log("Request body received")
 
     if (!userId) {
-      console.log("No user ID provided")
-      return NextResponse.json({ error: "Usuario no autenticado" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const body = await request.json()
+    console.log("Request body received")
+
+    if (!body) {
+      console.log("No request body provided")
+      return NextResponse.json({ error: "No data provided" }, { status: 400 })
     }
 
     // Use environment variables directly
@@ -27,7 +32,6 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     console.log("Supabase config found, creating client...")
 
     // Import and create client inline
-    const { createClient } = await import("@supabase/supabase-js")
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
@@ -37,15 +41,16 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     console.log("Supabase client created successfully")
 
-    // Prepare update data
+    const { name, ingredients, preparation, image_url, calories, source_url, video_url, categories } = body
+
     const updateData = {
-      name: body.name,
-      ingredients: body.ingredients,
-      preparation: body.preparation,
-      image_url: body.image_url || null,
-      calories: body.calories || null,
-      source_url: body.source_url || null,
-      video_url: body.video_url || null,
+      name,
+      ingredients,
+      preparation,
+      image_url,
+      calories: calories ? Number.parseInt(calories) : null,
+      source_url,
+      video_url,
       updated_at: new Date().toISOString(),
     }
 
@@ -85,8 +90,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     console.log("Recipe updated successfully:", updatedRecipe[0])
 
     // Handle categories separately and don't let it fail the main update
-    if (body.categories && Array.isArray(body.categories)) {
-      console.log("Processing categories:", body.categories)
+    if (categories && categories.length > 0) {
+      console.log("Processing categories:", categories)
 
       try {
         // Delete existing categories
@@ -94,15 +99,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         console.log("Existing categories deleted")
 
         // Insert new categories if any
-        if (body.categories.length > 0) {
-          const categoryInserts = body.categories.map((categoryId: number) => ({
-            recipe_id: Number.parseInt(params.id),
-            category_id: categoryId,
-          }))
+        const categoryInserts = categories.map((categoryId: string) => ({
+          recipe_id: Number.parseInt(params.id),
+          category_id: Number.parseInt(categoryId),
+        }))
 
-          await supabase.from("recipe_categories").insert(categoryInserts)
-          console.log("New categories inserted")
-        }
+        await supabase.from("recipe_categories").insert(categoryInserts)
+        console.log("New categories inserted")
       } catch (categoryError) {
         console.error("Error handling categories (non-fatal):", categoryError)
         // Don't fail the whole request for category errors
@@ -136,7 +139,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Supabase configuration missing" }, { status: 500 })
     }
 
-    const { createClient } = await import("@supabase/supabase-js")
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const { data: recipe, error } = await supabase
@@ -181,7 +183,6 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "Supabase configuration missing" }, { status: 500 })
     }
 
-    const { createClient } = await import("@supabase/supabase-js")
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const authHeader = request.headers.get("authorization")
