@@ -101,13 +101,17 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
       console.log("Preparing update data...")
       const updateData = {
         ...formData,
-        categories: selectedCategories,
+        categories: selectedCategories.map((id) => Number.parseInt(id)),
       }
 
       console.log("Making API request to update recipe...")
       console.log("User ID:", user.id)
       console.log("Recipe ID:", recipe.id)
       console.log("Update data:", updateData)
+
+      // Add timeout to the fetch request
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 20000) // 20 second timeout
 
       const response = await fetch(`/api/recipes/${recipe.id}`, {
         method: "PUT",
@@ -116,8 +120,10 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
           "x-user-id": user.id,
         },
         body: JSON.stringify(updateData),
+        signal: controller.signal,
       })
 
+      clearTimeout(timeoutId)
       console.log("Response status:", response.status)
 
       let responseData
@@ -147,13 +153,22 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
       } else {
         throw new Error("Update failed")
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating recipe:", error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Error al actualizar la receta",
-        variant: "destructive",
-      })
+
+      if (error.name === "AbortError") {
+        toast({
+          title: "Error",
+          description: "La operación tardó demasiado tiempo. Inténtalo de nuevo.",
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Error al actualizar la receta",
+          variant: "destructive",
+        })
+      }
     } finally {
       setIsSubmitting(false)
     }

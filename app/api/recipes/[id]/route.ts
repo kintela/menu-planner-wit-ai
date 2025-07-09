@@ -22,7 +22,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Use environment variables directly
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error("Missing Supabase configuration")
@@ -31,7 +31,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     console.log("Supabase config found, creating client...")
 
-    // Import and create client inline
+    // Create client with service role key for server operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
@@ -47,22 +47,25 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       name,
       ingredients,
       preparation,
-      image_url,
+      image_url: image_url || null,
       calories: calories ? Number.parseInt(calories) : null,
-      source_url,
-      video_url,
+      source_url: source_url || null,
+      video_url: video_url || null,
       updated_at: new Date().toISOString(),
     }
 
     console.log("About to update recipe in database...")
+    console.log("Update data:", updateData)
 
-    // Try the update
-    const { data: updatedRecipe, error: updateError } = await supabase
-      .from("recipes")
-      .update(updateData)
-      .eq("id", params.id)
-      .eq("user_id", userId)
-      .select()
+    // Try the update with explicit timeout
+    const updatePromise = supabase.from("recipes").update(updateData).eq("id", params.id).eq("user_id", userId).select()
+
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Database operation timeout")), 15000)
+    })
+
+    const { data: updatedRecipe, error: updateError } = await Promise.race([updatePromise, timeoutPromise])
 
     console.log("Update query completed")
 
@@ -90,12 +93,17 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     console.log("Recipe updated successfully:", updatedRecipe[0])
 
     // Handle categories separately and don't let it fail the main update
-    if (categories && categories.length > 0) {
+    if (categories && Array.isArray(categories) && categories.length > 0) {
       console.log("Processing categories:", categories)
 
       try {
         // Delete existing categories
-        await supabase.from("recipe_categories").delete().eq("recipe_id", params.id)
+        const deletePromise = supabase.from("recipe_categories").delete().eq("recipe_id", params.id)
+        const deleteTimeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("Category delete timeout")), 5000)
+        })
+
+        await Promise.race([deletePromise, deleteTimeoutPromise])
         console.log("Existing categories deleted")
 
         // Insert new categories if any
@@ -104,14 +112,16 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
           category_id: categoryId,
         }))
 
-        const { error: categoryError } = await supabase.from("recipe_categories").insert(categoryInserts)
+        const insertPromise = supabase.from("recipe_categories").insert(categoryInserts)
+        const insertTimeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("Category insert timeout")), 5000)
+        })
 
-        if (categoryError) {
-          console.error("Error handling categories (non-fatal):", categoryError)
-          // Don't fail the whole request for category errors
-        }
+        await Promise.race([insertPromise, insertTimeoutPromise])
+        console.log("New categories inserted")
       } catch (categoryError) {
-        console.error("Error processing categories:", categoryError)
+        console.error("Error handling categories (non-fatal):", categoryError)
+        // Don't fail the whole request for category errors
       }
     }
 
