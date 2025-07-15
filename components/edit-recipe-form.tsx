@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useSession } from "@/hooks/use-session"
+import { getSupabaseClient } from "@/lib/supabase/client"
 
 interface Category {
   id: string
@@ -57,6 +58,8 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
 
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
 
   useEffect(() => {
     if (recipe.recipe_categories) {
@@ -80,6 +83,40 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
 
   const handleCategoryRemove = (categoryId: string) => {
     setSelectedCategories((prev) => prev.filter((id) => id !== categoryId))
+  }
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImageFile(file)
+    setUploadingImage(true)
+    try {
+      const supabase = getSupabaseClient()
+      const fileExt = file.name.split(".").pop()
+      const fileName = `recipe-${recipe.id}-${Date.now()}.${fileExt}` // solo el nombre, sin carpeta
+      const filePath = fileName
+      console.log("[SUBIDA] Intentando subir imagen:", filePath, file)
+      const { error: uploadError } = await supabase.storage.from("recipe-images").upload(filePath, file, { upsert: true })
+      if (uploadError) {
+        console.error("[SUBIDA] Error al subir imagen:", uploadError)
+        toast({ title: "Error al subir imagen", description: uploadError.message || "Error desconocido", variant: "destructive" })
+        return
+      }
+      const { data, error: urlError } = supabase.storage.from("recipe-images").getPublicUrl(filePath)
+      if (urlError) {
+        console.error("[SUBIDA] Error al obtener URL pública:", urlError)
+        toast({ title: "Error al obtener URL de imagen", description: urlError.message || "Error desconocido", variant: "destructive" })
+        return
+      }
+      setFormData((prev) => ({ ...prev, image_url: data.publicUrl }))
+      toast({ title: "Imagen subida", description: "La imagen se subió correctamente." })
+      console.log("[SUBIDA] Imagen subida y URL pública:", data.publicUrl)
+    } catch (err: any) {
+      console.error("[SUBIDA] Excepción inesperada:", err)
+      toast({ title: "Error inesperado al subir imagen", description: err?.message || "Error desconocido", variant: "destructive" })
+    } finally {
+      setUploadingImage(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -229,14 +266,21 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
           </div>
 
           <div>
-            <Label htmlFor="image_url">URL de imagen</Label>
+            <Label htmlFor="image_file">Imagen de la receta</Label>
             <Input
-              id="image_url"
-              type="url"
-              value={formData.image_url}
-              onChange={(e) => handleInputChange("image_url", e.target.value)}
-              placeholder="https://ejemplo.com/imagen.jpg"
+              id="image_file"
+              type="file"
+              accept="image/*"
+              onChange={handleImageFileChange}
+              disabled={uploadingImage}
             />
+            {uploadingImage && <span className="text-xs text-blue-600">Subiendo imagen...</span>}
+            {formData.image_url && (
+              <div className="mt-2">
+                <img src={formData.image_url} alt="Imagen de la receta" className="max-h-40 rounded" />
+                <div className="text-xs text-gray-500 break-all">{formData.image_url}</div>
+              </div>
+            )}
           </div>
 
           <div>

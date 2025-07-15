@@ -240,7 +240,7 @@ const ChartTooltipContent = React.forwardRef<
                       </div>
                       {item.value && (
                         <span className="font-mono font-medium tabular-nums text-foreground">
-                          {item.value.toLocaleString()}
+                          <ClientOnlyNumber value={item.value} />
                         </span>
                       )}
                     </div>
@@ -315,6 +315,15 @@ const ChartLegendContent = React.forwardRef<
   }
 )
 ChartLegendContent.displayName = "ChartLegend"
+
+// Componente para mostrar un número formateado solo en el cliente
+function ClientOnlyNumber({ value }: { value: number }) {
+  const [formatted, setFormatted] = React.useState<string>(() => value.toString())
+  React.useEffect(() => {
+    setFormatted(value.toLocaleString())
+  }, [value])
+  return <>{formatted}</>
+}
 
 // Helper to extract item config from a payload.
 function getPayloadConfigFromPayload(

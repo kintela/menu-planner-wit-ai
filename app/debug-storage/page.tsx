@@ -4,6 +4,8 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, RefreshCw } from "lucide-react"
+import ClientOnlyDateTime from "@/components/ClientOnlyDateTime"
+import { ClientOnlyDateTime } from "@/app/ui/client-only-datetime"
 
 interface StorageDebugInfo {
   buckets: any[]
@@ -100,7 +102,9 @@ export default function DebugStoragePage() {
                       <h3 className="font-semibold">{bucket.name}</h3>
                       <p className="text-sm text-gray-600">ID: {bucket.id}</p>
                       <p className="text-sm text-gray-600">Público: {bucket.public ? "Sí" : "No"}</p>
-                      <p className="text-sm text-gray-600">Creado: {new Date(bucket.created_at).toLocaleString()}</p>
+                      <p className="text-sm text-gray-600">
+                        Creado: <ClientOnlyDateTime date={bucket.created_at} />
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -122,7 +126,9 @@ export default function DebugStoragePage() {
                     <div key={index} className="border rounded p-3">
                       <p className="font-medium">{file.name}</p>
                       <p className="text-sm text-gray-600">Tamaño: {file.metadata?.size || "Desconocido"} bytes</p>
-                      <p className="text-sm text-gray-600">Modificado: {new Date(file.updated_at).toLocaleString()}</p>
+                      <p className="text-sm text-gray-600">
+                        Modificado: <ClientOnlyDateTime date={file.updated_at} />
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -144,7 +150,9 @@ export default function DebugStoragePage() {
                     <div key={index} className="border rounded p-3">
                       <p className="font-medium">{file.name}</p>
                       <p className="text-sm text-gray-600">Tamaño: {file.metadata?.size || "Desconocido"} bytes</p>
-                      <p className="text-sm text-gray-600">Modificado: {new Date(file.updated_at).toLocaleString()}</p>
+                      <p className="text-sm text-gray-600">
+                        Modificado: <ClientOnlyDateTime date={file.updated_at} />
+                      </p>
                     </div>
                   ))}
                 </div>

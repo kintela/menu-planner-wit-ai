@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { createServerClient } from "@/lib/supabase/server"
 import { Clock, Star, ChefHat, Calendar } from "lucide-react"
+import { ClientOnlyDate } from "@/components/ui/client-only-date"
 
 interface RecentActivityProps {
   userId: string
@@ -85,7 +86,9 @@ export async function RecentActivity({ userId }: RecentActivityProps) {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{activity.title}</p>
                     <div className="flex items-center space-x-2 mt-1">
-                      <p className="text-xs text-muted-foreground">{new Date(activity.time).toLocaleDateString()}</p>
+                      <p className="text-xs text-muted-foreground">
+                        <ClientOnlyDate date={activity.time} />
+                      </p>
                       {activity.type === "rating" && (
                         <Badge variant="secondary" className="text-xs">
                           {activity.rating}⭐

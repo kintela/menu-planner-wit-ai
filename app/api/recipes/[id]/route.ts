@@ -50,8 +50,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       image_url: image_url || null,
       calories: calories ? Number.parseInt(calories) : null,
       source_url: source_url || null,
-      video_url: video_url || null,
-      updated_at: new Date().toISOString(),
+      video_url: video_url || null, // updated_at eliminado porque no existe en la tabla
     }
 
     console.log("About to update recipe in database...")

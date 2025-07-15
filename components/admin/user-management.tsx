@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { getRoleDisplayName } from "@/lib/auth"
 import { Users, Calendar, Mail } from "lucide-react"
+import { ClientOnlyDate } from "@/components/ui/client-only-date"
 
 interface UserManagementProps {
   users: UserProfile[]
@@ -144,7 +145,7 @@ export function UserManagement({ users: initialUsers, currentUserId }: UserManag
                   <div className="flex items-center gap-2">
                     <Calendar className="h-3 w-3 text-muted-foreground" />
                     <span className="text-xs text-muted-foreground">
-                      Miembro desde {new Date(user.created_at).toLocaleDateString()}
+                      Miembro desde <ClientOnlyDate date={user.created_at} />
                     </span>
                   </div>
                 </div>

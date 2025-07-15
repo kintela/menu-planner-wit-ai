@@ -6,6 +6,7 @@ import { UserRoleBadge } from "@/components/user-role-badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { User, Mail, Calendar, Shield } from "lucide-react"
 import { getRoleDescription } from "@/lib/auth"
+import { ClientOnlyDate } from "@/components/ui/client-only-date"
 
 export function UserProfileInfo() {
   const { profile, loading, error } = useUserProfile()
@@ -71,7 +72,9 @@ export function UserProfileInfo() {
 
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm">Miembro desde {new Date(profile.created_at).toLocaleDateString()}</span>
+            <span className="text-sm">
+              Miembro desde <ClientOnlyDate date={profile.created_at} />
+            </span>
           </div>
         </div>
 
