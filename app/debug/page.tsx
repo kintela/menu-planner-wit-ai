@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, RefreshCw, ExternalLink } from "lucide-react"
 import Link from "next/link"
-import ClientOnlyDateTime from "@/components/ClientOnlyDateTime"
+import { ClientOnlyDateTime } from "../../components/ClientOnlyDateTime"
 
 interface DebugInfo {
   supabase: any
