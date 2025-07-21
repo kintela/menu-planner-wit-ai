@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
+import { cookies } from "next/headers"
 import { RecipesPageClient } from "@/components/recipes-page-client"
 
 async function getRecipes() {
-  const supabase = createClient()
+  const supabase = createClient(cookies())
 
   try {
     const { data: recipes, error } = await supabase
@@ -40,7 +41,7 @@ async function getRecipes() {
 }
 
 async function getCategories() {
-  const supabase = createClient()
+  const supabase = createClient(cookies())
 
   try {
     const { data: categories, error } = await supabase.from("categories").select("*").order("name")
