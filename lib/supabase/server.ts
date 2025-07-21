@@ -33,3 +33,4 @@ export function createServerClient(cookieStore: CookieStore) {
 
 // Export for backward compatibility
 export const createSupabaseClient = createServerClient
+export const createClient = createServerClient
