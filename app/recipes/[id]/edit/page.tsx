@@ -24,6 +24,7 @@ export default function EditRecipePage() {
   const [canEdit, setCanEdit] = useState<boolean | null>(null)
 
   useEffect(() => {
+    //console.log("[DEBUG] user:", user, "authLoading:", authLoading, "params.id:", params.id)
     async function checkPermissionsAndLoadData() {
       if (authLoading) return
 
@@ -42,6 +43,8 @@ export default function EditRecipePage() {
           .eq("id", params.id)
           .single()
 
+        //console.log("[DEBUG] recipeData:", recipeData, "recipeError:", recipeError)
+
         if (recipeError || !recipeData) {
           setError("Receta no encontrada")
           setLoading(false)
@@ -58,11 +61,13 @@ export default function EditRecipePage() {
         try {
           const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
           isAdmin = profile?.role === "admin"
+          //console.log("[DEBUG] user_profiles profile:", profile)
         } catch (err) {
           // Intentar con la tabla profiles si user_profiles falla
           try {
             const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
             isAdmin = profile?.role === "admin"
+            console.log("[DEBUG] profiles profile:", profile)
           } catch (err2) {
             console.error("Error checking admin status:", err2)
             isAdmin = false
@@ -72,6 +77,7 @@ export default function EditRecipePage() {
         // Determinar si puede editar
         const hasPermission = isAuthor || isAdmin
         setCanEdit(hasPermission)
+        //console.log("[DEBUG] isAuthor:", isAuthor, "isAdmin:", isAdmin, "hasPermission:", hasPermission)
 
         // Si tiene permisos, cargar categorías
         if (hasPermission) {
@@ -83,11 +89,13 @@ export default function EditRecipePage() {
 
           const categoryIds = recipeCategories?.map((rc) => rc.category_id) || []
           setSelectedCategoryIds(categoryIds)
+          console.log("[DEBUG] recipeCategories:", recipeCategories)
 
           // Obtener todas las categorías
           const { data: categoriesData } = await supabase.from("categories").select("*").order("name")
 
           setCategories(categoriesData || [])
+          console.log("[DEBUG] categoriesData:", categoriesData)
         }
       } catch (err) {
         console.error("Error loading data:", err)

@@ -26,7 +26,7 @@ export function SimpleNavigation() {
       try {
         const supabase = getSupabaseClient()
 
-        console.log("Loading avatar for user:", user.id)
+        //console.log("Loading avatar for user:", user.id)
 
         // Buscar archivos en la carpeta del usuario en el bucket avatars
         const { data: files, error } = await supabase.storage.from("avatars").list(user.id, {
@@ -34,24 +34,24 @@ export function SimpleNavigation() {
           sortBy: { column: "created_at", order: "desc" },
         })
 
-        console.log("Files found in avatars bucket:", files, "Error:", error)
+        //console.log("Files found in avatars bucket:", files, "Error:", error)
 
         if (files && files.length > 0) {
           // Tomar el primer archivo (más reciente)
           const avatarFile = files[0]
-          console.log("Using avatar file:", avatarFile)
+          //console.log("Using avatar file:", avatarFile)
 
           // Construir la ruta completa del archivo
           const filePath = `${user.id}/${avatarFile.name}`
-          console.log("Avatar file path:", filePath)
+          //console.log("Avatar file path:", filePath)
 
           // Obtener la URL pública
           const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath)
 
-          console.log("Generated avatar URL:", urlData.publicUrl)
+          //console.log("Generated avatar URL:", urlData.publicUrl)
           setAvatarUrl(urlData.publicUrl)
         } else {
-          console.log("No avatar files found for user")
+          //console.log("No avatar files found for user")
           setAvatarUrl(null)
         }
 
@@ -145,7 +145,7 @@ export function SimpleNavigation() {
                       setAvatarUrl(null)
                     }}
                     onLoad={() => {
-                      console.log("Avatar image loaded successfully")
+                      //console.log("Avatar image loaded successfully")
                     }}
                   />
                   <AvatarFallback className="bg-blue-100 text-blue-600 text-xs font-medium">

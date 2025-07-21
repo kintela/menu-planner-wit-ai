@@ -64,7 +64,7 @@ async function getRecipeWithUser(id: string): Promise<{ recipe: Recipe | null; u
 }
 
 export default async function RecipePage({ params }: { params: { id: string } }) {
-  console.log("🔍 DEBUG - RecipePage servidor iniciado con ID:", params.id)
+  //console.log("🔍 DEBUG - RecipePage servidor iniciado con ID:", params.id)
 
   // Validación básica del ID en el servidor
   const numericId = Number.parseInt(params.id, 10)
