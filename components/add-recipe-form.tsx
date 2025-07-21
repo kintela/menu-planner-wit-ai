@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { Loader2, Upload, X, Calculator } from "lucide-react"
 import Image from "next/image"
 
-import { getSupabaseClient } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { Category } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -27,7 +27,7 @@ interface AddRecipeFormProps {
 export function AddRecipeForm({ categories }: AddRecipeFormProps) {
   const router = useRouter()
   const { toast } = useToast()
-  const { user } = useAuth() // Obtener el usuario autenticado
+  const { user } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [selectedCategories, setSelectedCategories] = useState<number[]>([])
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -43,7 +43,6 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
 
   // Efecto para limpiar el formulario cuando el componente se monta
   useEffect(() => {
-    // Limpiar el formulario
     setSelectedCategories([])
     setImageFile(null)
     setImagePreview(null)
@@ -54,7 +53,6 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
     setManualCalories("")
     setUseManualCalories(false)
 
-    // Limpiar los campos del formulario de manera segura
     if (formRef.current) {
       formRef.current.reset()
     }
@@ -74,7 +72,6 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Validar que sea una imagen
     if (!file.type.startsWith("image/")) {
       toast({
         title: "Formato no válido",
@@ -84,7 +81,6 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
       return
     }
 
-    // Validar tamaño (máximo 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast({
         title: "Archivo demasiado grande",
@@ -97,7 +93,6 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
     setImageFile(file)
     setImageUrl("")
 
-    // Crear una URL para la vista previa
     const reader = new FileReader()
     reader.onloadend = () => {
       setImagePreview(reader.result as string)
@@ -122,37 +117,40 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+
+    if (isLoading) return // Prevent double submission
+
     setIsLoading(true)
 
-    // Verificar que el usuario esté autenticado
-    if (!user) {
-      toast({
-        title: "Error de autenticación",
-        description: "Debes estar autenticado para añadir una receta.",
-        variant: "destructive",
-      })
-      setIsLoading(false)
-      return
-    }
-
-    const formData = new FormData(e.currentTarget)
-    const name = formData.get("name") as string
-    const preparation = formData.get("preparation") as string
-    const video_url = (formData.get("video_url") as string) || null
-    const source_url = (formData.get("source_url") as string) || null
-
-    // Validación del nombre (único campo obligatorio)
-    if (!name.trim()) {
-      toast({
-        title: "Nombre requerido",
-        description: "Por favor, introduce un nombre para la receta.",
-        variant: "destructive",
-      })
-      setIsLoading(false)
-      return
-    }
-
     try {
+      // Verificar que el usuario esté autenticado
+      if (!user) {
+        toast({
+          title: "Error de autenticación",
+          description: "Debes estar autenticado para añadir una receta.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const formData = new FormData(e.currentTarget)
+      const name = formData.get("name") as string
+      const preparation = formData.get("preparation") as string
+      const video_url = (formData.get("video_url") as string) || null
+      const source_url = (formData.get("source_url") as string) || null
+
+      // Validación del nombre
+      if (!name?.trim()) {
+        toast({
+          title: "Nombre requerido",
+          description: "Por favor, introduce un nombre para la receta.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      console.log("Iniciando guardado de receta:", { name, user: user.id })
+
       // Determinar la URL de la imagen
       let finalImageUrl = null
 
@@ -160,7 +158,6 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
         finalImageUrl = imageUrl
       } else if (imageTab === "upload" && imageFile) {
         try {
-          // Intentar subir la imagen usando FormData y fetch
           const uploadFormData = new FormData()
           uploadFormData.append("file", imageFile)
 
@@ -187,67 +184,103 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
 
       // Determinar las calorías finales
       let finalCalories = null
-
       if (useManualCalories && manualCalories) {
-        // Si el usuario eligió calorías manuales, usar esas
         finalCalories = Number.parseInt(manualCalories)
       } else if (estimatedCalories) {
-        // Si no usa calorías manuales, usar las calculadas
         finalCalories = estimatedCalories
       }
 
-      const supabase = getSupabaseClient()
+      // Preparar datos para insertar
+      const recipeData = {
+        name: name.trim(),
+        ingredients: ingredients.trim() || "",
+        preparation: preparation?.trim() || "",
+        image_url: finalImageUrl,
+        video_url: video_url,
+        source_url: source_url,
+        calories: finalCalories,
+        is_ai_generated: false,
+        user_id: user.id,
+      }
 
-      // Insertar la receta con el user_id
-      const { data: recipe, error } = await supabase
-        .from("recipes")
-        .insert({
-          name,
-          ingredients: ingredients || "",
-          preparation: preparation || "",
-          image_url: finalImageUrl,
-          video_url: video_url,
-          source_url: source_url,
-          calories: finalCalories,
-          is_ai_generated: false,
-          user_id: user.id, // Asignar el ID del usuario autenticado
-        })
-        .select()
-        .single()
+      console.log("Datos de la receta a insertar:", recipeData)
 
-      if (error) throw error
+      // Crear cliente de Supabase
+      const supabase = createClient()
+
+      console.log("Cliente de Supabase creado, iniciando inserción...")
+
+      // Insertar la receta con timeout
+      const insertPromise = supabase.from("recipes").insert(recipeData).select().single()
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Timeout: La inserción tardó demasiado")), 30000)
+      })
+
+      const { data: recipe, error } = (await Promise.race([insertPromise, timeoutPromise])) as any
+
+      if (error) {
+        console.error("Error creating recipe:", error)
+        throw new Error(`Error de base de datos: ${error.message}`)
+      }
+
+      if (!recipe) {
+        throw new Error("No se recibió respuesta de la base de datos")
+      }
+
+      console.log("Receta creada exitosamente:", recipe)
 
       // Insertar las categorías seleccionadas
-      if (selectedCategories.length > 0 && recipe) {
+      if (selectedCategories.length > 0) {
         const categoryRelations = selectedCategories.map((categoryId) => ({
           recipe_id: recipe.id,
           category_id: categoryId,
         }))
 
+        console.log("Insertando relaciones de categorías:", categoryRelations)
+
         const { error: categoryError } = await supabase.from("recipe_categories").insert(categoryRelations)
 
-        if (categoryError) throw categoryError
+        if (categoryError) {
+          console.error("Error creating category relations:", categoryError)
+          // No lanzar error aquí, la receta ya se creó
+          toast({
+            title: "Receta creada con advertencia",
+            description: "La receta se creó pero hubo un problema con las categorías.",
+            variant: "destructive",
+          })
+        } else {
+          console.log("Categorías asociadas correctamente")
+        }
       }
 
       // Mostrar toast de éxito
       toast({
-        title: "Receta añadida",
-        description: "La receta se ha añadido correctamente. Redirigiendo...",
+        title: "¡Éxito!",
+        description: "La receta se ha añadido correctamente.",
       })
 
-      // Esperar un momento para que el toast se muestre y luego redirigir
+      console.log("Proceso completado, redirigiendo...")
+
+      // Redirigir después de un breve delay
       setTimeout(() => {
-        console.log("Ejecutando redirección a /recipes")
-        router.push("/recipes")
-      }, 1000)
+        window.location.href = "/recipes"
+      }, 1500)
     } catch (error) {
-      console.error("Error adding recipe:", error)
+      console.error("Error completo en handleSubmit:", error)
+
+      let errorMessage = "Error desconocido"
+      if (error instanceof Error) {
+        errorMessage = error.message
+      }
+
       toast({
-        title: "Error",
-        description: `Ha ocurrido un error al añadir la receta: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        title: "Error al guardar",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
+      console.log("Finalizando proceso, setIsLoading(false)")
       setIsLoading(false)
     }
   }
@@ -450,7 +483,7 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
           onCategoriesChange={setSelectedCategories}
         />
 
-        <div className="text-sm text-muted-foreground mb-4">* Los campos marcados con asterisco son obligatorios</div>
+        <div className="text-sm text-muted-foreground mb-4">* Solo el nombre es obligatorio</div>
 
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading ? (

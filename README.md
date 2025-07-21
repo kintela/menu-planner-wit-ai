@@ -1,34 +1,33 @@
-# Menu Planner AI
+# Menu Planner with AI
 
-Una aplicación web para planificar menús semanales con sugerencias de IA.
+A Next.js application for planning weekly menus with AI-powered recipe suggestions.
 
-## Características
+## Features
 
-- 🤖 Sugerencias de recetas con IA
-- 📅 Planificación de menús semanales
-- 📱 Responsive design
-- 👥 Sistema de usuarios con roles
-- 🖼️ Subida de imágenes para recetas
-- 🔍 Búsqueda y filtrado de recetas
-- 📊 Gestión de categorías
+- User authentication with Supabase
+- Recipe management
+- Weekly menu planning
+- AI-powered recipe suggestions
+- Category-based recipe filtering
 
-## Tecnologías
+## Tech Stack
 
 - Next.js 14 (App Router)
-- Supabase (Base de datos y autenticación)
-- Tailwind CSS
 - TypeScript
-- OpenAI API para sugerencias
+- Supabase (Database & Auth)
+- Tailwind CSS
+- shadcn/ui components
 
-## Instalación
+## Getting Started
 
-1. Clona el repositorio
-2. Instala las dependencias: `npm install`
-3. Configura las variables de entorno
-4. Ejecuta el proyecto: `npm run dev`
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Set up environment variables
+4. Run the development server: `npm run dev`
 
-## Variables de entorno requeridas
+## Environment Variables
 
+Required environment variables:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`

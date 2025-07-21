@@ -1,40 +1,44 @@
 export interface Recipe {
-  id: number
+  id: string
   name: string
-  ingredients: string
-  preparation: string
+  description?: string
+  ingredients: string[]
+  instructions: string[]
+  prep_time?: number
+  cook_time?: number
+  servings?: number
+  difficulty?: "easy" | "medium" | "hard"
+  category?: string
+  tags?: string[]
   image_url?: string
-  created_at: string
-  is_ai_generated?: boolean
-  video_url?: string
   source_url?: string
-  calories?: number
-  user_id?: string // Añadido para la relación con el usuario
-  categories?: Category[]
-}
-
-export interface Category {
-  id: number
-  name: string
+  user_id: string
   created_at: string
+  updated_at: string
+  calories_per_serving?: number
+  rating?: number
 }
 
 export interface WeeklyMenu {
-  id: number
+  id: string
   name: string
   start_date: string
   end_date: string
-  created_at: string
   user_id: string
+  created_at: string
+  updated_at: string
+  is_saved: boolean
 }
 
 export interface MenuItem {
-  id: number
-  weekly_menu_id: number
-  recipe_id: number
-  day_of_week: number
-  meal_type: string
+  id: string
+  weekly_menu_id: string
+  recipe_id: string
+  day_of_week: number // 0 = Monday, 6 = Sunday
+  meal_type: "lunch" | "dinner"
   dish_order: number
+  created_at: string
+  recipe?: Recipe
 }
 
 export interface UserProfile {
@@ -45,8 +49,41 @@ export interface UserProfile {
   last_name?: string
   alias?: string
   avatar_url?: string
-  phone?: string
-  role: "admin" | "user" | "user_restricted"
+  role: "admin" | "user_full" | "user_restricted"
   created_at: string
   updated_at: string
+}
+
+export type UserRole = "admin" | "user_full" | "user_restricted"
+
+export interface Category {
+  id: string
+  name: string
+  description?: string
+  created_at: string
+}
+
+export interface RecipeSearchFilters {
+  query?: string
+  category?: string
+  difficulty?: string
+  maxPrepTime?: number
+  maxCookTime?: number
+  minRating?: number
+  tags?: string[]
+  myRecipesOnly?: boolean
+}
+
+export interface AIRecipeSuggestion {
+  name: string
+  description: string
+  ingredients: string[]
+  instructions: string[]
+  prep_time: number
+  cook_time: number
+  servings: number
+  difficulty: string
+  category: string
+  tags: string[]
+  calories_per_serving?: number
 }

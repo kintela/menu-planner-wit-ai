@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { createServerClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { Calendar, ChefHat } from "lucide-react"
+import { ClientOnlyDate } from "@/components/ui/client-only-date"
 
 interface WeeklyMenuPreviewProps {
   userId: string
@@ -50,7 +51,7 @@ export async function WeeklyMenuPreview({ userId }: WeeklyMenuPreviewProps) {
             <div>
               <h3 className="font-medium">{latestMenu.name}</h3>
               <p className="text-sm text-muted-foreground">
-                Semana del {new Date(latestMenu.week_start_date).toLocaleDateString()}
+                Semana del <ClientOnlyDate date={latestMenu.week_start_date} />
               </p>
             </div>
 

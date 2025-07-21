@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, RefreshCw, ExternalLink } from "lucide-react"
 import Link from "next/link"
+import ClientOnlyDateTime from "@/components/ClientOnlyDateTime"
+import { ClientOnlyDateTime } from "@/app/ui/client-only-datetime"
 
 interface DebugInfo {
   supabase: any
@@ -200,7 +202,7 @@ export default function DebugPage() {
                   <strong>Next.js:</strong> {debugInfo.deployment.nextjsVersion}
                 </p>
                 <p>
-                  <strong>Timestamp:</strong> {new Date(debugInfo.deployment.timestamp).toLocaleString()}
+                  <strong>Timestamp:</strong> <ClientOnlyDateTime date={debugInfo.deployment.timestamp} />
                 </p>
               </div>
             ) : (

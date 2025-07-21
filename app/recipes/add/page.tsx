@@ -3,8 +3,8 @@
 import { useAuth } from "@/components/auth/auth-provider"
 import { AddRecipeForm } from "@/components/add-recipe-form"
 import { Loader2, AlertCircle, Plus } from "lucide-react"
-import { useEffect, useState } from "react"
-import { getSupabaseClient } from "@/lib/supabase/client"
+import { useEffect, useState, useRef } from "react"
+import { createClient } from "@/lib/supabase/client"
 import type { Category } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,43 +13,42 @@ import Link from "next/link"
 export default function AddRecipePage() {
   const { user, loading } = useAuth()
   const [categories, setCategories] = useState<Category[]>([])
-  const [categoriesLoading, setCategoriesLoading] = useState(true)
-  const [categoriesError, setCategoriesError] = useState<string | null>(null)
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false)
+  const loadingRef = useRef(false)
 
   useEffect(() => {
     async function loadCategories() {
-      try {
-        setCategoriesLoading(true)
-        setCategoriesError(null)
-        const supabase = getSupabaseClient()
+      // Prevent multiple simultaneous loads
+      if (loadingRef.current || categoriesLoaded) return
 
-        console.log("Intentando cargar categorías...")
+      try {
+        loadingRef.current = true
+        const supabase = createClient()
+
+        console.log("Cargando categorías...")
         const { data, error } = await supabase.from("categories").select("*").order("name")
 
         if (error) {
           console.error("Error loading categories:", error)
-          setCategoriesError(`Error al cargar categorías: ${error.message}`)
+          setCategories([])
         } else {
           setCategories(data || [])
-
-          if (!data || data.length === 0) {
-            setCategoriesError("No hay categorías disponibles.")
-
-          }
+          console.log("Categorías cargadas:", data?.length || 0)
         }
       } catch (error) {
         console.error("Error loading categories:", error)
-        setCategoriesError(`Error inesperado: ${error instanceof Error ? error.message : "Error desconocido"}`)
+        setCategories([])
       } finally {
-        setCategoriesLoading(false)
+        loadingRef.current = false
+        setCategoriesLoaded(true)
       }
     }
 
-
-    if (user || !loading) {
+    // Only load if user is authenticated and categories haven't been loaded yet
+    if (user && !loading && !categoriesLoaded) {
       loadCategories()
     }
-  }, [user, loading])
+  }, [user, loading, categoriesLoaded])
 
   if (loading) {
     return (
@@ -93,7 +92,8 @@ export default function AddRecipePage() {
     )
   }
 
-  if (categoriesLoading) {
+  // Show loading only if categories haven't been loaded yet and we're currently loading
+  if (!categoriesLoaded && loadingRef.current) {
     return (
       <div className="container mx-auto py-8 px-4">
         <div className="max-w-2xl mx-auto">
@@ -101,56 +101,11 @@ export default function AddRecipePage() {
           <div className="text-center py-8">
             <Loader2 className="h-6 w-6 animate-spin mx-auto mb-4" />
             <p>Cargando categorías...</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Si esto tarda mucho, puede que no haya categorías en la base de datos
-            </p>
           </div>
         </div>
       </div>
     )
   }
-
-
-  if (categoriesError) {
-    return (
-      <div className="container mx-auto py-8 px-4">
-        <div className="max-w-2xl mx-auto">
-          <h1 className="text-3xl font-bold mb-8">Añadir Nueva Receta</h1>
-          <Card className="border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-red-600">
-                <AlertCircle className="h-5 w-5" />
-                Error al cargar categorías
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-red-700 dark:text-red-300">{categoriesError}</p>
-              <div className="flex gap-2">
-                <Button asChild>
-                  <Link href="/categories">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Gestionar Categorías
-                  </Link>
-                </Button>
-
-                <Button variant="outline" onClick={() => window.location.reload()}>
-
-                  Reintentar
-                </Button>
-              </div>
-              <div className="mt-4">
-                <p className="text-sm text-muted-foreground mb-2">
-                  Mientras tanto, puedes añadir la receta sin categorías:
-                </p>
-                <AddRecipeForm categories={[]} />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    )
-  }
-
 
   return (
     <div className="container mx-auto py-8 px-4">

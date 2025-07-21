@@ -2,288 +2,286 @@
 
 import { useEffect, useState } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
-import { getSupabaseClient } from "@/lib/supabase/client"
-import { WeeklyMenuView } from "@/components/weekly-menu-view"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertCircle, Loader2 } from "lucide-react"
-import Link from "next/link"
-import type { MenuItem, Recipe, WeeklyMenu } from "@/lib/types"
-import { useToast } from "@/hooks/use-toast"
+import { SimpleNavigation } from "@/components/simple-navigation"
+import WeeklyMenuView from "@/components/weekly-menu-view"
+import LoginForm from "@/components/auth/login-form"
+import { supabase } from "@/lib/supabase/client"
+import type { Recipe as RecipeType, WeeklyMenu, MenuItem } from "@/lib/types"
+import { Suspense } from "react"
+import { createClient } from "@/lib/supabase/server"
+
+interface MenuDay {
+  lunch: RecipeType[]
+  dinner: RecipeType[]
+}
+
+async function getRecipes(): Promise<RecipeType[]> {
+  try {
+    const supabase = createClient()
+
+    const { data: recipes, error } = await supabase
+      .from("recipes")
+      .select(`
+        id,
+        name,
+        calories,
+        image_url,
+        user_profiles (
+          full_name,
+          first_name
+        )
+      `)
+      .order("name")
+
+    if (error) {
+      console.error("Error cargando recetas:", error)
+      return []
+    }
+
+    return recipes || []
+  } catch (error) {
+    console.error("Error en getRecipes:", error)
+    return []
+  }
+}
+
+const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
 export default function WeeklyMenuPage() {
+  const [recipes, setRecipes] = useState<RecipeType[]>([])
   const { user, loading: authLoading } = useAuth()
+  const [mounted, setMounted] = useState(false)
+  const [currentWeek, setCurrentWeek] = useState(new Date())
+  const [menu, setMenu] = useState<Record<number, MenuDay>>({})
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [weeklyMenu, setWeeklyMenu] = useState<WeeklyMenu | null>(null)
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([])
-  const [recipes, setRecipes] = useState<Recipe[]>([])
-  const [startDate, setStartDate] = useState<string>("")
-  const [menuHistory, setMenuHistory] = useState<WeeklyMenu[]>([])
-  const { toast } = useToast()
+  const [saving, setSaving] = useState(false)
+  const [currentMenu, setCurrentMenu] = useState<WeeklyMenu | null>(null)
 
-  const loadDataForWeek = async (weekStartDate: string) => {
+  const [weekDates, setWeekDates] = useState<Date[]>([])
+  const [startDate, setStartDate] = useState<Date | null>(null)
+  const [endDate, setEndDate] = useState<Date | null>(null)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const fetchRecipes = async () => {
+      const recipesData = await getRecipes()
+      setRecipes(recipesData)
+    }
+
+    fetchRecipes()
+  }, [])
+
+  useEffect(() => {
+    if (user) {
+      loadWeeklyMenu()
+    }
+  }, [user, currentWeek])
+
+  const loadWeeklyMenu = async () => {
+    if (!user) return
+
+    setLoading(true)
     try {
-      console.log("🔄 Cargando datos del menú semanal para fecha:", weekStartDate)
-      console.log("🔍 Usuario para búsqueda:", user?.id)
-      const supabase = getSupabaseClient()
+      const weekDates = getWeekDates(currentWeek)
+      const startDate = weekDates[0]
+      const endDate = weekDates[6]
+      setWeekDates(weekDates)
+      setStartDate(startDate)
+      setEndDate(endDate)
 
-      const endOfWeek = new Date(weekStartDate)
-      endOfWeek.setDate(endOfWeek.getDate() + 6)
-      const endDate = endOfWeek.toISOString().split("T")[0]
-
-      // Buscar menú semanal existente para la semana específica
-      const { data: weeklyMenuData } = await supabase
+      // Buscar menú existente para esta semana
+      const { data: menuData, error: menuError } = await supabase
         .from("weekly_menus")
         .select("*")
-        .eq("start_date", weekStartDate)
-        .eq("end_date", endDate)
+        .eq("user_id", user.id)
+        .eq("start_date", startDate.toISOString().split("T")[0])
+        .single()
 
-        .eq("user_id", user?.id)
+      if (menuError && menuError.code !== "PGRST116") {
+        throw menuError
+      }
 
-        .maybeSingle()
+      setCurrentMenu(menuData)
 
-      console.log("📅 Menú semanal encontrado:", weeklyMenuData)
-      setWeeklyMenu(weeklyMenuData)
+      // Inicializar menú vacío primero
+      const emptyMenu: Record<number, MenuDay> = {}
+      for (let i = 0; i < 7; i++) {
+        emptyMenu[i] = { lunch: [], dinner: [] }
+      }
+      setMenu(emptyMenu)
 
-      // Obtener items del menú si existe
-      let menuItemsData: MenuItem[] = []
-      if (weeklyMenuData) {
-        const { data: items } = await supabase
+      if (menuData) {
+        // Cargar items del menú
+        const { data: itemsData, error: itemsError } = await supabase
           .from("menu_items")
           .select(`
             *,
-            recipe:recipe_id (*)
+            recipe:recipes(*)
           `)
-          .eq("weekly_menu_id", weeklyMenuData.id)
-          .order("day_of_week")
-          .order("meal_type")
-          .order("dish_order")
+          .eq("weekly_menu_id", menuData.id)
 
-        if (items) {
-          menuItemsData = items as unknown as MenuItem[]
-          console.log("🍽️ Items del menú cargados:", menuItemsData.length, "items")
+        if (itemsError) throw itemsError
+
+        // Organizar items por día y tipo de comida
+        const menuByDay: Record<number, MenuDay> = {}
+
+        for (let i = 0; i < 7; i++) {
+          menuByDay[i] = { lunch: [], dinner: [] }
         }
+
+        if (itemsData && Array.isArray(itemsData)) {
+          itemsData.forEach((item: MenuItem & { recipe: RecipeType }) => {
+            if (item.recipe && menuByDay[item.day_of_week] && menuByDay[item.day_of_week][item.meal_type]) {
+              menuByDay[item.day_of_week][item.meal_type].push(item.recipe)
+            }
+          })
+        }
+
+        setMenu(menuByDay)
       }
-
-      setMenuItems(menuItemsData)
-
-      // Obtener todas las recetas (solo una vez)
-      if (recipes.length === 0) {
-        const { data: recipesData } = await supabase.from("recipes").select("*").order("name")
-        setRecipes(recipesData || [])
-        console.log("📝 Recetas cargadas:", recipesData?.length || 0, "recetas")
-      }
-
-      console.log("✅ Datos cargados correctamente para la semana:", weekStartDate)
-    } catch (err) {
-      console.error("❌ Error cargando datos:", err)
-      setError("Error al cargar los datos del menú semanal")
-    }
-  }
-
-  const loadData = async () => {
-    try {
-      setLoading(true)
-      console.log("🔄 Cargando datos del menú semanal para usuario:", user?.email)
-      const supabase = getSupabaseClient()
-
-      // Calcular fechas de la semana actual
-      const today = new Date()
-      const startOfWeek = new Date(today)
-      const dayOfWeek = today.getDay()
-      const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-      startOfWeek.setDate(today.getDate() - daysToSubtract)
-
-      const startDateStr = startOfWeek.toISOString().split("T")[0]
-      setStartDate(startDateStr)
-
-      // Cargar datos para la semana actual
-      await loadDataForWeek(startDateStr)
-
-      console.log("✅ Datos cargados correctamente")
-    } catch (err) {
-      console.error("❌ Error cargando datos:", err)
-      setError("Error al cargar los datos del menú semanal")
+    } catch (error) {
+      console.error("Error loading weekly menu:", error)
     } finally {
       setLoading(false)
     }
   }
 
-  const loadMenuHistory = async () => {
-    try {
-      const supabase = getSupabaseClient()
+  const addRecipeToMenu = async (dayIndex: number, mealType: "lunch" | "dinner", recipeId: string) => {
+    if (!user) return
 
-      const { data: historyData } = await supabase
-        .from("weekly_menus")
-        .select("*")
-        .eq("user_id", user?.id)
-        .order("start_date", { ascending: false })
-
-      setMenuHistory(historyData || [])
-    } catch (err) {
-      console.error("Error loading menu history:", err)
-    }
-  }
-
-  useEffect(() => {
-    if (authLoading) return
-
-    if (!user) {
-      setLoading(false)
-      return
-    }
-
-    loadData()
-    loadMenuHistory()
-  }, [user, authLoading])
-
-  const handleDataUpdate = () => {
-    console.log("🔄 Recargando datos...")
-    loadDataForWeek(startDate)
-  }
-
-  const handleWeekChange = async (newStartDate: string) => {
-    setLoading(true)
-    setStartDate(newStartDate)
+    const recipe = recipes.find((r) => r.id === Number.parseInt(recipeId))
+    if (!recipe) return
 
     try {
-      const supabase = getSupabaseClient()
-
-      // Calcular la fecha de fin
-      const endOfWeek = new Date(newStartDate)
-      endOfWeek.setDate(endOfWeek.getDate() + 6)
-      const endDate = endOfWeek.toISOString().split("T")[0]
-
-      console.log("🔍 Buscando menú existente para:", newStartDate, "al", endDate)
-      console.log("🔍 Usuario actual:", user?.id)
-      console.log("🔍 Fechas calculadas:", { newStartDate, endDate })
-
-      // Buscar si ya existe un menú para esta semana
-      const { data: existingMenu, error: searchError } = await supabase
-        .from("weekly_menus")
-        .select("*")
-        .eq("start_date", newStartDate)
-        .eq("end_date", endDate)
-        .eq("user_id", user?.id)
-        .maybeSingle()
-
-      if (searchError) {
-        console.error("Error buscando menú:", searchError)
-        throw searchError
-      }
-
-      if (existingMenu) {
-        // Si existe, cargar sus datos
-        console.log("✅ Menú existente encontrado:", existingMenu.name)
-        await loadDataForWeek(newStartDate)
-
-        toast({
-          title: "Menú cargado",
-          description: `Se ha cargado el menú existente para esta semana`,
-        })
-      } else {
-        // Si no existe, crear un nuevo menú semanal
-        console.log("📝 Creando nuevo menú para la semana")
-
-        const formatDateToDDMMYYYY = (dateString: string): string => {
-          const date = new Date(dateString)
-          return date.toLocaleDateString("es-ES")
-        }
-
-        const { data: newMenu, error: createError } = await supabase
+      // Crear menú si no existe
+      let menuId = currentMenu?.id
+      if (!menuId) {
+        const { data: newMenu, error: menuError } = await supabase
           .from("weekly_menus")
           .insert({
-            name: `Menú del ${formatDateToDDMMYYYY(newStartDate)} al ${formatDateToDDMMYYYY(endDate)}`,
-            start_date: newStartDate,
-            end_date: endDate,
-            user_id: user?.id,
-            is_saved: false, // Inicialmente no guardado
+            name: `Menú ${startDate?.toLocaleDateString()} - ${endDate?.toLocaleDateString()}`,
+            start_date: startDate?.toISOString().split("T")[0],
+            end_date: endDate?.toISOString().split("T")[0],
+            user_id: user.id,
+            is_saved: false,
           })
           .select()
           .single()
 
-        if (createError) {
-          console.error("Error creando menú:", createError)
-          throw createError
-        }
-
-        // Establecer el nuevo menú y limpiar los items
-        setWeeklyMenu(newMenu)
-        setMenuItems([])
-
-        // Cargar las recetas si no están cargadas
-        if (recipes.length === 0) {
-          const { data: recipesData } = await supabase.from("recipes").select("*").order("name")
-          setRecipes(recipesData || [])
-        }
-
-        console.log("✅ Nuevo menú semanal creado:", newMenu.name)
-
-        toast({
-          title: "Nuevo menú creado",
-          description: `Se ha creado un nuevo menú para la semana del ${formatDateToDDMMYYYY(newStartDate)}`,
-        })
+        if (menuError) throw menuError
+        setCurrentMenu(newMenu)
+        menuId = newMenu.id
       }
-    } catch (error) {
-      console.error("❌ Error al cambiar de semana:", error)
-      toast({
-        title: "Error",
-        description: "Ha ocurrido un error al cambiar de semana.",
-        variant: "destructive",
+
+      // Verificar que el menú y el tipo de comida existen
+      if (!menu[dayIndex] || !menu[dayIndex][mealType]) {
+        console.error("Menu structure not initialized properly")
+        return
+      }
+
+      // Añadir item al menú
+      const { error: itemError } = await supabase.from("menu_items").insert({
+        weekly_menu_id: menuId,
+        recipe_id: recipeId,
+        day_of_week: dayIndex,
+        meal_type: mealType,
+        dish_order: menu[dayIndex][mealType].length,
       })
-    } finally {
-      setLoading(false)
+
+      if (itemError) throw itemError
+
+      // Actualizar estado local
+      setMenu((prev) => ({
+        ...prev,
+        [dayIndex]: {
+          ...prev[dayIndex],
+          [mealType]: [...prev[dayIndex][mealType], recipe],
+        },
+      }))
+    } catch (error) {
+      console.error("Error adding recipe to menu:", error)
     }
   }
 
-  const handleMenuSelect = async (selectedMenu: WeeklyMenu) => {
-    setLoading(true)
+  const removeRecipeFromMenu = async (dayIndex: number, mealType: "lunch" | "dinner", recipeIndex: number) => {
+    if (!currentMenu) return
+
+    const recipe = menu[dayIndex]?.[mealType]?.[recipeIndex]
+    if (!recipe) return
+
     try {
-      const supabase = getSupabaseClient()
-
-      // Set the selected menu as current
-      setWeeklyMenu(selectedMenu)
-      setStartDate(selectedMenu.start_date)
-
-      // Load menu items for the selected menu
-      const { data: items } = await supabase
+      // Eliminar item del menú
+      const { error } = await supabase
         .from("menu_items")
-        .select(`
-          *,
-          recipe:recipe_id (*)
-        `)
-        .eq("weekly_menu_id", selectedMenu.id)
-        .order("day_of_week")
-        .order("meal_type")
-        .order("dish_order")
+        .delete()
+        .eq("weekly_menu_id", currentMenu.id)
+        .eq("recipe_id", recipe.id)
+        .eq("day_of_week", dayIndex)
+        .eq("meal_type", mealType)
 
-      if (items) {
-        setMenuItems(items as unknown as MenuItem[])
-      } else {
-        setMenuItems([])
-      }
+      if (error) throw error
 
-      console.log("✅ Menú histórico cargado:", selectedMenu.name)
+      // Actualizar estado local
+      setMenu((prev) => ({
+        ...prev,
+        [dayIndex]: {
+          ...prev[dayIndex],
+          [mealType]: prev[dayIndex][mealType].filter((_, index) => index !== recipeIndex),
+        },
+      }))
     } catch (error) {
-      console.error("Error loading selected menu:", error)
-      toast({
-        title: "Error",
-        description: "Ha ocurrido un error al cargar el menú seleccionado.",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
+      console.error("Error removing recipe from menu:", error)
     }
   }
 
-  if (authLoading || loading) {
+  const saveMenu = async () => {
+    if (!currentMenu) return
+
+    setSaving(true)
+    try {
+      const { error } = await supabase.from("weekly_menus").update({ is_saved: true }).eq("id", currentMenu.id)
+
+      if (error) throw error
+
+      setCurrentMenu((prev) => (prev ? { ...prev, is_saved: true } : null))
+    } catch (error) {
+      console.error("Error saving menu:", error)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const navigateWeek = (direction: "prev" | "next") => {
+    const newDate = new Date(currentWeek)
+    newDate.setDate(newDate.getDate() + (direction === "next" ? 7 : -7))
+    setCurrentWeek(newDate)
+  }
+
+  const getWeekDates = (date: Date) => {
+    const monday = new Date(date)
+    const day = monday.getDay()
+    const diff = monday.getDate() - day + (day === 0 ? -6 : 1)
+    monday.setDate(diff)
+
+    const dates = []
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(monday)
+      day.setDate(monday.getDate() + i)
+      dates.push(day)
+    }
+    return dates
+  }
+
+  // Don't render anything until mounted to prevent hydration mismatch
+  if (!mounted || authLoading) {
     return (
-      <div className="container py-10">
-        <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Cargando...</span>
+      <div className="min-h-screen bg-gray-50">
+        <SimpleNavigation />
+        <div className="flex items-center justify-center min-h-[70vh]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
       </div>
     )
@@ -291,74 +289,34 @@ export default function WeeklyMenuPage() {
 
   if (!user) {
     return (
-      <div className="container py-10">
-        <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
-        <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-yellow-600">
-              <AlertCircle className="h-5 w-5" />
-              Acceso Restringido
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-yellow-700 dark:text-yellow-300">
-              Necesitas iniciar sesión para acceder al planificador de menú semanal.
-            </p>
-            <div className="flex gap-2">
-              <Button asChild>
-                <Link href="/login?redirect=/weekly-menu">Iniciar Sesión</Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link href="/">Volver al Inicio</Link>
-              </Button>
+      <div className="min-h-screen bg-gray-50">
+        <SimpleNavigation />
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-md mx-auto">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-bold mb-4">Necesitas iniciar sesión</h1>
+              <p className="text-gray-600">Para acceder al planificador de menús necesitas tener una cuenta.</p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="container py-10">
-        <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
-        <Card className="border-red-200 bg-red-50 dark:bg-red-950 dark:border-red-800">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-600">
-              <AlertCircle className="h-5 w-5" />
-              Error
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-red-700 dark:text-red-300">{error}</p>
-            <div className="flex gap-2">
-              <Button onClick={() => window.location.reload()}>Reintentar</Button>
-              <Button asChild variant="outline">
-                <Link href="/">Volver al Inicio</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  return (
-    <div className="container py-10">
-      <h1 className="text-3xl font-bold mb-6">Menú Semanal</h1>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <WeeklyMenuView
-            weeklyMenu={weeklyMenu}
-            menuItems={menuItems}
-            initialRecipes={recipes}
-            startDate={startDate}
-            onDataUpdate={handleDataUpdate}
-            menuHistory={menuHistory}
-            onMenuSelect={handleMenuSelect}
-            onWeekChange={handleWeekChange}
-          />
+            <LoginForm />
+          </div>
         </div>
+      </div>
+    )
+  }
+
+  // Show the weekly menu view
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <SimpleNavigation />
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Planificador Semanal</h1>
+          <p className="text-gray-600 mt-2">Organiza tus comidas para toda la semana</p>
+        </div>
+
+        <Suspense fallback={<div className="text-center py-8">Cargando planificador...</div>}>
+          <WeeklyMenuView initialRecipes={recipes} userId={user.id} />
+        </Suspense>
       </div>
     </div>
   )

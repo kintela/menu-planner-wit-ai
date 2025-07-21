@@ -1,60 +1,62 @@
 "use client"
 
-import { SessionProvider } from "next-auth/react"
-import { useEffect, useState, type ReactNode } from "react"
+import type React from "react"
 
-interface SessionWrapperProps {
-  children: ReactNode
+import { createContext, useContext, useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase/client"
+import type { User } from "@supabase/supabase-js"
+
+interface SessionContextType {
+  user: User | null
+  loading: boolean
 }
 
-export default function SessionWrapper({ children }: SessionWrapperProps) {
-  const [isMounted, setIsMounted] = useState(false)
+const SessionContext = createContext<SessionContextType>({
+  user: null,
+  loading: true,
+})
 
-  // Intercept fetch requests from NextAuth.js
+export function SessionWrapper({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+  const supabase = createClient()
+
   useEffect(() => {
-    // Store the original fetch function
-    const originalFetch = window.fetch
-
-    // Override fetch to intercept NextAuth.js API calls
-    window.fetch = (input, init) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url
-
-      // If this is a NextAuth.js API call, return a mock response
-      if (url.includes("/api/auth")) {
-        console.log("Intercepted NextAuth.js API call:", url)
-
-        // Return a mock session response
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () =>
-            Promise.resolve({
-              user: null,
-              expires: new Date(Date.now() + 86400000).toISOString(),
-            }),
-        } as Response)
+    // Get initial session
+    const getInitialSession = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        setUser(session?.user ?? null)
+      } catch (error) {
+        console.error("Error getting session:", error)
+        setUser(null)
+      } finally {
+        setLoading(false)
       }
-
-      // Otherwise, use the original fetch
-      return originalFetch.apply(window, [input, init])
     }
 
-    setIsMounted(true)
+    getInitialSession()
 
-    // Restore original fetch on cleanup
-    return () => {
-      window.fetch = originalFetch
-    }
-  }, [])
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setUser(session?.user ?? null)
+      setLoading(false)
+    })
 
-  // Only render SessionProvider after the fetch override is in place
-  if (!isMounted) {
-    return <>{children}</>
+    return () => subscription.unsubscribe()
+  }, [supabase.auth])
+
+  return <SessionContext.Provider value={{ user, loading }}>{children}</SessionContext.Provider>
+}
+
+export const useSession = () => {
+  const context = useContext(SessionContext)
+  if (context === undefined) {
+    throw new Error("useSession must be used within a SessionWrapper")
   }
-
-  return (
-    <SessionProvider session={null} refetchInterval={0} refetchOnWindowFocus={false} refetchWhenOffline={false}>
-      {children}
-    </SessionProvider>
-  )
+  return context
 }

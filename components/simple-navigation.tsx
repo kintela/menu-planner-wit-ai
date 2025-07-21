@@ -1,484 +1,177 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
+import { Home, BookOpen, Calendar, LogOut, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { createClient } from "@/lib/supabase/client"
-import { useEffect, useState } from "react"
-import type { User } from "@supabase/supabase-js"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useAuth } from "@/components/auth/auth-provider"
+import { useEffect, useState } from "react"
+import { getSupabaseClient } from "@/lib/supabase/client"
 
-import { ChefHat, Calendar, LogOut, Menu, X, History, Settings, Home } from "lucide-react"
-
-interface UserProfile {
-  role: string
-  full_name: string
-  first_name?: string
-  last_name?: string
-  alias?: string
-  avatar_url?: string
-}
-
-export default function SimpleNavigation() {
+export function SimpleNavigation() {
   const pathname = usePathname()
-  const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [isSigningOut, setIsSigningOut] = useState(false)
-  const [avatarKey, setAvatarKey] = useState(Date.now()) // Para forzar la recarga del avatar
-  const supabase = createClient()
-
-  // Función para determinar el nombre a mostrar según la prioridad
-  const getDisplayName = (profile: UserProfile | null, email: string): string => {
-    if (!profile) return email
-
-    // Prioridad 1: Alias
-    if (profile.alias && profile.alias.trim() !== "") {
-      return profile.alias
-    }
-
-    // Prioridad 2: Nombre y apellidos
-    if (
-      profile.first_name &&
-      profile.last_name &&
-      profile.first_name.trim() !== "" &&
-      profile.last_name.trim() !== ""
-    ) {
-      return `${profile.first_name} ${profile.last_name}`
-    }
-
-    // Prioridad 3: Nombre completo
-    if (profile.full_name && profile.full_name.trim() !== "") {
-      return profile.full_name
-    }
-
-    // Si no hay nada, usar el email
-    return email
-  }
-
-  const loadUserProfile = async (userId: string) => {
-    try {
-      const { data: profile, error } = await supabase
-        .from("user_profiles")
-        .select("role, full_name, first_name, last_name, alias, avatar_url")
-        .eq("id", userId)
-        .single()
-
-      if (error) {
-        return null
-      }
-
-      return profile
-    } catch (error) {
-      return null
-    }
-  }
+  const { user, loading, signOut } = useAuth()
+  const [userProfile, setUserProfile] = useState<any>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    async function getUser() {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        setUser(user)
-
-        if (user) {
-          const profile = await loadUserProfile(user.id)
-          if (profile) {
-            setUserProfile(profile)
-          }
-        }
-      } catch (error) {
-        console.error("Error getting user for navigation:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    getUser()
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        const profile = await loadUserProfile(session.user.id)
-        if (profile) {
-          setUserProfile(profile)
-        }
-      } else {
+    async function loadUserAvatar() {
+      if (!user) {
         setUserProfile(null)
+        setAvatarUrl(null)
+        return
       }
-      setLoading(false)
-    })
 
-    // Listener para actualizaciones de perfil
-    const handleProfileUpdate = async (event: Event) => {
-      const customEvent = event as CustomEvent
+      try {
+        const supabase = getSupabaseClient()
 
-      // Forzar recarga del avatar
-      setAvatarKey(Date.now())
+        //console.log("Loading avatar for user:", user.id)
 
-      // Recargar el perfil del usuario inmediatamente
-      if (user) {
-        const profile = await loadUserProfile(user.id)
-        if (profile) {
-          setUserProfile(profile)
+        // Buscar archivos en la carpeta del usuario en el bucket avatars
+        const { data: files, error } = await supabase.storage.from("avatars").list(user.id, {
+          limit: 10,
+          sortBy: { column: "created_at", order: "desc" },
+        })
+
+        //console.log("Files found in avatars bucket:", files, "Error:", error)
+
+        if (files && files.length > 0) {
+          // Tomar el primer archivo (más reciente)
+          const avatarFile = files[0]
+          //console.log("Using avatar file:", avatarFile)
+
+          // Construir la ruta completa del archivo
+          const filePath = `${user.id}/${avatarFile.name}`
+          //console.log("Avatar file path:", filePath)
+
+          // Obtener la URL pública
+          const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath)
+
+          //console.log("Generated avatar URL:", urlData.publicUrl)
+          setAvatarUrl(urlData.publicUrl)
+        } else {
+          //console.log("No avatar files found for user")
+          setAvatarUrl(null)
         }
+
+        // También cargar el perfil del usuario para obtener el nombre
+        const { data: profile } = await supabase.from("user_profiles").select("*").eq("id", user.id).single()
+
+        console.log("User profile:", profile)
+        setUserProfile(profile)
+      } catch (error) {
+        console.error("Error loading user avatar:", error)
+        setAvatarUrl(null)
       }
     }
 
-    // Escuchar el evento personalizado
-    window.addEventListener("avatar_updated", handleProfileUpdate)
+    loadUserAvatar()
+  }, [user])
 
-    return () => {
-      subscription.unsubscribe()
-      window.removeEventListener("avatar_updated", handleProfileUpdate)
+  const getInitials = () => {
+    if (userProfile?.full_name) {
+      return userProfile.full_name
+        .split(" ")
+        .map((name: string) => name[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
     }
-  }, [supabase]) // Solo supabase como dependencia, NO user
 
-  const handleSignOut = async () => {
-    try {
-      setIsSigningOut(true)
-
-      // Cerrar sesión en Supabase
-      const { error } = await supabase.auth.signOut()
-
-      if (error) {
-
-        console.error("❌ Error durante el cierre de sesión:", error)
-        // Continuar con la limpieza incluso si hay error
+    if (user?.email) {
+      const emailParts = user.email.split("@")[0]
+      if (emailParts.includes(".") || emailParts.includes("-") || emailParts.includes("_")) {
+        return emailParts
+          .split(/[.\-_]/)
+          .map((part) => part[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2)
       }
-
-      // Limpiar estado local inmediatamente
-
-      setUser(null)
-      setUserProfile(null)
-
-      // Limpiar almacenamiento local
-      if (typeof window !== "undefined") {
-        localStorage.clear()
-        sessionStorage.clear()
-      }
-
-      // Usar router.push en lugar de window.location.href para mejor manejo
-      router.push("/")
-
-      // Forzar recarga de la página después de un breve delay
-      setTimeout(() => {
-        window.location.reload()
-      }, 100)
-    } catch (error) {
-      console.error("❌ Error inesperado durante el cierre de sesión:", error)
-
-      // Forzar limpieza y redirección incluso con errores
-      setUser(null)
-      setUserProfile(null)
-
-      if (typeof window !== "undefined") {
-        localStorage.clear()
-        sessionStorage.clear()
-        window.location.href = "/"
-      }
-    } finally {
-      // Asegurar que el estado de carga se resetee
-      setTimeout(() => {
-        setIsSigningOut(false)
-      }, 500)
+      return emailParts.slice(0, 2).toUpperCase()
     }
+
+    return "U"
   }
 
-  // Función para verificar si el usuario puede ver una opción del menú
-  const canViewMenuItem = (menuItem: string) => {
-    // Si no hay usuario autenticado, ocultar Categorías e Historial
-    if (!user || !userProfile) {
-      if (menuItem === "categories" || menuItem === "history") {
-        return false
-      }
-      return true
-    }
-
-    // Si hay usuario autenticado, verificar el rol
-    if (userProfile.role === "user_restricted") {
-      // Los usuarios restringidos no pueden ver Categorías e Historial
-      if (menuItem === "categories" || menuItem === "history") {
-        return false
-      }
-    }
-
-    return true
-  }
-
-  if (loading) {
-    return (
-      <nav className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <Link href="/" className="flex items-center justify-center p-2 text-gray-900" title="Inicio">
-                <Home className="h-6 w-6" />
-              </Link>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="animate-pulse bg-gray-200 h-8 w-20 rounded"></div>
-              <div className="md:hidden">
-                <Menu className="h-6 w-6 text-gray-400" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
-    )
-  }
-
-  // Obtener el nombre a mostrar según la prioridad
-  const displayName = user ? getDisplayName(userProfile, user.email) : ""
+  const navItems = [
+    { href: "/", label: "Inicio", icon: Home },
+    { href: "/recipes", label: "Recetas", icon: BookOpen },
+    { href: "/weekly-menu", label: "Planificar", icon: Calendar },
+  ]
 
   return (
-    <nav className="bg-white shadow-sm border-b">
+    <nav className="sticky top-0 z-50 bg-white border-b shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Left side - Home icon */}
-          <div className="flex items-center">
-            <Link href="/" className="flex items-center justify-center p-2 text-gray-900" title="Inicio">
-              <Home className="h-6 w-6" />
-            </Link>
+          {/* Logo */}
+          <Link href="/" className="text-2xl font-bold text-blue-600">
+            MenuPlanner
+          </Link>
 
-            {/* Desktop navigation */}
-            <div className="hidden md:flex items-center space-x-2 ml-4">
-              <Link
-                href="/recipes"
-                className={`flex items-center space-x-1 px-2 py-1 rounded-md text-sm font-medium ${
-                  pathname === "/recipes" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <ChefHat className="h-4 w-4" />
-                <span>Recetas</span>
-              </Link>
-
-              <Link
-                href="/weekly-menu"
-                className={`flex items-center space-x-1 px-2 py-1 rounded-md text-sm font-medium ${
-                  pathname === "/weekly-menu" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <Calendar className="h-4 w-4" />
-                <span>Menú Semanal</span>
-              </Link>
-
-              {canViewMenuItem("categories") && (
+          {/* Navigation Links */}
+          <div className="hidden md:flex space-x-8">
+            {navItems.map((item) => {
+              const Icon = item.icon
+              const isActive = pathname === item.href
+              return (
                 <Link
-                  href="/categories"
-                  className={`flex items-center space-x-1 px-2 py-1 rounded-md text-sm font-medium ${
-                    pathname === "/categories" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    isActive ? "text-blue-600 bg-blue-50" : "text-gray-700 hover:text-blue-600 hover:bg-gray-50"
                   }`}
                 >
-                  <Settings className="h-4 w-4" />
-                  <span>Categorías</span>
+                  <Icon className="h-4 w-4" />
+                  <span>{item.label}</span>
                 </Link>
-              )}
-
-              {canViewMenuItem("history") && (
-                <Link
-                  href="/history"
-                  className={`flex items-center space-x-1 px-2 py-1 rounded-md text-sm font-medium ${
-                    pathname === "/history" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <History className="h-4 w-4" />
-                  <span>Historial</span>
-                </Link>
-              )}
-            </div>
+              )
+            })}
           </div>
 
-          {/* Right side */}
-          <div className="flex items-center space-x-2">
-            {/* Desktop user info and actions */}
-            <div className="hidden md:flex items-center space-x-2">
-              {user ? (
-                <>
-                  <Link
-                    href="/profile"
-                    className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors"
-                  >
-                    <Avatar className="w-6 h-6">
-                      <AvatarImage
-                        src={userProfile?.avatar_url || undefined}
-                        alt="Avatar"
-                        key={`desktop-avatar-${avatarKey}-${userProfile?.avatar_url}`}
-                      />
-                      <AvatarFallback className="text-xs">{displayName.charAt(0).toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                    <span>
-                      {displayName}
-                      {userProfile?.role === "admin" && (
-                        <span className="ml-1 px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Admin</span>
-                      )}
-                    </span>
-                  </Link>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleSignOut}
-                    disabled={isSigningOut}
-                    className="flex items-center space-x-1 text-red-600 border-red-300 hover:bg-red-100 hover:text-red-700 hover:border-red-400 transition-colors disabled:opacity-50"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span>{isSigningOut ? "Cerrando..." : "Cerrar Sesión"}</span>
-                  </Button>
-                </>
-              ) : (
-                <Link href="/login">
-                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
-                    Iniciar Sesión
-                  </Button>
-                </Link>
-              )}
-            </div>
-
-            {/* Mobile quick access icons */}
-            <div className="md:hidden flex items-center space-x-1">
-              <Link href="/recipes" className="p-2" title="Recetas">
-                <ChefHat className="h-5 w-5 text-gray-600" />
-              </Link>
-              <Link href="/weekly-menu" className="p-2" title="Menú Semanal">
-                <Calendar className="h-5 w-5 text-gray-600" />
-              </Link>
-            </div>
-
-            {/* Mobile user info or login */}
-            <div className="md:hidden flex items-center space-x-2">
-              {user ? (
-                <Link
-                  href="/profile"
-                  className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+          {/* User Menu */}
+          <div className="flex items-center space-x-4">
+            {loading ? (
+              <div className="text-sm text-gray-500">Cargando...</div>
+            ) : user ? (
+              <div className="flex items-center space-x-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage
+                    src={avatarUrl || undefined}
+                    alt="Avatar"
+                    onError={() => {
+                      console.log("Error loading avatar image")
+                      setAvatarUrl(null)
+                    }}
+                    onLoad={() => {
+                      //console.log("Avatar image loaded successfully")
+                    }}
+                  />
+                  <AvatarFallback className="bg-blue-100 text-blue-600 text-xs font-medium">
+                    {getInitials()}
+                  </AvatarFallback>
+                </Avatar>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={signOut}
+                  className="flex items-center space-x-2 bg-transparent"
                 >
-                  <Avatar className="w-5 h-5">
-                    <AvatarImage
-                      src={userProfile?.avatar_url || undefined}
-                      alt="Avatar"
-                      key={`mobile-avatar-${avatarKey}-${userProfile?.avatar_url}`}
-                    />
-                    <AvatarFallback className="text-xs">{displayName.charAt(0).toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <span className="max-w-24 truncate">{displayName}</span>
-                </Link>
-              ) : (
+                  <LogOut className="h-4 w-4" />
+                  <span className="hidden sm:inline">Cerrar Sesión</span>
+                </Button>
+              </div>
+            ) : (
+              <Button asChild>
                 <Link href="/login">
-                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1">
-                    Iniciar Sesión
-                  </Button>
+                  <User className="h-4 w-4 mr-2" />
+                  Iniciar Sesión
                 </Link>
-              )}
-            </div>
-
-            {/* Mobile hamburger menu - ALWAYS VISIBLE */}
-            <div className="md:hidden">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2 border-gray-300"
-              >
-                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </Button>
-            </div>
+            )}
           </div>
         </div>
-
-        {/* Mobile menu dropdown */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-gray-200">
-            <div className="px-2 pt-2 pb-3 space-y-1">
-              <Link
-                href="/recipes"
-                className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium ${
-                  pathname === "/recipes" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                }`}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <ChefHat className="h-5 w-5" />
-                <span>Recetas</span>
-              </Link>
-
-              <Link
-                href="/weekly-menu"
-                className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium ${
-                  pathname === "/weekly-menu" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                }`}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <Calendar className="h-5 w-5" />
-                <span>Menú Semanal</span>
-              </Link>
-
-              {canViewMenuItem("categories") && (
-                <Link
-                  href="/categories"
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium ${
-                    pathname === "/categories" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Settings className="h-5 w-5" />
-                  <span>Categorías</span>
-                </Link>
-              )}
-
-              {canViewMenuItem("history") && (
-                <Link
-                  href="/history"
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium ${
-                    pathname === "/history" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <History className="h-5 w-5" />
-                  <span>Historial</span>
-                </Link>
-              )}
-
-              <Link
-                href="/profile"
-                className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium ${
-                  pathname === "/profile" ? "bg-blue-100 text-blue-700" : "text-gray-500 hover:text-gray-700"
-                }`}
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <Settings className="h-5 w-5" />
-                <span>Mi Perfil</span>
-              </Link>
-
-              {user && (
-                <button
-                  onClick={() => {
-                    handleSignOut()
-                    setMobileMenuOpen(false)
-                  }}
-                  disabled={isSigningOut}
-                  className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-red-50 w-full text-left disabled:opacity-50"
-                >
-                  <LogOut className="h-5 w-5" />
-                  <span>{isSigningOut ? "Cerrando..." : "Cerrar Sesión"}</span>
-                </button>
-              )}
-
-              {!user && (
-                <Link
-                  href="/login"
-                  className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium text-white bg-blue-600 hover:bg-blue-700"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <span>Iniciar Sesión</span>
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     </nav>
   )

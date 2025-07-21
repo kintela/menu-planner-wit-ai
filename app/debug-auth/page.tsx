@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Loader2, RefreshCw } from "lucide-react"
+import ClientOnlyDateTime from "@/components/ClientOnlyDateTime"
 
 interface AuthDebugInfo {
   user: any
@@ -149,7 +150,7 @@ export default function DebugAuthPage() {
                   <strong>Token válido:</strong> Sí
                 </p>
                 <p>
-                  <strong>Expira:</strong> {new Date(debugInfo.session.expires_at * 1000).toLocaleString()}
+                  <strong>Expira:</strong> <ClientOnlyDateTime date={debugInfo.session.expires_at * 1000} />
                 </p>
                 <p>
                   <strong>Tipo de token:</strong> {debugInfo.session.token_type}

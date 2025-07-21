@@ -26,8 +26,8 @@ async function getRecipeWithUser(id: string): Promise<{ recipe: Recipe | null; u
   try {
     console.log("🔍 DEBUG - getRecipeWithUser iniciado para ID:", id)
 
-    const { createServerClient } = await import("@/lib/supabase/server")
-    const supabase = createServerClient()
+    const { createClient } = await import("@/lib/supabase/server")
+    const supabase = createClient()
 
     // Obtener la receta
     const { data: recipe, error: recipeError } = await supabase.from("recipes").select("*").eq("id", id).single()
@@ -64,7 +64,7 @@ async function getRecipeWithUser(id: string): Promise<{ recipe: Recipe | null; u
 }
 
 export default async function RecipePage({ params }: { params: { id: string } }) {
-  console.log("🔍 DEBUG - RecipePage servidor iniciado con ID:", params.id)
+  //console.log("🔍 DEBUG - RecipePage servidor iniciado con ID:", params.id)
 
   // Validación básica del ID en el servidor
   const numericId = Number.parseInt(params.id, 10)
