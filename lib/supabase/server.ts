@@ -1,9 +1,10 @@
 import { createServerClient } from "@supabase/ssr"
-import { cookies } from "next/headers"
+// This file should only be used in Server Components or API routes.
+// Move the cookies() usage to the calling Server Component or API route and pass cookies as a parameter if needed.
 
-export function createClient() {
-  const cookieStore = cookies()
-
+// Example placeholder (update as needed):
+// You may want to use a more specific type if available from next/headers or your own types
+export function createClient(cookieStore: any) {
   return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {
       getAll() {

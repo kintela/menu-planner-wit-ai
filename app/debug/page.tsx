@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Loader2, RefreshCw, ExternalLink } from "lucide-react"
 import Link from "next/link"
 import ClientOnlyDateTime from "@/components/ClientOnlyDateTime"
-import { ClientOnlyDateTime } from "@/app/ui/client-only-datetime"
 
 interface DebugInfo {
   supabase: any
