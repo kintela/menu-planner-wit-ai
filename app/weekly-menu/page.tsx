@@ -3,12 +3,11 @@
 import { useEffect, useState } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { SimpleNavigation } from "@/components/simple-navigation"
-import WeeklyMenuView from "@/components/weekly-menu-view"
-import LoginForm from "@/components/auth/login-form"
+import { WeeklyMenuView } from "@/components/weekly-menu-view"
+import { LoginForm } from "@/components/auth/login-form"
 import { supabase } from "@/lib/supabase/client"
 import type { Recipe as RecipeType, WeeklyMenu, MenuItem } from "@/lib/types"
 import { Suspense } from "react"
-import { createClient } from "@/lib/supabase/server"
 
 interface MenuDay {
   lunch: RecipeType[]
@@ -17,8 +16,6 @@ interface MenuDay {
 
 async function getRecipes(): Promise<RecipeType[]> {
   try {
-    const supabase = createClient()
-
     const { data: recipes, error } = await supabase
       .from("recipes")
       .select(`
