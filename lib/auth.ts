@@ -1,9 +1,7 @@
 import { createServerClient } from "@/lib/supabase/server"
 import type { UserProfile, UserRole } from "@/lib/types"
-import { headers } from 'next/headers'; // Cambiar cookies() por headers() para obtener cookies en el servidor
 
-export async function getCurrentUser() {
-  const cookieStore = headers(); // Usar headers() para obtener cookies
+export async function getCurrentUser(cookieStore: any) {
   const supabase = createServerClient(cookieStore);
 
   try {
