@@ -1,8 +1,10 @@
 import { createServerClient } from "@/lib/supabase/server"
 import type { UserProfile, UserRole } from "@/lib/types"
+import { cookies } from 'next/headers'; // Importar cookies para inicializar cookieStore
 
 export async function getCurrentUser() {
-  const supabase = createServerClient()
+  const cookieStore = cookies(); // Inicializar cookieStore
+  const supabase = createServerClient(cookieStore)
 
   try {
     const {
@@ -23,7 +25,8 @@ export async function getCurrentUser() {
 }
 
 export async function getCurrentUserProfile(): Promise<UserProfile | null> {
-  const supabase = createServerClient()
+  const cookieStore = cookies(); // Inicializar cookieStore
+  const supabase = createServerClient(cookieStore)
 
   try {
     const {
@@ -54,7 +57,8 @@ export async function getCurrentUserProfile(): Promise<UserProfile | null> {
 }
 
 export async function isAdmin(userId?: string): Promise<boolean> {
-  const supabase = createServerClient()
+  const cookieStore = cookies(); // Inicializar cookieStore
+  const supabase = createServerClient(cookieStore)
 
   try {
     let targetUserId = userId
@@ -82,7 +86,8 @@ export async function isAdmin(userId?: string): Promise<boolean> {
 }
 
 export async function hasRole(role: UserRole, userId?: string): Promise<boolean> {
-  const supabase = createServerClient()
+  const cookieStore = cookies(); // Inicializar cookieStore
+  const supabase = createServerClient(cookieStore)
 
   try {
     let targetUserId = userId
