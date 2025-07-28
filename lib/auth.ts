@@ -1,10 +1,6 @@
 import { createServerClient } from "@/lib/supabase/server"
 import type { UserProfile, UserRole } from "@/lib/types"
 
-export function getCookieStore() {
-  throw new Error("getCookieStore solo está disponible en el servidor.");
-}
-
 export async function getCurrentUser(cookieStore: any) {
   const supabase = createServerClient(cookieStore);
 
@@ -26,93 +22,90 @@ export async function getCurrentUser(cookieStore: any) {
   }
 }
 
-export async function getCurrentUserProfile(): Promise<UserProfile | null> {
-  const cookieStore = getCookieStore(); // Cambiar cookies() por headers() para obtener cookies en el servidor
-  const supabase = createServerClient(cookieStore)
+export async function getCurrentUserProfile(cookieStore: any): Promise<UserProfile | null> {
+  const supabase = createServerClient(cookieStore);
 
   try {
     const {
       data: { user },
       error: userError,
-    } = await supabase.auth.getUser()
+    } = await supabase.auth.getUser();
 
     if (userError || !user) {
-      return null
+      return null;
     }
 
     const { data: profile, error: profileError } = await supabase
       .from("user_profiles")
       .select("*")
       .eq("id", user.id)
-      .single()
+      .single();
 
     if (profileError) {
-      console.error("Error getting user profile:", profileError)
-      return null
+      console.error("Error getting user profile:", profileError);
+      return null;
     }
 
-    return profile as UserProfile
+    return profile as UserProfile;
   } catch (error) {
-    console.error("Profile error:", error)
-    return null
+    console.error("Profile error:", error);
+    return null;
   }
 }
 
-export async function isAdmin(userId?: string): Promise<boolean> {
-  const cookieStore = getCookieStore(); // Cambiar cookies() por headers() para obtener cookies en el servidor
-  const supabase = createServerClient(cookieStore)
+export async function isAdmin(cookieStore: any, userId?: string): Promise<boolean> {
+  const supabase = createServerClient(cookieStore);
 
   try {
-    let targetUserId = userId
+    let targetUserId = userId;
 
     if (!targetUserId) {
       const {
         data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) return false
-      targetUserId = user.id
+      } = await supabase.auth.getUser();
+      if (!user) return false;
+      targetUserId = user.id;
     }
 
-    const { data, error } = await supabase.from("user_profiles").select("role").eq("id", targetUserId).single()
+    const { data, error } = await supabase.from("user_profiles").select("role").eq("id", targetUserId).single();
 
     if (error) {
-      console.error("Error checking admin status:", error)
-      return false
+      console.error("Error checking admin status:", error);
+      return false;
     }
 
-    return data?.role === "admin"
+    return data?.role === "admin";
   } catch (error) {
-    console.error("Admin check error:", error)
-    return false
+    console.error("Admin check error:", error);
+    return false;
   }
 }
 
-export async function hasRole(role: UserRole, userId?: string): Promise<boolean> {
-  const cookieStore = getCookieStore(); // Cambiar cookies() por headers() para obtener cookies en el servidor
-  const supabase = createServerClient(cookieStore)
+export async function hasRole(cookieStore: any, role: UserRole, userId?: string): Promise<boolean> {
+  const supabase = createServerClient(cookieStore);
 
   try {
-    let targetUserId = userId
+    let targetUserId = userId;
 
     if (!targetUserId) {
       const {
         data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) return false
-      targetUserId = user.id
+      } = await supabase.auth.getUser();
+      if (!user) return false;
+      targetUserId = user.id;
     }
 
-    const { data, error } = await supabase.from("user_profiles").select("role").eq("id", targetUserId).single()
+    const { data, error } = await supabase.from("user_profiles").select("role").eq("id", targetUserId).single();
 
     if (error) {
-      console.error("Error checking user role:", error)
-      return false
+      console.error("Error checking user role:", error);
+      return false;
     }
 
-    return data?.role === role
+    return data?.role === role;
   } catch (error) {
-    console.error("Role check error:", error)
-    return false
+    console.error("Role check error:", error);
+    return false;
   }
 }
 
