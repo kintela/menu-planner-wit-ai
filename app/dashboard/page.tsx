@@ -5,15 +5,17 @@ import { DashboardStats } from "@/components/dashboard/dashboard-stats"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { QuickActions } from "@/components/dashboard/quick-actions"
 import { WeeklyMenuPreview } from "@/components/dashboard/weekly-menu-preview"
+import { cookies } from 'next/headers'; // Importar cookies para inicializar cookieStore
 
 export default async function DashboardPage() {
-  const profile = await getCurrentUserProfile()
+  const cookieStore = cookies(); // Inicializar cookieStore
+  const profile = await getCurrentUserProfile(cookieStore)
 
   if (!profile) {
     redirect("/login")
   }
 
-  const supabase = createServerClient()
+  const supabase = createServerClient(cookieStore)
 
   // Obtener estadísticas del usuario
   const [recipesCount, ratingsCount, weeklyMenusCount, aiUsageCount] = await Promise.all([
