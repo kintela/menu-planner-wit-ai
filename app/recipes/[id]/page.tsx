@@ -1,4 +1,5 @@
 import RecipeClientPage from "./RecipeClientPage"
+import { cookies } from 'next/headers'; // Importar cookies para inicializar cookieStore
 
 interface Recipe {
   id: number
@@ -27,7 +28,8 @@ async function getRecipeWithUser(id: string): Promise<{ recipe: Recipe | null; u
     console.log("🔍 DEBUG - getRecipeWithUser iniciado para ID:", id)
 
     const { createClient } = await import("@/lib/supabase/server")
-    const supabase = createClient()
+    const cookieStore = cookies(); // Inicializar cookieStore
+    const supabase = createClient(cookieStore);
 
     // Obtener la receta
     const { data: recipe, error: recipeError } = await supabase.from("recipes").select("*").eq("id", id).single()
