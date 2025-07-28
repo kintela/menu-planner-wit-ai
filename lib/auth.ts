@@ -1,31 +1,31 @@
 import { createServerClient } from "@/lib/supabase/server"
 import type { UserProfile, UserRole } from "@/lib/types"
-import { cookies } from 'next/headers'; // Importar cookies para inicializar cookieStore
+import { headers } from 'next/headers'; // Cambiar cookies() por headers() para obtener cookies en el servidor
 
 export async function getCurrentUser() {
-  const cookieStore = cookies(); // Inicializar cookieStore
-  const supabase = createServerClient(cookieStore)
+  const cookieStore = headers(); // Usar headers() para obtener cookies
+  const supabase = createServerClient(cookieStore);
 
   try {
     const {
       data: { user },
       error,
-    } = await supabase.auth.getUser()
+    } = await supabase.auth.getUser();
 
     if (error) {
-      console.error("Error getting user:", error)
-      return null
+      console.error("Error getting user:", error);
+      return null;
     }
 
-    return user
+    return user;
   } catch (error) {
-    console.error("Auth error:", error)
-    return null
+    console.error("Auth error:", error);
+    return null;
   }
 }
 
 export async function getCurrentUserProfile(): Promise<UserProfile | null> {
-  const cookieStore = cookies(); // Inicializar cookieStore
+  const cookieStore = headers(); // Cambiar cookies() por headers() para obtener cookies en el servidor
   const supabase = createServerClient(cookieStore)
 
   try {
@@ -57,7 +57,7 @@ export async function getCurrentUserProfile(): Promise<UserProfile | null> {
 }
 
 export async function isAdmin(userId?: string): Promise<boolean> {
-  const cookieStore = cookies(); // Inicializar cookieStore
+  const cookieStore = headers(); // Cambiar cookies() por headers() para obtener cookies en el servidor
   const supabase = createServerClient(cookieStore)
 
   try {
@@ -86,7 +86,7 @@ export async function isAdmin(userId?: string): Promise<boolean> {
 }
 
 export async function hasRole(role: UserRole, userId?: string): Promise<boolean> {
-  const cookieStore = cookies(); // Inicializar cookieStore
+  const cookieStore = headers(); // Cambiar cookies() por headers() para obtener cookies en el servidor
   const supabase = createServerClient(cookieStore)
 
   try {
