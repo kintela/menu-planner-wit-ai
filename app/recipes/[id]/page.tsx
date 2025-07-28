@@ -1,4 +1,5 @@
 import RecipeClientPage from "./RecipeClientPage"
+import { cookies } from 'next/headers'; // Importar cookies para inicializar cookieStore
 
 interface Recipe {
   id: number
@@ -27,17 +28,18 @@ async function getRecipeWithUser(id: string): Promise<{ recipe: Recipe | null; u
     console.log("🔍 DEBUG - getRecipeWithUser iniciado para ID:", id)
 
     const { createClient } = await import("@/lib/supabase/server")
-    const supabase = createClient()
+    const cookieStore = cookies(); // Inicializar cookieStore
+    const supabase = createClient(cookieStore);
 
     // Obtener la receta
     const { data: recipe, error: recipeError } = await supabase.from("recipes").select("*").eq("id", id).single()
 
     if (recipeError || !recipe) {
-      console.error("❌ Error o receta no encontrada:", recipeError?.message || "Sin datos")
+      console.error("❌ Error o receta no encontrada:", recipeError?.message || "Sin datos", "ID:", id)
       return { recipe: null, user: null }
     }
 
-    console.log("✅ Receta encontrada:", recipe.name)
+    console.log("✅ Receta encontrada:", recipe)
 
     // Obtener información del usuario si existe
     let user: UserProfile | null = null
@@ -50,21 +52,21 @@ async function getRecipeWithUser(id: string): Promise<{ recipe: Recipe | null; u
 
       if (!userError && userData) {
         user = userData
-        console.log("✅ Usuario encontrado:", userData.alias || userData.full_name || userData.email)
+        console.log("✅ Usuario encontrado:", userData)
       } else {
-        console.log("⚠️ Usuario no encontrado para user_id:", recipe.user_id)
+        console.log("⚠️ Usuario no encontrado para user_id:", recipe.user_id, "Error:", userError?.message)
       }
     }
 
     return { recipe, user }
   } catch (error) {
-    console.error("❌ Error crítico:", error)
+    console.error("❌ Error crítico en getRecipeWithUser:", error, "ID:", id)
     return { recipe: null, user: null }
   }
 }
 
 export default async function RecipePage({ params }: { params: { id: string } }) {
-  //console.log("🔍 DEBUG - RecipePage servidor iniciado con ID:", params.id)
+  console.log("🔍 DEBUG - RecipePage iniciado con ID:", params.id)
 
   // Validación básica del ID en el servidor
   const numericId = Number.parseInt(params.id, 10)
@@ -83,9 +85,9 @@ export default async function RecipePage({ params }: { params: { id: string } })
 
   console.log(
     "✅ Pasando datos al cliente - Receta:",
-    recipe.name,
+    recipe,
     "Usuario:",
-    user?.alias || user?.full_name || "Sin usuario",
+    user || "Sin usuario"
   )
 
   return <RecipeClientPage params={params} recipe={recipe} user={user} error={null} />
