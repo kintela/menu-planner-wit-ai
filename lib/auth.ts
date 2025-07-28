@@ -1,17 +1,8 @@
 import { createServerClient } from "@/lib/supabase/server"
 import type { UserProfile, UserRole } from "@/lib/types"
-import { headers } from 'next/headers';
 
 export function getCookieStore() {
-  try {
-    return headers();
-  } catch (error) {
-    console.error("❌ Error: headers() no está disponible en este contexto.", error);
-    return {
-      getAll: () => [],
-      set: () => {},
-    };
-  }
+  throw new Error("getCookieStore solo está disponible en el servidor.");
 }
 
 export async function getCurrentUser(cookieStore: any) {
