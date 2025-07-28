@@ -1,5 +1,18 @@
 import { createServerClient } from "@/lib/supabase/server"
 import type { UserProfile, UserRole } from "@/lib/types"
+import { headers } from 'next/headers';
+
+export function getCookieStore() {
+  try {
+    return headers();
+  } catch (error) {
+    console.error("❌ Error: headers() no está disponible en este contexto.", error);
+    return {
+      getAll: () => [],
+      set: () => {},
+    };
+  }
+}
 
 export async function getCurrentUser(cookieStore: any) {
   const supabase = createServerClient(cookieStore);
@@ -23,7 +36,7 @@ export async function getCurrentUser(cookieStore: any) {
 }
 
 export async function getCurrentUserProfile(): Promise<UserProfile | null> {
-  const cookieStore = headers(); // Cambiar cookies() por headers() para obtener cookies en el servidor
+  const cookieStore = getCookieStore(); // Cambiar cookies() por headers() para obtener cookies en el servidor
   const supabase = createServerClient(cookieStore)
 
   try {
@@ -55,7 +68,7 @@ export async function getCurrentUserProfile(): Promise<UserProfile | null> {
 }
 
 export async function isAdmin(userId?: string): Promise<boolean> {
-  const cookieStore = headers(); // Cambiar cookies() por headers() para obtener cookies en el servidor
+  const cookieStore = getCookieStore(); // Cambiar cookies() por headers() para obtener cookies en el servidor
   const supabase = createServerClient(cookieStore)
 
   try {
@@ -84,7 +97,7 @@ export async function isAdmin(userId?: string): Promise<boolean> {
 }
 
 export async function hasRole(role: UserRole, userId?: string): Promise<boolean> {
-  const cookieStore = headers(); // Cambiar cookies() por headers() para obtener cookies en el servidor
+  const cookieStore = getCookieStore(); // Cambiar cookies() por headers() para obtener cookies en el servidor
   const supabase = createServerClient(cookieStore)
 
   try {
