@@ -49,17 +49,54 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
     day: string
     mealType: string
   } | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [weekDates, setWeekDates] = useState<{startDate: string, endDate: string, weekText: string}>({
+    startDate: '',
+    endDate: '',
+    weekText: ''
+  })
 
-  // Función para añadir receta (sin base de datos por ahora)
+  const supabase = createClient()
+
+  // Calcular fechas de la semana actual al montar el componente
+  useEffect(() => {
+    const today = new Date()
+    const startOfWeek = new Date(today)
+    const day = startOfWeek.getDay()
+    const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1) // Lunes
+    startOfWeek.setDate(diff)
+    startOfWeek.setHours(0, 0, 0, 0)
+    
+    const endOfWeek = new Date(startOfWeek)
+    endOfWeek.setDate(startOfWeek.getDate() + 6)
+
+    const startDateStr = startOfWeek.toISOString().split('T')[0]
+    const endDateStr = endOfWeek.toISOString().split('T')[0]
+    
+    // Crear texto descriptivo de la semana
+    const weekText = `${startOfWeek.toLocaleDateString('es-ES', { 
+      day: 'numeric', 
+      month: 'long' 
+    })} - ${endOfWeek.toLocaleDateString('es-ES', { 
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric' 
+    })}`
+
+    setWeekDates({ startDateStr, endDateStr, weekText })
+    console.log("📅 Semana actual:", weekText)
+  }, [])
+
+  // Función para añadir receta (solo en memoria)
   const addRecipeToMenu = (day: string, mealTypeKey: string, recipeId: number) => {
-    const recipe = recipes.find(r => r.id === recipeId);
-    if (!recipe) return;
+    const recipe = recipes.find(r => r.id === recipeId)
+    if (!recipe) return
 
     // Parsear el mealType para obtener meal_type y dish_order
-    const [meal_type, orderStr] = mealTypeKey.split('-');
-    const dish_order = parseInt(orderStr);
+    const [meal_type, orderStr] = mealTypeKey.split('-')
+    const dish_order = parseInt(orderStr)
     
-    // Añadir al estado local
+    // Añadir al estado local (sin BD por ahora)
     const newEntry: MenuEntry = {
       id: Date.now(), // ID temporal
       day,
@@ -67,28 +104,84 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
       dish_order,
       recipe_id: recipeId,
       recipe
-    };
+    }
     
-    setMenuEntries(prev => [...prev, newEntry]);
-    setShowRecipeSelector(null);
+    setMenuEntries(prev => [...prev, newEntry])
+    setShowRecipeSelector(null)
     
-    console.log("✅ Receta añadida al menú:", recipe.name);
-  };
+    console.log("✅ Receta añadida a memoria:", recipe.name)
+  }
 
-  // Función para obtener receta de un día/comida específica
-  const getMenuEntry = (day: string, mealType: string, dishOrder: number) => {
-    return menuEntries.find(entry => 
-      entry.day === day && 
-      entry.meal_type === mealType && 
-      entry.dish_order === dishOrder
-    );
-  };
-
-  // Función para eliminar receta
+  // Función para eliminar receta (solo de memoria)
   const removeRecipeFromMenu = (entryId: number) => {
-    setMenuEntries(prev => prev.filter(entry => entry.id !== entryId));
-    console.log("✅ Receta eliminada del menú");
-  };
+    setMenuEntries(prev => prev.filter(entry => entry.id !== entryId))
+    console.log("✅ Receta eliminada de memoria")
+  }
+
+  // Función para guardar todo el menú en la base de datos
+  const saveWeeklyMenu = async () => {
+    if (menuEntries.length === 0) {
+      console.log("⚠️ No hay recetas para guardar")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      console.log("💾 Guardando menú semanal...")
+
+      // 1. Crear el weekly_menu
+      const { data: weeklyMenu, error: menuError } = await supabase
+        .from("weekly_menus")
+        .insert({
+          name: `Menú ${weekDates.weekText}`,
+          start_date: weekDates.startDateStr,
+          end_date: weekDates.endDateStr,
+          user_id: userId,
+          is_saved: true
+        })
+        .select()
+        .single()
+
+      if (menuError) {
+        console.error("❌ Error creando menú semanal:", menuError)
+        throw menuError
+      }
+
+      console.log("✅ Menú semanal creado con ID:", weeklyMenu.id)
+
+      // 2. Crear todos los menu_items usando el ID del menú recién creado
+      const menuItemsToInsert = menuEntries.map(entry => ({
+        weekly_menu_id: weeklyMenu.id,
+        recipe_id: entry.recipe_id,
+        day_of_week: DAYS.indexOf(entry.day),
+        meal_type: entry.meal_type,
+        dish_order: entry.dish_order
+      }))
+
+      const { error: itemsError } = await supabase
+        .from("menu_items")
+        .insert(menuItemsToInsert)
+
+      if (itemsError) {
+        console.error("❌ Error creando items del menú:", itemsError)
+        // Si falla, eliminar el weekly_menu creado
+        await supabase.from("weekly_menus").delete().eq("id", weeklyMenu.id)
+        throw itemsError
+      }
+
+      console.log("✅ Items del menú guardados:", menuItemsToInsert.length)
+      console.log("🎉 Menú semanal guardado exitosamente!")
+
+      // Opcional: Limpiar el estado local después de guardar
+      // setMenuEntries([])
+      
+    } catch (error) {
+      console.error("❌ Error guardando menú:", error)
+      // Aquí podrías mostrar un toast de error
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -150,10 +243,26 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
       {/* Planificador semanal completo */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Planificador Semanal
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Planificador Semanal
+            </CardTitle>
+            {/* Botón para guardar menú semanal */}
+            <Button
+              onClick={saveWeeklyMenu}
+              disabled={menuEntries.length === 0 || isSaving}
+              size="sm"
+              className="shrink-0"
+            >
+              {isSaving ? "Guardando..." : "Guardar Menú"}
+            </Button>
+          </div>
+          {weekDates.weekText && (
+            <p className="text-sm text-gray-600 mt-1">
+              Semana del {weekDates.weekText}
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
@@ -161,7 +270,11 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
               <div key={day} className="space-y-3">
                 <h3 className="font-semibold text-center text-sm">{day}</h3>
                 {MEAL_TYPES.map((mealType) => {
-                  const entry = getMenuEntry(day, mealType.key, mealType.order);
+                  const entry = menuEntries.find(entry => 
+                    entry.day === day && 
+                    entry.meal_type === mealType.key && 
+                    entry.dish_order === mealType.order
+                  );
                   return (
                     <div
                       key={`${day}-${mealType.key}-${mealType.order}`}
