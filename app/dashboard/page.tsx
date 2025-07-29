@@ -6,8 +6,11 @@ import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { QuickActions } from "@/components/dashboard/quick-actions"
 import { WeeklyMenuPreview } from "@/components/dashboard/weekly-menu-preview"
 import { cookies } from 'next/headers'; // Importar cookies para inicializar cookieStore
+import { useSessionRedirect } from '@/hooks/use-session';
 
 export default async function DashboardPage() {
+  useSessionRedirect();
+
   const cookieStore = cookies(); // Inicializar cookieStore
   const profile = await getCurrentUserProfile(cookieStore)
 

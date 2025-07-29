@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useState } from "react"
 import type { User } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase/client"
 import type { UserProfile } from "@/lib/types"
+import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const router = useRouter();
 
   const loadUserProfile = async (userId: string) => {
     try {
@@ -131,6 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await supabase.auth.signOut()
       setUser(null)
       setProfile(null)
+      router.push('/login'); // Redirigir al usuario a la página de inicio de sesión
     } catch (error) {
       console.error("Error signing out:", error)
     }
