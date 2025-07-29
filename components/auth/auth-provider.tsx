@@ -97,22 +97,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
 
-      console.log("Auth state changed:", event)
+      console.log("Auth state changed:", event, "Session:", !!session, "User:", !!session?.user)
 
       try {
-        if (event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
-          setUser(session?.user ?? null)
-          if (session?.user) {
-            const userProfile = await loadUserProfile(session.user.id)
-            setProfile(userProfile)
-          } else {
-            setProfile(null)
-          }
-        } else if (session?.user) {
+        // Simplificar la lógica - siempre actualizar basado en la sesión actual
+        if (session?.user) {
+          console.log("✅ Usuario autenticado, cargando perfil...");
           setUser(session.user)
           const userProfile = await loadUserProfile(session.user.id)
           setProfile(userProfile)
         } else {
+          console.log("❌ No hay usuario, limpiando estado...");
           setUser(null)
           setProfile(null)
         }
@@ -122,6 +117,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(null)
       }
 
+      // IMPORTANTE: Siempre establecer loading en false al final
+      console.log("🔄 Estableciendo loading = false");
       setLoading(false)
     })
 
