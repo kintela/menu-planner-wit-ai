@@ -58,6 +58,8 @@ export default function WeeklyMenuPage() {
   const [startDate, setStartDate] = useState<Date | null>(null)
   const [endDate, setEndDate] = useState<Date | null>(null)
 
+  const [shouldRedirect, setShouldRedirect] = useState(false);
+
   useEffect(() => {
     setMounted(true)
   }, [])
@@ -76,6 +78,13 @@ export default function WeeklyMenuPage() {
       loadWeeklyMenu()
     }
   }, [user, currentWeek])
+
+  // Asegurar que el estado de autenticación esté sincronizado
+  useEffect(() => {
+    // Agregar logs para depurar el estado de autenticación
+    console.log("🔍 authLoading:", authLoading);
+    console.log("🔍 user:", user);
+  }, [authLoading, user]);
 
   const loadWeeklyMenu = async () => {
     if (!user) return
@@ -284,6 +293,7 @@ export default function WeeklyMenuPage() {
     )
   }
 
+  // Si no hay usuario, mostrar mensaje de inicio de sesión
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50">

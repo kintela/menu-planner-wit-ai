@@ -22,8 +22,8 @@ export function createServerClient(cookieStore: CookieStore) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return cookieStore.getAll();
+        async getAll() {
+          return await cookieStore.getAll();
         },
         setAll(cookiesToSet: CookieToSet[]) {
           try {

@@ -58,6 +58,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           error,
         } = await supabase.auth.getSession()
 
+        console.log("🔍 Estado inicial de sesión:", session);
+        console.log("🔍 Error al obtener sesión:", error);
+
         if (error) {
           console.error("Error getting session:", error)
           // Clear any invalid tokens silently

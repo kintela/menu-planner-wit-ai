@@ -2,14 +2,13 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { createClient } from "@/lib/supabase/client"
-import { useRouter } from "next/navigation"
 
 export function LoginForm() {
   const [email, setEmail] = useState("")
@@ -17,7 +16,6 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const router = useRouter()
   const supabase = createClient()
 
   const handleSignIn = async (e: React.FormEvent) => {
@@ -35,9 +33,8 @@ export function LoginForm() {
       if (error) {
         setError(error.message)
       } else {
-        setMessage("¡Inicio de sesión exitoso! Redirigiendo...")
-        // Forzar redirección inmediata
-        window.location.href = "/"
+        setMessage("¡Inicio de sesión exitoso!")
+        // No hacer nada más aquí, dejar que el LoginPage maneje la redirección
       }
     } catch (err) {
       setError("Error inesperado al iniciar sesión")
@@ -69,29 +66,6 @@ export function LoginForm() {
       setLoading(false)
     }
   }
-
-  useEffect(() => {
-    const handleRedirect = () => {
-      const redirectTo = localStorage.getItem("redirectTo")
-      if (redirectTo) {
-        localStorage.removeItem("redirectTo")
-        router.push(redirectTo)
-      } else {
-        router.push("/dashboard")
-      }
-    }
-
-    // Redirigir al usuario después de un inicio de sesión exitoso
-    const { data } = supabase.auth.onAuthStateChange((_, session) => {
-      if (session) {
-        handleRedirect()
-      }
-    })
-
-    return () => {
-      data.subscription.unsubscribe()
-    }
-  }, [router, supabase.auth])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
