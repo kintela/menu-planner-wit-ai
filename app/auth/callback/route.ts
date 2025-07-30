@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
       {
         cookies: {
           getAll: async () => {
-            const cookieStore = cookies();
+            const cookieStore = await cookies();
             return cookieStore.getAll();
           },
           setAll(cookiesToSet) {

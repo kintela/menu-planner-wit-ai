@@ -3,7 +3,8 @@ import { cookies } from "next/headers"
 import { RecipesPageClient } from "@/components/recipes-page-client"
 
 async function getRecipes() {
-  const supabase = createClient(cookies())
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore)
 
   try {
     const { data: recipes, error } = await supabase
@@ -41,10 +42,11 @@ async function getRecipes() {
 }
 
 async function getCategories() {
-  const supabase = createClient(cookies())
+  const cookieStore2 = await cookies();
+  const supabase2 = createClient(cookieStore2)
 
   try {
-    const { data: categories, error } = await supabase.from("categories").select("*").order("name")
+    const { data: categories, error } = await supabase2.from("categories").select("*").order("name")
 
     if (error) {
       console.error("Error fetching categories:", error)

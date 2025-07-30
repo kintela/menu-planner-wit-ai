@@ -53,6 +53,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (mounted) setLoading(false)
     }, 5000)
 
+    // Log para depuración
+    console.log("[AuthProvider] Montado. Estado inicial: loading=true, user=null")
+
     // Get initial session with error handling
     const getInitialSession = async () => {
       try {
@@ -74,6 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setProfile(null)
           }
           setLoading(false)
+          console.log("[AuthProvider] getInitialSession: loading=false, user=", session?.user)
         }
       } catch (error) {
         console.error("Error in getInitialSession:", error)
@@ -81,6 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(null)
           setProfile(null)
           setLoading(false)
+          console.log("[AuthProvider] getInitialSession: loading=false, user=null (error)")
         }
       }
     }
@@ -98,23 +103,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(session.user)
           const userProfile = await loadUserProfile(session.user.id)
           setProfile(userProfile)
+          console.log("[AuthProvider] onAuthStateChange: user=", session.user)
         } else {
           setUser(null)
           setProfile(null)
+          console.log("[AuthProvider] onAuthStateChange: user=null")
         }
       } catch (error) {
         console.error("Error in auth state change:", error)
         setUser(null)
         setProfile(null)
+        console.log("[AuthProvider] onAuthStateChange: user=null (error)")
       }
 
       setLoading(false)
+      console.log("[AuthProvider] onAuthStateChange: loading=false")
     })
 
     return () => {
       mounted = false
       clearTimeout(timeout)
       subscription.unsubscribe()
+      console.log("[AuthProvider] Desmontado")
     }
   }, [])
 

@@ -8,7 +8,7 @@ import { WeeklyMenuPreview } from "@/components/dashboard/weekly-menu-preview"
 import { cookies } from 'next/headers'; // Importar cookies para inicializar cookieStore
 
 export default async function DashboardPage() {
-  const cookieStore = cookies(); // Inicializar cookieStore
+  const cookieStore = await cookies(); // Inicializar cookieStore
   const profile = await getCurrentUserProfile(cookieStore)
 
   if (!profile) {

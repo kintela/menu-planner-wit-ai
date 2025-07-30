@@ -28,7 +28,7 @@ async function getRecipeWithUser(id: string): Promise<{ recipe: Recipe | null; u
     console.log("🔍 DEBUG - getRecipeWithUser iniciado para ID:", id)
 
     const { createClient } = await import("@/lib/supabase/server")
-    const cookieStore = cookies(); // Inicializar cookieStore
+    const cookieStore = await cookies(); // Inicializar cookieStore
     const supabase = createClient(cookieStore);
 
     // Obtener la receta
