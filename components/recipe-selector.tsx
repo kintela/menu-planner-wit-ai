@@ -13,8 +13,13 @@ interface Recipe {
   calories?: number
   image_url?: string
   user_profiles?: {
+    id?: string
     full_name?: string
     first_name?: string
+    last_name?: string
+    alias?: string
+    avatar_url?: string
+    email?: string
   }
 }
 
@@ -121,7 +126,13 @@ export function RecipeSelector({ recipes, day, mealType, onSelect, onCancel }: R
                         )}
                         {recipe.user_profiles && (
                           <span>
-                            • {recipe.user_profiles.first_name || recipe.user_profiles.full_name}
+                            • {recipe.user_profiles.alias || 
+                               recipe.user_profiles.full_name || 
+                               (recipe.user_profiles.first_name && recipe.user_profiles.last_name 
+                                 ? `${recipe.user_profiles.first_name} ${recipe.user_profiles.last_name}` 
+                                 : recipe.user_profiles.first_name) ||
+                               recipe.user_profiles.email ||
+                               'Usuario'}
                           </span>
                         )}
                       </div>

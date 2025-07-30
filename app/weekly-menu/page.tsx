@@ -24,8 +24,13 @@ async function getRecipes(): Promise<RecipeType[]> {
         calories,
         image_url,
         user_profiles (
+          id,
           full_name,
-          first_name
+          first_name,
+          last_name,
+          alias,
+          avatar_url,
+          email
         )
       `)
       .order("name")

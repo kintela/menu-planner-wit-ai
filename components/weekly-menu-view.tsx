@@ -7,6 +7,7 @@ import { Calendar, ChefHat, Flame, Users, Trash2, Plus, User } from "lucide-reac
 import { createClient } from "@/lib/supabase/client"
 import { RecipeSelector } from "./recipe-selector"
 import { useToast } from "@/hooks/use-toast"
+import Image from "next/image"
 
 interface Recipe {
   id: number
@@ -14,8 +15,13 @@ interface Recipe {
   calories?: number
   image_url?: string
   user_profiles?: {
+    id?: string
     full_name?: string
     first_name?: string
+    last_name?: string
+    alias?: string
+    avatar_url?: string
+    email?: string
   }
 }
 
@@ -140,8 +146,13 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
               calories,
               image_url,
               user_profiles (
+                id,
                 full_name,
-                first_name
+                first_name,
+                last_name,
+                alias,
+                avatar_url,
+                email
               )
             )
           `)
@@ -448,12 +459,27 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
                             <div className="flex-1 min-w-0 overflow-hidden">
                               <p className="text-sm font-medium line-clamp-2 mb-1 leading-tight">{entry.recipe.name}</p>
                               
-                              {/* Autor de la receta */}
+                              {/* Autor de la receta con el mismo estilo que RecipeCard */}
                               {entry.recipe.user_profiles && (
-                                <div className="flex items-center gap-1 mb-1">
-                                  <User className="h-3 w-3 text-gray-500 flex-shrink-0" />
-                                  <span className="text-xs text-gray-600 truncate">
-                                    {entry.recipe.user_profiles.first_name || entry.recipe.user_profiles.full_name || 'Usuario'}
+                                <div className="flex items-center gap-1 mb-1 text-xs bg-black/60 text-white backdrop-blur-sm rounded px-2 py-1 w-fit">
+                                  {entry.recipe.user_profiles.avatar_url ? (
+                                    <Image
+                                      src={entry.recipe.user_profiles.avatar_url}
+                                      alt="Avatar"
+                                      width={12}
+                                      height={12}
+                                      className="h-3 w-3 rounded-full object-cover flex-shrink-0"
+                                    />
+                                  ) : (
+                                    <User className="h-3 w-3 flex-shrink-0" />
+                                  )}
+                                  <span className="truncate">
+                                    {entry.recipe.user_profiles.alias || 
+                                     entry.recipe.user_profiles.full_name || 
+                                     (entry.recipe.user_profiles.first_name && entry.recipe.user_profiles.last_name 
+                                       ? `${entry.recipe.user_profiles.first_name} ${entry.recipe.user_profiles.last_name}` 
+                                       : entry.recipe.user_profiles.first_name) ||
+                                     'Usuario'}
                                   </span>
                                 </div>
                               )}
