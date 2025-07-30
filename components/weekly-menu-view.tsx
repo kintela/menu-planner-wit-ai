@@ -483,6 +483,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
                                   src={entry.recipe.image_url}
                                   alt={entry.recipe.name}
                                   className="w-10 h-10 object-cover rounded-md"
+                                  title={entry.recipe.name}
                                 />
                               ) : (
                                 <div className="w-10 h-10 bg-gray-200 rounded-md flex items-center justify-center flex-shrink-0">
