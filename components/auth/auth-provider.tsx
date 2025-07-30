@@ -128,6 +128,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  useEffect(() => {
+    if (user) {
+      loadUserProfile(user.id).then(setProfile)
+    } else {
+      setProfile(null)
+    }
+  }, [user])
+
   const signOut = async () => {
     try {
       await supabase.auth.signOut()

@@ -8,6 +8,7 @@ import { ChefHat, Flame, User, Video, Eye, X, ArrowRight, Edit, Lock } from "luc
 import Link from "next/link"
 import Image from "next/image"
 import { useAuth } from "@/components/auth/auth-provider"
+import { DeleteRecipeButton } from "./delete-recipe-button"
 
 interface Recipe {
   id: number
@@ -21,6 +22,7 @@ interface Recipe {
   video_url?: string
   source_url?: string
   created_at: string
+  menu_ids?: number[] | null // <-- Añadido para asegurar que el campo existe
   user_profiles?: {
     id: string
     full_name?: string
@@ -43,7 +45,7 @@ interface RecipeCardProps {
 }
 
 export function RecipeCard({ recipe }: RecipeCardProps) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [showVideoModal, setShowVideoModal] = useState(false)
   const [showSourceModal, setShowSourceModal] = useState(false)
   const [imageError, setImageError] = useState(false)
@@ -75,6 +77,19 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
 
   // Check if current user can edit this recipe
   const canEdit = user && recipe.user_id === user.id
+
+  // Detectar si el usuario es admin (si existe user.role)
+  const isAdmin = profile && (profile.role === "admin" || profile.role === "superadmin")
+  const canDelete = user && (isAdmin || recipe.user_id === user.id)
+
+  // DEBUG: Mostrar info de receta y usuario en consola para admin
+  if (isAdmin) {
+    console.log("[RecipeCard][ADMIN] recipe.id:", recipe.id)
+    console.log("[RecipeCard][ADMIN] recipe.menu_ids:", recipe.menu_ids)
+    console.log("[RecipeCard][ADMIN] recipe:", recipe)
+    console.log("[RecipeCard][ADMIN] user:", user)
+    console.log("[RecipeCard][ADMIN] profile:", profile)
+  }
 
   return (
     <>
@@ -135,6 +150,30 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
                 <User className="h-3 w-3" />
               )}
               <span>{getCreatorName()}</span>
+            </div>
+          )}
+
+          {/* Icono flotante de eliminar receta */}
+          {canDelete && (
+            <div className="absolute top-2 right-2 z-20">
+              <DeleteRecipeButton
+                recipeId={String(recipe.id)}
+                recipeUserId={recipe.user_id}
+                recipeName={recipe.name}
+                iconOnly
+              />
+            </div>
+          )}
+
+          {/* Mostrar ID de receta y menús solo para admin */}
+          {isAdmin && (
+            <div className="absolute bottom-2 left-2 z-20 bg-black/70 text-white text-xs rounded px-2 py-1 flex flex-col gap-0.5">
+              <span>ID: {recipe.id}</span>
+              {Array.isArray(recipe.menu_ids) && recipe.menu_ids.length > 0 ? (
+                <span>Menús: {recipe.menu_ids.join(", ")}</span>
+              ) : (
+                <span>Menús: -</span>
+              )}
             </div>
           )}
         </div>

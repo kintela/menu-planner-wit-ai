@@ -8,6 +8,7 @@ import { Search, Filter, X } from "lucide-react"
 import Link from "next/link"
 import { RecipeCard } from "@/components/recipe-card"
 import { SimpleNavigation } from "@/components/simple-navigation"
+import { useAuth } from "@/components/auth/auth-provider"
 
 interface Recipe {
   id: number
@@ -54,9 +55,12 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
   const recipes = Array.isArray(initialRecipes) ? initialRecipes : []
   const categories = Array.isArray(initialCategories) ? initialCategories : []
 
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [showFilters, setShowFilters] = useState(false)
+  const [ownerFilter, setOwnerFilter] = useState<"all" | "mine">("all")
+  const [iaOnly, setIaOnly] = useState(false)
 
   const filteredRecipes = useMemo(() => {
     return recipes.filter((recipe) => {
@@ -70,16 +74,23 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
         (recipe.recipe_categories &&
           recipe.recipe_categories.some((rc) => rc.categories.id.toString() === selectedCategory))
 
-      return matchesSearch && matchesCategory
+      const matchesOwner =
+        ownerFilter === "all" || (user && recipe.user_id === user.id)
+
+      const matchesIa = !iaOnly || recipe.is_ai_generated
+
+      return matchesSearch && matchesCategory && matchesOwner && matchesIa
     })
-  }, [recipes, searchTerm, selectedCategory])
+  }, [recipes, searchTerm, selectedCategory, ownerFilter, iaOnly, user])
 
   const clearFilters = () => {
     setSearchTerm("")
     setSelectedCategory(null)
+    setOwnerFilter("all")
+    setIaOnly(false)
   }
 
-  const hasActiveFilters = searchTerm || selectedCategory
+  const hasActiveFilters = searchTerm || selectedCategory || ownerFilter !== "all" || iaOnly
 
   if (recipes.length === 0) {
     return (
@@ -140,19 +151,55 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
 
         {/* Search and Filters */}
         <div className="mb-6 space-y-4">
-          <div className="flex gap-4">
-            <div className="relative flex-1">
+          <div className="flex gap-2 items-center">
+            <div className="relative" style={{ minWidth: 180, maxWidth: 240, flex: '0 0 180px' }}>
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Buscar recetas, ingredientes o preparación..."
+                placeholder="Buscar recetas..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-10 pr-2 text-sm h-9"
+                style={{ width: 180 }}
               />
             </div>
+            {/* Opciones de filtro: Todas / Las mías */}
+            <div className="flex gap-2 items-center">
+              <label className="flex items-center gap-1 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="ownerFilter"
+                  value="all"
+                  checked={ownerFilter === "all"}
+                  onChange={() => setOwnerFilter("all")}
+                  className="accent-blue-600"
+                />
+                Todas
+              </label>
+              <label className="flex items-center gap-1 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="ownerFilter"
+                  value="mine"
+                  checked={ownerFilter === "mine"}
+                  onChange={() => setOwnerFilter("mine")}
+                  className="accent-blue-600"
+                />
+                Las mías
+              </label>
+            </div>
+            {/* Checkbox IA */}
+            <label className="flex items-center gap-1 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={iaOnly}
+                onChange={() => setIaOnly(v => !v)}
+                className="accent-purple-600"
+              />
+              IA
+            </label>
             <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-2">
               <Filter className="h-4 w-4" />
-              Filtros
+              Ver categorías
             </Button>
             {hasActiveFilters && (
               <Button variant="outline" onClick={clearFilters}>

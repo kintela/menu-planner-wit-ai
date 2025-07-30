@@ -25,6 +25,9 @@ async function getRecipes() {
             id,
             name
           )
+        ),
+        menu_items (
+          weekly_menu_id
         )
       `)
       .order("name", { ascending: true })
