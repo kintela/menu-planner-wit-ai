@@ -438,7 +438,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
                     >
                       <p className="text-xs font-medium mb-2">{mealType.label}</p>
                       {entry?.recipe ? (
-                        <div className="h-full flex flex-col">
+                        <div className="h-full flex flex-col relative">
                           <div className="flex items-start gap-2 flex-1">
                             {/* Imagen en miniatura */}
                             <div className="flex-shrink-0">
@@ -454,35 +454,9 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
                                 </div>
                               )}
                             </div>
-                            
                             {/* Información de la receta */}
                             <div className="flex-1 min-w-0 overflow-hidden">
                               <p className="text-sm font-medium line-clamp-2 mb-1 leading-tight">{entry.recipe.name}</p>
-                              
-                              {/* Autor de la receta con el mismo estilo que RecipeCard */}
-                              {entry.recipe.user_profiles && (
-                                <div className="flex items-center gap-1 mb-1 text-xs bg-black/60 text-white backdrop-blur-sm rounded px-2 py-1 w-fit">
-                                  {entry.recipe.user_profiles.avatar_url ? (
-                                    <Image
-                                      src={entry.recipe.user_profiles.avatar_url}
-                                      alt="Avatar"
-                                      width={12}
-                                      height={12}
-                                      className="h-3 w-3 rounded-full object-cover flex-shrink-0"
-                                    />
-                                  ) : (
-                                    <User className="h-3 w-3 flex-shrink-0" />
-                                  )}
-                                  <span className="truncate">
-                                    {entry.recipe.user_profiles.alias || 
-                                     entry.recipe.user_profiles.full_name || 
-                                     (entry.recipe.user_profiles.first_name && entry.recipe.user_profiles.last_name 
-                                       ? `${entry.recipe.user_profiles.first_name} ${entry.recipe.user_profiles.last_name}` 
-                                       : entry.recipe.user_profiles.first_name) ||
-                                     'Usuario'}
-                                  </span>
-                                </div>
-                              )}
                               
                               {/* Calorías */}
                               {entry.recipe.calories && (
@@ -494,8 +468,32 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
                             </div>
                           </div>
 
-                          {/* Botón eliminar - posicionado en la parte inferior */}
-                          <div className="flex justify-end mt-2">
+                          {/* Badge del autor en la esquina inferior izquierda */}
+                          {entry.recipe.user_profiles && (
+                            <div className="absolute left-2 bottom-2 flex items-center gap-1 text-xs bg-black/60 text-white backdrop-blur-sm rounded px-2 py-1 w-fit z-10">
+                              {entry.recipe.user_profiles.avatar_url ? (
+                                <Image
+                                  src={entry.recipe.user_profiles.avatar_url}
+                                  alt="Avatar"
+                                  width={12}
+                                  height={12}
+                                  className="h-3 w-3 rounded-full object-cover flex-shrink-0"
+                                />
+                              ) : (
+                                <User className="h-3 w-3 flex-shrink-0" />
+                              )}
+                              <span className="truncate">
+                                {entry.recipe.user_profiles.alias || 
+                                 entry.recipe.user_profiles.full_name || 
+                                 (entry.recipe.user_profiles.first_name && entry.recipe.user_profiles.last_name 
+                                   ? `${entry.recipe.user_profiles.first_name} ${entry.recipe.user_profiles.last_name}` 
+                                   : entry.recipe.user_profiles.first_name) ||
+                                 'Usuario'}
+                              </span>
+                            </div>
+                          )}
+                          {/* Botón eliminar - posicionado en la parte inferior derecha */}
+                          <div className="absolute right-2 bottom-2">
                             <Button
                               variant="ghost"
                               size="sm"
