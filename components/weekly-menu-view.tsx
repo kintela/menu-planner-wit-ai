@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Calendar, ChefHat, Flame, Users, Trash2, Plus } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { RecipeSelector } from "./recipe-selector"
+import { useToast } from "@/hooks/use-toast"
 
 interface Recipe {
   id: number
@@ -59,6 +60,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
   })
 
   const supabase = createClient()
+  const { toast } = useToast()
 
   // Calcular fechas de la semana actual y cargar menú existente
   useEffect(() => {
@@ -87,7 +89,6 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
       const weekText = `${formatDate(startOfWeek)} al ${formatDate(endOfWeek)}`
 
       setWeekDates({ startDateStr, endDateStr, weekText })
-      console.log("📅 Semana actual:", weekText)
 
       // Buscar menú existente para esta semana
       await loadExistingMenu(startDateStr, endDateStr)
@@ -101,12 +102,8 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
   // Función para cargar menú existente si ya existe
   const loadExistingMenu = async (startDateStr: string, endDateStr: string) => {
     try {
-      console.log("🔍 Buscando menú existente para la semana...", startDateStr)
-      console.log("🔍 userId:", userId)
-      
       // Verificar que tenemos userId antes de hacer la consulta
       if (!userId) {
-        console.error("❌ No hay userId disponible")
         setIsLoading(false)
         return
       }
@@ -119,20 +116,16 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
         .eq("start_date", startDateStr)
         .single()
 
-      console.log("🔍 Resultado consulta menú:", { existingMenu, menuError })
-
       if (menuError && menuError.code !== "PGRST116") {
-        console.error("❌ Error buscando menú existente:", menuError)
+        console.error("Error buscando menú existente:", menuError)
         setIsLoading(false)
         return
       }
 
       if (existingMenu) {
-        console.log("✅ Menú existente encontrado:", existingMenu.id)
         setExistingMenuId(existingMenu.id)
 
         // Cargar items del menú existente
-        console.log("🔍 Cargando items para menú ID:", existingMenu.id)
         const { data: menuItems, error: itemsError } = await supabase
           .from("menu_items")
           .select(`
@@ -157,15 +150,10 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
           .order("meal_type")
           .order("dish_order")
 
-        console.log("🔍 Resultado consulta items:", { menuItems, itemsError })
-
         if (itemsError) {
-          console.error("❌ Error cargando items del menú:", itemsError)
-          // Aún así continuar con menú vacío
+          console.error("Error cargando items del menú:", itemsError)
           setMenuEntries([])
         } else {
-          console.log("✅ Items del menú cargados:", menuItems?.length || 0)
-          
           if (menuItems && menuItems.length > 0) {
             const formattedEntries = menuItems.map((entry) => ({
               id: entry.id,
@@ -176,23 +164,19 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
               recipe: entry.recipes as Recipe,
             }))
             setMenuEntries(formattedEntries)
-            console.log("✅ Entries formateados:", formattedEntries.length)
           } else {
             setMenuEntries([])
           }
         }
       } else {
-        console.log("ℹ️ No existe menú para esta semana")
         setExistingMenuId(null)
         setMenuEntries([])
       }
     } catch (error) {
-      console.error("❌ Error en loadExistingMenu:", error)
-      // En caso de error, continuar con estado vacío
+      console.error("Error en loadExistingMenu:", error)
       setExistingMenuId(null)
       setMenuEntries([])
     } finally {
-      console.log("🔄 Estableciendo isLoading = false")
       setIsLoading(false)
     }
   }
@@ -218,26 +202,27 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
     
     setMenuEntries(prev => [...prev, newEntry])
     setShowRecipeSelector(null)
-    
-    console.log("✅ Receta añadida a memoria:", recipe.name)
   }
 
   // Función para eliminar receta (solo de memoria)
   const removeRecipeFromMenu = (entryId: number) => {
     setMenuEntries(prev => prev.filter(entry => entry.id !== entryId))
-    console.log("✅ Receta eliminada de memoria")
   }
 
   // Función para guardar todo el menú en la base de datos
   const saveWeeklyMenu = async () => {
     if (menuEntries.length === 0) {
-      console.log("⚠️ No hay recetas para guardar")
+      toast({
+        title: "Menú vacío",
+        description: "Agrega al menos una receta antes de guardar el menú.",
+        variant: "destructive",
+      })
       return
     }
 
     setIsSaving(true)
     try {
-      console.log("💾 Guardando menú semanal...")
+      console.log("Guardando menú semanal...")
 
       let menuId = existingMenuId
 
@@ -256,15 +241,15 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
           .single()
 
         if (menuError) {
-          console.error("❌ Error creando menú semanal:", menuError)
+          console.error("Error creando menú semanal:", menuError)
           throw menuError
         }
 
         menuId = weeklyMenu.id
         setExistingMenuId(menuId)
-        console.log("✅ Menú semanal creado con ID:", menuId)
+        console.log("Menú semanal creado con ID:", menuId)
       } else {
-        console.log("✅ Usando menú existente con ID:", menuId)
+        console.log("Usando menú existente con ID:", menuId)
         
         // Eliminar items existentes para reemplazarlos
         const { error: deleteError } = await supabase
@@ -273,10 +258,10 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
           .eq("weekly_menu_id", menuId)
 
         if (deleteError) {
-          console.error("❌ Error eliminando items existentes:", deleteError)
+          console.error("Error eliminando items existentes:", deleteError)
           throw deleteError
         }
-        console.log("✅ Items existentes eliminados")
+        console.log("Items existentes eliminados")
       }
 
       // Crear todos los menu_items usando el ID del menú
@@ -296,21 +281,33 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
           .insert(menuItemsToInsert)
 
         if (itemsError) {
-          console.error("❌ Error creando items del menú:", itemsError)
+          console.error("Error creando items del menú:", itemsError)
           throw itemsError
         }
 
-        console.log("✅ Items del menú guardados:", menuItemsToInsert.length)
+        console.log("Items del menú guardados:", menuItemsToInsert.length)
       }
 
-      console.log("🎉 Menú semanal guardado exitosamente!")
+      console.log("Menú semanal guardado exitosamente!")
+
+      // Mostrar toast de éxito
+      toast({
+        title: "¡Menú guardado!",
+        description: `Tu menú semanal del ${weekDates.weekText} se ha guardado correctamente.`,
+      })
 
       // Recargar el menú para obtener los IDs reales de la BD
       await loadExistingMenu(weekDates.startDateStr, weekDates.endDateStr)
       
     } catch (error) {
-      console.error("❌ Error guardando menú:", error)
-      // Aquí podrías mostrar un toast de error
+      console.error("Error guardando menú:", error)
+      
+      // Mostrar toast de error
+      toast({
+        title: "Error al guardar el menú",
+        description: "No se pudo guardar el menú semanal. Por favor, inténtalo de nuevo.",
+        variant: "destructive",
+      })
     } finally {
       setIsSaving(false)
     }
@@ -447,7 +444,6 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
                           variant="ghost"
                           size="sm"
                           onClick={() => {
-                            console.log("🔍 Botón +Añadir clickeado para:", day, `${mealType.key}-${mealType.order}`);
                             setShowRecipeSelector({ day, mealType: `${mealType.key}-${mealType.order}` });
                           }}
                           className="w-full h-full flex flex-col items-center justify-center text-gray-500 hover:text-gray-700"
