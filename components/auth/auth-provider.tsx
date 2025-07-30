@@ -49,6 +49,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true
+    const timeout = setTimeout(() => {
+      if (mounted) setLoading(false)
+    }, 5000)
 
     // Get initial session with error handling
     const getInitialSession = async () => {
@@ -110,6 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false
+      clearTimeout(timeout)
       subscription.unsubscribe()
     }
   }, [])
