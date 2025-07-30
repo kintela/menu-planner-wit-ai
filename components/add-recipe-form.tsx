@@ -154,6 +154,21 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
       // Determinar la URL de la imagen
       let finalImageUrl = null
 
+      // Si hay una imagen anterior subida al bucket y se va a subir una nueva, eliminar la anterior
+      if (imageTab === "upload" && imageFile && imagePreview && imageUrl && imageUrl.includes("/storage/v1/object/public/recipe-images/")) {
+        try {
+          const supabase = createClient();
+          // Extraer el path relativo del bucket
+          const urlParts = imageUrl.split("/recipe-images/");
+          if (urlParts.length === 2) {
+            const oldPath = urlParts[1];
+            await supabase.storage.from("recipe-images").remove([oldPath]);
+          }
+        } catch (removeError) {
+          console.warn("No se pudo eliminar la imagen anterior del bucket:", removeError);
+        }
+      }
+
       if (imageTab === "url" && imageUrl) {
         finalImageUrl = imageUrl
       } else if (imageTab === "upload" && imageFile) {

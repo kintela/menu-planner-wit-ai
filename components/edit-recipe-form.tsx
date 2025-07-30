@@ -88,6 +88,21 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+
+    // Eliminar imagen anterior del bucket si existe y es del bucket
+    if (formData.image_url && formData.image_url.includes("/storage/v1/object/public/recipe-images/")) {
+      try {
+        const supabase = getSupabaseClient();
+        const urlParts = formData.image_url.split("/recipe-images/");
+        if (urlParts.length === 2) {
+          const oldPath = urlParts[1];
+          await supabase.storage.from("recipe-images").remove([oldPath]);
+        }
+      } catch (removeError) {
+        console.warn("No se pudo eliminar la imagen anterior del bucket:", removeError);
+      }
+    }
+
     setImageFile(file)
     setUploadingImage(true)
     try {
