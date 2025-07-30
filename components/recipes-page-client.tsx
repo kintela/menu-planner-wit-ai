@@ -67,7 +67,8 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
       const matchesSearch =
         !searchTerm ||
         (recipe.name && recipe.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (recipe.ingredients && recipe.ingredients.toLowerCase().includes(searchTerm.toLowerCase()))
+        (recipe.ingredients && recipe.ingredients.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (String(recipe.id) === searchTerm.trim());
 
       const matchesCategory =
         !selectedCategory ||
@@ -152,14 +153,14 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
         {/* Search and Filters */}
         <div className="mb-6 space-y-4">
           <div className="flex gap-2 items-center">
-            <div className="relative" style={{ minWidth: 180, maxWidth: 240, flex: '0 0 180px' }}>
+            <div className="relative" style={{ minWidth: 220, maxWidth: 320, flex: '0 0 220px' }}>
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 placeholder="Buscar recetas..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 pr-2 text-sm h-9"
-                style={{ width: 180 }}
+                style={{ width: 220 }}
               />
             </div>
             {/* Opciones de filtro: Todas / Las mías */}
