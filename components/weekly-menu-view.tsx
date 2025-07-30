@@ -507,17 +507,14 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
                           </div>
                         </div>
                       ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setShowRecipeSelector({ day, mealType: `${mealType.key}-${mealType.order}` });
-                          }}
-                          className="w-full h-full flex flex-col items-center justify-center text-gray-500 hover:text-gray-700"
+                        <span
+                          onClick={() => setShowRecipeSelector({ day, mealType: `${mealType.key}-${mealType.order}` })}
+                          className="w-full h-full flex flex-col items-center justify-center text-blue-600 hover:text-blue-800 cursor-pointer select-none rounded-lg text-xs font-medium transition-colors"
+                          style={{ minHeight: 60 }}
                         >
                           <Plus className="h-4 w-4 mb-1" />
-                          <span className="text-xs">Añadir</span>
-                        </Button>
+                          Añadir
+                        </span>
                       )}
                     </div>
                   )
