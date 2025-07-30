@@ -9,6 +9,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useAuth } from "@/components/auth/auth-provider"
 import { DeleteRecipeButton } from "./delete-recipe-button"
+import { StarRating } from "./star-rating"
 
 interface Recipe {
   id: number
@@ -182,6 +183,9 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
               {recipe.name}
             </Link>
           </CardTitle>
+
+          {/* Mostrar rating debajo del nombre */}
+          <StarRating recipeId={Number(recipe.id)} creatorId={recipe.user_id} />
 
           {/* Categories */}
           {recipe.recipe_categories && recipe.recipe_categories.length > 0 && (
