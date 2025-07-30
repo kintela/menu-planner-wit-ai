@@ -28,11 +28,12 @@ interface RecipeSelectorProps {
   recipes: Recipe[]
   day: string
   mealType: string
-  onSelect: (recipeId: number) => void
+  onSelect: (recipeId: number, recipeObj?: Recipe) => void // Cambiado: acepta receta completa
   onCancel: () => void
+  onClose?: () => void // NUEVO: para cerrar el selector desde IA
 }
 
-export function RecipeSelector({ recipes, day, mealType, onSelect, onCancel }: RecipeSelectorProps) {
+export function RecipeSelector({ recipes, day, mealType, onSelect, onCancel, onClose }: RecipeSelectorProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [isOpen, setIsOpen] = useState(false)
 
@@ -46,7 +47,8 @@ export function RecipeSelector({ recipes, day, mealType, onSelect, onCancel }: R
   }, [recipes, searchTerm])
 
   const handleSelectRecipe = (recipeId: number) => {
-    onSelect(recipeId)
+    const recipeObj = recipes.find(r => r.id === recipeId)
+    onSelect(recipeId, recipeObj)
     setSearchTerm("")
     setIsOpen(false)
   }
@@ -86,7 +88,8 @@ export function RecipeSelector({ recipes, day, mealType, onSelect, onCancel }: R
             dishOrder={mealType.endsWith("1") ? 1 : mealType.endsWith("2") ? 2 : undefined}
             dayName={day}
             onRecipeCreated={(recipe) => {
-              onSelect(recipe.id)
+              onSelect(recipe.id, recipe)
+              if (onClose) onClose()
             }}
           />
         </div>

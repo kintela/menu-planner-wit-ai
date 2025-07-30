@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { SimpleNavigation } from "@/components/simple-navigation"
 import { WeeklyMenuView } from "@/components/weekly-menu-view"
@@ -64,9 +64,6 @@ export default function WeeklyMenuPage() {
   const [endDate, setEndDate] = useState<Date | null>(null)
 
   const [shouldRedirect, setShouldRedirect] = useState(false);
-
-  // Memorizar las recetas para evitar re-renders del WeeklyMenuView
-  const memoizedRecipes = useMemo(() => recipes, [recipes.length]);
 
   useEffect(() => {
     setMounted(true)
@@ -332,7 +329,7 @@ export default function WeeklyMenuPage() {
         </div>
 
         <Suspense fallback={<div className="text-center py-8">Cargando planificador...</div>}>
-          <WeeklyMenuView initialRecipes={memoizedRecipes} userId={user.id} />
+          <WeeklyMenuView initialRecipes={recipes} userId={user.id} />
         </Suspense>
       </div>
     </div>

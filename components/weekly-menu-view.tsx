@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Calendar, ChefHat, Flame, Users, Trash2, Plus, User } from "lucide-react"
@@ -47,9 +47,6 @@ const MEAL_TYPES = [
 ]
 
 export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipes = [], userId }: WeeklyMenuViewProps) {
-  // Memorizar las recetas para evitar re-renders
-  const recipes = useMemo(() => initialRecipes, [initialRecipes.length]);
-  
   // Estados necesarios
   const [menuEntries, setMenuEntries] = useState<MenuEntry[]>([])
   const [showRecipeSelector, setShowRecipeSelector] = useState<{
@@ -64,6 +61,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
     endDateStr: '',
     weekText: ''
   })
+  const [recipes, setRecipes] = useState<Recipe[]>(initialRecipes)
 
   const supabase = createClient()
   const { toast } = useToast()
@@ -198,9 +196,9 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
     }
   }
 
-  // Función para añadir receta (solo en memoria)
-  const addRecipeToMenu = (day: string, mealTypeKey: string, recipeId: number) => {
-    const recipe = recipes.find(r => r.id === recipeId)
+  // Cambiar la firma para aceptar recipeObj opcional
+  const addRecipeToMenu = (day: string, mealTypeKey: string, recipeId: number, recipeObj?: Recipe) => {
+    const recipe = recipeObj || recipes.find(r => r.id === recipeId)
     if (!recipe) return
 
     // Parsear el mealType para obtener meal_type y dish_order
@@ -339,6 +337,11 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
     );
   };
 
+  // Sincronizar recetas cada vez que cambie initialRecipes
+  useEffect(() => {
+    setRecipes(initialRecipes)
+  }, [initialRecipes])
+
   // Mostrar loading mientras se cargan los datos
   if (isLoading) {
     return (
@@ -349,6 +352,39 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
         </div>
       </div>
     )
+  }
+
+  // Función para obtener receta con perfil de usuario (si existe) desde la base de datos
+  async function fetchRecipeWithProfile(recipeId: number): Promise<Recipe | null> {
+    try {
+      const { data, error } = await supabase
+        .from("recipes")
+        .select(`
+          id,
+          name,
+          calories,
+          image_url,
+          user_profiles (
+            id,
+            full_name,
+            first_name,
+            last_name,
+            alias,
+            avatar_url,
+            email
+          )
+        `)
+        .eq("id", recipeId)
+        .single()
+      if (error) {
+        console.error("Error fetching recipe with profile:", error)
+        return null
+      }
+      return data as Recipe
+    } catch (err) {
+      console.error("Error fetching recipe with profile:", err)
+      return null
+    }
   }
 
   return (
@@ -530,7 +566,22 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
             recipes={recipes}
             day={showRecipeSelector.day}
             mealType={showRecipeSelector.mealType}
-            onSelect={(recipeId) => addRecipeToMenu(showRecipeSelector.day, showRecipeSelector.mealType, recipeId)}
+            onSelect={async (recipeId, recipeObj) => {
+              let recipeToUse = recipeObj
+              if (recipeObj && !recipeObj.user_profiles) {
+                // Si la receta no tiene user_profiles, obtenerla de la BD
+                recipeToUse = await fetchRecipeWithProfile(recipeObj.id)
+              }
+              if (recipeToUse) {
+                if (!recipes.find(r => r.id === recipeToUse!.id)) {
+                  setRecipes(prev => [...prev, recipeToUse!])
+                }
+                addRecipeToMenu(showRecipeSelector.day, showRecipeSelector.mealType, recipeToUse!.id, recipeToUse)
+              } else {
+                addRecipeToMenu(showRecipeSelector.day, showRecipeSelector.mealType, recipeId)
+              }
+              setShowRecipeSelector(null)
+            }}
             onCancel={() => setShowRecipeSelector(null)}
           />
         </div>
