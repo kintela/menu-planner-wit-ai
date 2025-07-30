@@ -101,8 +101,16 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
   // Función para cargar menú existente si ya existe
   const loadExistingMenu = async (startDateStr: string, endDateStr: string) => {
     try {
-      console.log("🔍 Buscando menú existente para la semana...")
+      console.log("🔍 Buscando menú existente para la semana...", startDateStr)
+      console.log("🔍 userId:", userId)
       
+      // Verificar que tenemos userId antes de hacer la consulta
+      if (!userId) {
+        console.error("❌ No hay userId disponible")
+        setIsLoading(false)
+        return
+      }
+
       // Buscar menú existente para esta semana
       const { data: existingMenu, error: menuError } = await supabase
         .from("weekly_menus")
@@ -110,6 +118,8 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
         .eq("user_id", userId)
         .eq("start_date", startDateStr)
         .single()
+
+      console.log("🔍 Resultado consulta menú:", { existingMenu, menuError })
 
       if (menuError && menuError.code !== "PGRST116") {
         console.error("❌ Error buscando menú existente:", menuError)
@@ -122,6 +132,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
         setExistingMenuId(existingMenu.id)
 
         // Cargar items del menú existente
+        console.log("🔍 Cargando items para menú ID:", existingMenu.id)
         const { data: menuItems, error: itemsError } = await supabase
           .from("menu_items")
           .select(`
@@ -146,12 +157,16 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
           .order("meal_type")
           .order("dish_order")
 
+        console.log("🔍 Resultado consulta items:", { menuItems, itemsError })
+
         if (itemsError) {
           console.error("❌ Error cargando items del menú:", itemsError)
+          // Aún así continuar con menú vacío
+          setMenuEntries([])
         } else {
           console.log("✅ Items del menú cargados:", menuItems?.length || 0)
           
-          if (menuItems) {
+          if (menuItems && menuItems.length > 0) {
             const formattedEntries = menuItems.map((entry) => ({
               id: entry.id,
               day: DAYS[entry.day_of_week],
@@ -161,6 +176,9 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
               recipe: entry.recipes as Recipe,
             }))
             setMenuEntries(formattedEntries)
+            console.log("✅ Entries formateados:", formattedEntries.length)
+          } else {
+            setMenuEntries([])
           }
         }
       } else {
@@ -170,7 +188,11 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
       }
     } catch (error) {
       console.error("❌ Error en loadExistingMenu:", error)
+      // En caso de error, continuar con estado vacío
+      setExistingMenuId(null)
+      setMenuEntries([])
     } finally {
+      console.log("🔄 Estableciendo isLoading = false")
       setIsLoading(false)
     }
   }
