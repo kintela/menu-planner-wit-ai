@@ -55,12 +55,28 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
   const recipes = Array.isArray(initialRecipes) ? initialRecipes : []
   const categories = Array.isArray(initialCategories) ? initialCategories : []
 
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [showFilters, setShowFilters] = useState(false)
   const [ownerFilter, setOwnerFilter] = useState<"all" | "mine">("all")
   const [iaOnly, setIaOnly] = useState(false)
+
+  // Solo admins pueden ver el selector de usuario
+  const isAdmin = profile && profile.role === "admin";
+
+  // Obtener usuarios únicos con recetas
+  const usersWithRecipes = useMemo(() => {
+    const map = new Map();
+    recipes.forEach((r) => {
+      if (r.user_profiles && r.user_profiles.id) {
+        map.set(r.user_profiles.id, r.user_profiles);
+      }
+    });
+    return Array.from(map.values());
+  }, [recipes]);
+
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   const filteredRecipes = useMemo(() => {
     return recipes.filter((recipe) => {
@@ -80,18 +96,21 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
 
       const matchesIa = !iaOnly || recipe.is_ai_generated
 
-      return matchesSearch && matchesCategory && matchesOwner && matchesIa
+      const matchesUser = !selectedUserId || (recipe.user_profiles && recipe.user_profiles.id === selectedUserId);
+
+      return matchesSearch && matchesCategory && matchesOwner && matchesIa && matchesUser
     })
-  }, [recipes, searchTerm, selectedCategory, ownerFilter, iaOnly, user])
+  }, [recipes, searchTerm, selectedCategory, ownerFilter, iaOnly, user, selectedUserId])
 
   const clearFilters = () => {
     setSearchTerm("")
     setSelectedCategory(null)
     setOwnerFilter("all")
     setIaOnly(false)
+    setSelectedUserId(null)
   }
 
-  const hasActiveFilters = searchTerm || selectedCategory || ownerFilter !== "all" || iaOnly
+  const hasActiveFilters = searchTerm || selectedCategory || ownerFilter !== "all" || iaOnly || selectedUserId
 
   if (recipes.length === 0) {
     return (
@@ -188,6 +207,24 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
                 Las mías
               </label>
             </div>
+            {/* Selector de usuario solo para admin, en la misma línea */}
+            {isAdmin && usersWithRecipes.length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">Usuario:</label>
+                <select
+                  className="border rounded px-2 py-1 text-sm"
+                  value={selectedUserId || ""}
+                  onChange={e => setSelectedUserId(e.target.value || null)}
+                >
+                  <option value="">Todos</option>
+                  {usersWithRecipes.map(u => (
+                    <option key={u.id} value={u.id}>
+                      {u.alias || u.full_name || u.email || u.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             {/* Checkbox IA */}
             <label className="flex items-center gap-1 text-sm cursor-pointer">
               <input
