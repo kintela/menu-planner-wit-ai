@@ -30,6 +30,7 @@ export function DeleteRecipeButton({
   const [isChecking, setIsChecking] = useState(false)
   const [showInitialConfirm, setShowInitialConfirm] = useState(false)
   const [showMenuWarning, setShowMenuWarning] = useState(false)
+  const [showForceConfirm, setShowForceConfirm] = useState(false)
   const [menuMessage, setMenuMessage] = useState("")
   const [_, startTransition] = useTransition()
   const router = useRouter()
@@ -89,13 +90,28 @@ export function DeleteRecipeButton({
     setIsChecking(true)
 
     // Verificar primero si la receta está en menús
-    const inMenu = await checkIfRecipeInMenu()
+    const response = await fetch(`/api/recipes/${recipeId}/check-menu-usage`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-id": user.id || user.email || "",
+      },
+    })
+    const data = await response.json()
 
-    if (inMenu) {
-      // Si está en menús, mostrar advertencia
-      setShowMenuWarning(true)
+    if (response.ok && data.inMenu) {
+      setMenuMessage(
+        data.message ||
+          `Esta receta está incluida en ${data.menuCount} menú(s). ¿Quieres eliminarla de todos los menús y de la base de datos?`
+      )
+      setShowForceConfirm(true)
+    } else if (response.status === 409 && data.error === "RECIPE_IN_MENU") {
+      setMenuMessage(
+        data.message ||
+          `Esta receta está incluida en ${data.menuCount} menú(s). ¿Quieres eliminarla de todos los menús y de la base de datos?`
+      )
+      setShowForceConfirm(true)
     } else {
-      // Si no está en menús, mostrar confirmación normal
       setShowInitialConfirm(true)
     }
 
@@ -148,6 +164,46 @@ export function DeleteRecipeButton({
     }
   }
 
+  async function handleForceDelete() {
+    if (!user) return
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/recipes/${recipeId}?force=true`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": user.id || user.email || "",
+        },
+      })
+      const data = await response.json()
+      if (response.ok) {
+        toast({
+          title: "Receta eliminada",
+          description: `${recipeName} y todas sus referencias en menús han sido eliminadas.`,
+        })
+        startTransition(() => {
+          if (onDelete) {
+            onDelete()
+          } else {
+            router.push("/recipes")
+            router.refresh()
+          }
+        })
+      } else {
+        throw new Error(data.error || "Error al eliminar la receta")
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error eliminando la receta",
+        description: error instanceof Error ? error.message : "Hubo un problema eliminando la receta.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeleting(false)
+      setShowForceConfirm(false)
+    }
+  }
+
   return (
     <>
       <Button
@@ -187,15 +243,16 @@ export function DeleteRecipeButton({
         variant="destructive"
       />
 
-      {/* Advertencia de receta en menús */}
+      {/* Advertencia de receta en menús y confirmación forzada */}
       <ConfirmationDialog
-        isOpen={showMenuWarning}
-        onClose={() => setShowMenuWarning(false)}
-        onConfirm={() => setShowMenuWarning(false)}
-        title="No se puede eliminar la receta"
+        isOpen={showForceConfirm}
+        onClose={() => setShowForceConfirm(false)}
+        onConfirm={handleForceDelete}
+        title="Eliminar receta y referencias en menús"
         description={menuMessage}
-        confirmText="Entendido"
-        showCancel={false}
+        confirmText="Eliminar de menús y receta"
+        cancelText="Cancelar"
+        variant="destructive"
         icon={<AlertCircle className="h-6 w-6 text-amber-500" />}
       />
     </>

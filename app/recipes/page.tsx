@@ -36,7 +36,17 @@ async function getRecipes() {
       return []
     }
 
-    return recipes || []
+    // Transformar menu_items a menu_ids para cada receta
+    const recipesWithMenuIds = (recipes || []).map(r => ({
+      ...r,
+      menu_ids: Array.isArray(r.menu_items)
+        ? r.menu_items
+            .map(mi => mi?.weekly_menu_id)
+            .filter(id => typeof id === "number" && !isNaN(id))
+        : [],
+    }));
+
+    return recipesWithMenuIds
   } catch (error) {
     return []
   }
