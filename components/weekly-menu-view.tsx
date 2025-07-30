@@ -423,35 +423,35 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
                   return (
                     <div
                       key={`${day}-${mealType.key}-${mealType.order}`}
-                      className={`border-2 rounded-lg p-3 min-h-[140px] ${mealType.color}`}
+                      className={`border-2 rounded-lg p-3 h-[180px] ${mealType.color}`}
                     >
                       <p className="text-xs font-medium mb-2">{mealType.label}</p>
                       {entry?.recipe ? (
-                        <div className="space-y-2">
-                          <div className="flex items-start gap-2">
+                        <div className="h-full flex flex-col">
+                          <div className="flex items-start gap-2 flex-1">
                             {/* Imagen en miniatura */}
                             <div className="flex-shrink-0">
                               {entry.recipe.image_url ? (
                                 <img
                                   src={entry.recipe.image_url}
                                   alt={entry.recipe.name}
-                                  className="w-12 h-12 object-cover rounded-md"
+                                  className="w-10 h-10 object-cover rounded-md"
                                 />
                               ) : (
-                                <div className="w-12 h-12 bg-gray-200 rounded-md flex items-center justify-center">
-                                  <ChefHat className="h-6 w-6 text-gray-400" />
+                                <div className="w-10 h-10 bg-gray-200 rounded-md flex items-center justify-center flex-shrink-0">
+                                  <ChefHat className="h-5 w-5 text-gray-400" />
                                 </div>
                               )}
                             </div>
                             
                             {/* Información de la receta */}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium line-clamp-2 mb-1">{entry.recipe.name}</p>
+                            <div className="flex-1 min-w-0 overflow-hidden">
+                              <p className="text-sm font-medium line-clamp-2 mb-1 leading-tight">{entry.recipe.name}</p>
                               
                               {/* Autor de la receta */}
                               {entry.recipe.user_profiles && (
                                 <div className="flex items-center gap-1 mb-1">
-                                  <User className="h-3 w-3 text-gray-500" />
+                                  <User className="h-3 w-3 text-gray-500 flex-shrink-0" />
                                   <span className="text-xs text-gray-600 truncate">
                                     {entry.recipe.user_profiles.first_name || entry.recipe.user_profiles.full_name || 'Usuario'}
                                   </span>
@@ -461,13 +461,15 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
                               {/* Calorías */}
                               {entry.recipe.calories && (
                                 <div className="flex items-center gap-1">
-                                  <Flame className="h-3 w-3 text-orange-500" />
+                                  <Flame className="h-3 w-3 text-orange-500 flex-shrink-0" />
                                   <span className="text-xs text-gray-600">{entry.recipe.calories} cal</span>
                                 </div>
                               )}
                             </div>
+                          </div>
 
-                            {/* Botón eliminar */}
+                          {/* Botón eliminar - posicionado en la parte inferior */}
+                          <div className="flex justify-end mt-2">
                             <Button
                               variant="ghost"
                               size="sm"
