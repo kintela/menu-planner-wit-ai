@@ -534,9 +534,10 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
                               variant="ghost"
                               size="sm"
                               onClick={() => entry.id && removeRecipeFromMenu(entry.id)}
-                              className="h-6 w-6 p-0 flex-shrink-0"
+                              className="h-8 w-8 p-0 flex-shrink-0"
+                              title="Eliminar receta"
                             >
-                              <Trash2 className="h-3 w-3" />
+                              <Trash2 className="h-5 w-5 text-red-600" />
                             </Button>
                           </div>
                         </div>
