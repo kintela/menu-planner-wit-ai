@@ -33,13 +33,11 @@ async function getRecipes() {
       .order("name", { ascending: true })
 
     if (error) {
-      console.error("Error fetching recipes:", error)
       return []
     }
 
     return recipes || []
   } catch (error) {
-    console.error("Error fetching recipes:", error)
     return []
   }
 }
@@ -52,13 +50,11 @@ async function getCategories() {
     const { data: categories, error } = await supabase2.from("categories").select("*").order("name")
 
     if (error) {
-      console.error("Error fetching categories:", error)
       return []
     }
 
     return categories || []
   } catch (error) {
-    console.error("Error fetching categories:", error)
     return []
   }
 }
@@ -69,7 +65,6 @@ export default async function RecipesPage() {
 
     return <RecipesPageClient initialRecipes={recipes} initialCategories={categories} />
   } catch (error) {
-    console.error("Error in RecipesPage:", error)
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="container mx-auto px-4 py-8">

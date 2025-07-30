@@ -75,20 +75,18 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
     )
   }
 
-  // Check if current user can edit this recipe
-  const canEdit = user && recipe.user_id === user.id
-
   // Detectar si el usuario es admin (si existe user.role)
-  const isAdmin = profile && (profile.role === "admin" || profile.role === "superadmin")
-  const canDelete = user && (isAdmin || recipe.user_id === user.id)
+  const isAdmin = profile && profile.role === "admin"
+  const canEdit = isAdmin || (user && recipe.user_id === user.id)
+  const canDelete = isAdmin || (user && recipe.user_id === user.id)
 
   // DEBUG: Mostrar info de receta y usuario en consola para admin
   if (isAdmin) {
-    console.log("[RecipeCard][ADMIN] recipe.id:", recipe.id)
+    /*console.log("[RecipeCard][ADMIN] recipe.id:", recipe.id)
     console.log("[RecipeCard][ADMIN] recipe.menu_ids:", recipe.menu_ids)
     console.log("[RecipeCard][ADMIN] recipe:", recipe)
     console.log("[RecipeCard][ADMIN] user:", user)
-    console.log("[RecipeCard][ADMIN] profile:", profile)
+    console.log("[RecipeCard][ADMIN] profile:", profile)*/
   }
 
   return (
@@ -153,9 +151,9 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
             </div>
           )}
 
-          {/* Icono flotante de eliminar receta */}
+          {/* Icono flotante de eliminar receta - ahora centrado abajo de la foto */}
           {canDelete && (
-            <div className="absolute top-2 right-2 z-20">
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20">
               <DeleteRecipeButton
                 recipeId={String(recipe.id)}
                 recipeUserId={recipe.user_id}
@@ -225,7 +223,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
               </Button>
             </Link>
 
-            {/* Edit button - only show if user can edit */}
+            {/* Edit button - show if user puede editar o es admin */}
             {canEdit ? (
               <Link href={`/recipes/${recipe.id}/edit`} className="flex-1">
                 <Button size="sm" className="w-full bg-green-600 hover:bg-green-700 text-white border-0">

@@ -25,7 +25,7 @@ export function DeleteRecipeButton({
   iconOnly = false,
 }: DeleteRecipeButtonProps) {
   const { toast } = useToast()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [isDeleting, setIsDeleting] = useState(false)
   const [isChecking, setIsChecking] = useState(false)
   const [showInitialConfirm, setShowInitialConfirm] = useState(false)
@@ -34,8 +34,8 @@ export function DeleteRecipeButton({
   const [_, startTransition] = useTransition()
   const router = useRouter()
 
-  // Usar la misma lógica que StarRating para verificar ownership
-  const canDelete = user && (user.id === recipeUserId || user.email === recipeUserId)
+  const isAdmin = profile && profile.role === "admin"
+  const canDelete = isAdmin || (user && (user.id === recipeUserId || user.email === recipeUserId))
 
   // Función para verificar si la receta está en menús
   async function checkIfRecipeInMenu() {
