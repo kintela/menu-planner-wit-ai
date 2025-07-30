@@ -58,17 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           error,
         } = await supabase.auth.getSession()
 
-        console.log("🔍 Estado inicial de sesión:", session);
-        console.log("🔍 Error al obtener sesión:", error);
-
         if (error) {
           console.error("Error getting session:", error)
-          // Clear any invalid tokens silently
-          try {
-            await supabase.auth.signOut()
-          } catch (signOutError) {
-            console.error("Error signing out:", signOutError)
-          }
         }
 
         if (mounted) {
@@ -76,6 +67,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (session?.user) {
             const userProfile = await loadUserProfile(session.user.id)
             setProfile(userProfile)
+          } else {
+            setProfile(null)
           }
           setLoading(false)
         }
@@ -97,17 +90,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
 
-      console.log("Auth state changed:", event, "Session:", !!session, "User:", !!session?.user)
-
       try {
-        // Simplificar la lógica - siempre actualizar basado en la sesión actual
         if (session?.user) {
-          console.log("✅ Usuario autenticado, cargando perfil...");
           setUser(session.user)
           const userProfile = await loadUserProfile(session.user.id)
           setProfile(userProfile)
         } else {
-          console.log("❌ No hay usuario, limpiando estado...");
           setUser(null)
           setProfile(null)
         }
@@ -117,8 +105,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(null)
       }
 
-      // IMPORTANTE: Siempre establecer loading en false al final
-      console.log("🔄 Estableciendo loading = false");
       setLoading(false)
     })
 

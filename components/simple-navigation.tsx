@@ -26,39 +26,30 @@ export function SimpleNavigation() {
       try {
         const supabase = getSupabaseClient()
 
-        //console.log("Loading avatar for user:", user.id)
-
         // Buscar archivos en la carpeta del usuario en el bucket avatars
         const { data: files, error } = await supabase.storage.from("avatars").list(user.id, {
           limit: 10,
           sortBy: { column: "created_at", order: "desc" },
         })
 
-        //console.log("Files found in avatars bucket:", files, "Error:", error)
-
         if (files && files.length > 0) {
           // Tomar el primer archivo (más reciente)
           const avatarFile = files[0]
-          //console.log("Using avatar file:", avatarFile)
 
           // Construir la ruta completa del archivo
           const filePath = `${user.id}/${avatarFile.name}`
-          //console.log("Avatar file path:", filePath)
 
           // Obtener la URL pública
           const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath)
 
-          //console.log("Generated avatar URL:", urlData.publicUrl)
           setAvatarUrl(urlData.publicUrl)
         } else {
-          //console.log("No avatar files found for user")
           setAvatarUrl(null)
         }
 
         // También cargar el perfil del usuario para obtener el nombre
         const { data: profile } = await supabase.from("user_profiles").select("*").eq("id", user.id).single()
 
-        console.log("User profile:", profile)
         setUserProfile(profile)
       } catch (error) {
         console.error("Error loading user avatar:", error)
