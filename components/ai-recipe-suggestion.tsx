@@ -100,6 +100,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       setRetryCount(0)
     }
 
+    const startTime = Date.now()
     try {
       // Incrementar contador de uso solo si no es retry
       const supabase = getSupabaseClient()
@@ -119,12 +120,11 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
         }
       }
 
-      console.log("🚀 Enviando petición a la API...", { isRetry, retryCount })
-
+      console.log("🚀 Enviando petición a la API de OpenAI...", { isRetry, retryCount, searchQuery, mealType, dishOrder, dayName })
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 70000) // 70 segundos timeout
 
-      const response = await fetch("/api/generate-recipe-suggestions", {
+      const response = await fetch("/api/generate-recipe-suggestions-alt", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -139,8 +139,8 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       })
 
       clearTimeout(timeoutId)
-
-      console.log("📡 Respuesta recibida, status:", response.status)
+      const elapsed = Date.now() - startTime
+      console.log(`⏱️ Tiempo de respuesta OpenAI: ${elapsed} ms, status:`, response.status)
 
       if (!response.ok) {
         let errorMessage = `Error ${response.status}`
@@ -170,10 +170,11 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
       }
 
       const data = await response.json()
-      console.log("✅ Datos parseados:", {
+      console.log("✅ Datos parseados de OpenAI:", {
         recipesCount: data.recipes?.length,
         duration: data.duration,
         fallback: data.fallback,
+        data,
       })
 
       if (data.recipes && Array.isArray(data.recipes) && data.recipes.length > 0) {
@@ -197,7 +198,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
         throw new Error("No se pudieron generar recetas. Inténtalo con una búsqueda diferente.")
       }
     } catch (error) {
-      console.error("❌ Error generating suggestions:", error)
+      console.error("❌ Error generando sugerencias con OpenAI:", error)
 
       let errorMessage = "No se pudieron generar sugerencias."
 
@@ -392,7 +393,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
             )}
             {isAdmin && (
               <span className="text-xs text-green-600 mt-1 block">
-                👑 Administrador: Generaciones ilimitadas (Uso actual: {dailyUsage})
+                👑 Administrador: Generaciones ilimitadas
               </span>
             )}
           </DialogDescription>

@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { X, Search, ChefHat } from "lucide-react"
+import { X, Search, ChefHat, Sparkles } from "lucide-react"
+import { AiRecipeSuggestion } from "@/components/ai-recipe-suggestion"
 
 interface Recipe {
   id: number
@@ -78,6 +79,17 @@ export function RecipeSelector({ recipes, day, mealType, onSelect, onCancel }: R
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Botón para generar receta por IA */}
+        <div className="flex justify-center mb-2">
+          <AiRecipeSuggestion
+            mealType={mealType.startsWith("comida") ? "comida" : "cena"}
+            dishOrder={mealType.endsWith("1") ? 1 : mealType.endsWith("2") ? 2 : undefined}
+            dayName={day}
+            onRecipeCreated={(recipe) => {
+              onSelect(recipe.id)
+            }}
+          />
+        </div>
         {/* Caja de búsqueda */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
