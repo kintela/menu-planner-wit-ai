@@ -8,11 +8,11 @@ import { useAuth } from '@/components/auth/auth-provider';
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const redirect = searchParams.get('redirect');
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!loading && user && profile) {
       // Si hay un parámetro redirect en la URL, usar ese
       if (redirect) {
         console.log("🔄 Redirigiendo a:", redirect);
@@ -22,7 +22,7 @@ export default function LoginPage() {
         router.push('/dashboard');
       }
     }
-  }, [user, loading, redirect, router]);
+  }, [user, profile, loading, redirect, router]);
 
   if (loading) {
     return (

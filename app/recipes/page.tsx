@@ -33,7 +33,28 @@ async function getRecipes() {
       .order("name", { ascending: true })
 
     if (error) {
+      console.error("[getRecipes] Error consulta compleja:", error)
+      // Fallback mínimo para diagnosticar si el problema es por relaciones / RLS
+      const { data: simpleData, error: simpleError } = await supabase.from("recipes").select("id,name").limit(10)
+      if (simpleError) {
+        console.error("[getRecipes] Error en fallback simple:", simpleError)
+      } else {
+        console.log("[getRecipes] Fallback simple devolvió", simpleData?.length, "filas")
+      }
       return []
+    }
+
+    if (!recipes || recipes.length === 0) {
+      console.warn("[getRecipes] Consulta compleja devolvió 0 filas. Probando probe simple para verificar acceso.")
+      const { data: probe, error: probeError, count } = await supabase
+        .from("recipes")
+        .select("id", { count: "exact" })
+        .limit(1)
+      if (probeError) {
+        console.error("[getRecipes] Probe simple error:", probeError)
+      } else {
+        console.log("[getRecipes] Probe simple count (estimado):", count, "primer id:", probe?.[0]?.id)
+      }
     }
 
     // Transformar menu_items a menu_ids para cada receta
@@ -48,6 +69,17 @@ async function getRecipes() {
 
     return recipesWithMenuIds
   } catch (error) {
+    console.error("[getRecipes] Excepción inesperada:", error)
+    try {
+      const cookieStore2 = await cookies();
+      const supabase2 = createClient(cookieStore2)
+      const { data: simpleData2, error: simpleError2 } = await supabase2.from("recipes").select("id,name").limit(5)
+      if (simpleError2) {
+        console.error("[getRecipes] Error segundo fallback:", simpleError2)
+      } else {
+        console.log("[getRecipes] Segundo fallback devolvió", simpleData2?.length, "filas")
+      }
+    } catch {}
     return []
   }
 }

@@ -6,24 +6,13 @@ import { useState, useEffect } from "react"
 import { User, LogOut, Menu, X, Home, Book, Calendar, Plus, Search, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getSupabaseClient } from "@/lib/supabase/client"
+import { useAuth } from "@/components/auth/auth-provider"
+import Image from "next/image"
 
 export function Navigation() {
-  // ... resto del código del componente
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const router = useRouter()
-  const [user, setUser] = useState<any>(null)
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      const supabase = getSupabaseClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      setUser(user)
-    }
-
-    fetchUser()
-  }, [])
+  const { user, profile, loading } = useAuth()
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen)
@@ -32,7 +21,7 @@ export function Navigation() {
   const handleSignOut = async () => {
     const supabase = getSupabaseClient()
     await supabase.auth.signOut()
-    router.push("/login")
+    router.push("/")
   }
 
   return (
@@ -64,6 +53,25 @@ export function Navigation() {
           </Link>
           {user ? (
             <>
+              {/* Mostrar avatar y alias si el perfil está cargado, placeholder si no */}
+              <div className="flex items-center gap-2 px-2">
+                {loading ? (
+                  <div className="w-8 h-8 rounded-full bg-gray-400 animate-pulse" />
+                ) : profile ? (
+                  <>
+                    <Image
+                      src={profile.avatar_url || "/placeholder-user.jpg"}
+                      alt="Avatar"
+                      width={32}
+                      height={32}
+                      className="rounded-full object-cover border border-white"
+                    />
+                    <span className="text-sm font-medium truncate max-w-[120px]">{profile.alias || profile.full_name || user.email}</span>
+                  </>
+                ) : (
+                  <User className="w-8 h-8 text-gray-300" />
+                )}
+              </div>
               <Link href="/settings" className="hover:text-gray-300 flex items-center">
                 <Settings className="mr-1 h-5 w-5" />
                 Settings
