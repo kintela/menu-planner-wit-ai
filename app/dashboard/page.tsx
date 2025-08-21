@@ -1,5 +1,5 @@
 import { createServerClient } from "@/lib/supabase/server"
-import { getCurrentUserProfile } from "@/lib/auth"
+import { getCurrentUserProfile, getCurrentUser } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { DashboardStats } from "@/components/dashboard/dashboard-stats"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
@@ -9,10 +9,29 @@ import { cookies } from 'next/headers'; // Importar cookies para inicializar coo
 
 export default async function DashboardPage() {
   const cookieStore = await cookies(); // Inicializar cookieStore
+
+  // Obtener usuario primero (sesión)
+  const user = await getCurrentUser(cookieStore)
+  if (!user) {
+    console.warn("[Dashboard] No hay sesión -> redirect /login")
+    redirect("/login")
+  }
+
+  // Intentar obtener profile (puede ser null si trigger no lo creó aún)
   const profile = await getCurrentUserProfile(cookieStore)
 
   if (!profile) {
-    redirect("/login")
+    console.warn("[Dashboard] Usuario con sesión pero sin profile. Mostrando aviso en lugar de redirect para evitar loop.")
+    return (
+      <div className="container mx-auto px-4 py-16 max-w-xl">
+        <h1 className="text-2xl font-bold mb-4">Configurando tu perfil...</h1>
+        <p className="text-gray-600 mb-4">Tu sesión está activa, pero aún no se ha encontrado tu perfil. Esto suele resolverse en unos segundos.</p>
+        <p className="text-gray-500 text-sm mb-8">Si el problema persiste, recarga la página o contacta con un administrador.</p>
+        <form action="/api/auth/refresh" method="post">
+          <button className="px-4 py-2 bg-blue-600 text-white rounded" type="submit">Reintentar</button>
+        </form>
+      </div>
+    )
   }
 
   const supabase = createServerClient(cookieStore)
