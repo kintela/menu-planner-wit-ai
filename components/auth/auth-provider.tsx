@@ -47,6 +47,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // NUEVO: función con reintentos para casos donde el trigger aún no creó la fila
+  const loadUserProfileWithRetry = async (userId: string, attempts = [300, 1200, 3000, 5000, 8000]) => {
+    const first = await loadUserProfile(userId)
+    if (first) return first
+    for (const delay of attempts) {
+      await new Promise(r => setTimeout(r, delay))
+      const again = await loadUserProfile(userId)
+      if (again) return again
+    }
+    return null
+  }
+
   useEffect(() => {
     let mounted = true
     const timeout = setTimeout(() => {
@@ -71,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (mounted) {
           setUser(session?.user ?? null)
           if (session?.user) {
-            const userProfile = await loadUserProfile(session.user.id)
+            const userProfile = await loadUserProfileWithRetry(session.user.id)
             setProfile(userProfile)
           } else {
             setProfile(null)
@@ -101,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         if (session?.user) {
           setUser(session.user)
-          const userProfile = await loadUserProfile(session.user.id)
+          const userProfile = await loadUserProfileWithRetry(session.user.id)
           setProfile(userProfile)
           console.log("[AuthProvider] onAuthStateChange: user=", session.user)
         } else {
@@ -128,9 +140,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // NUEVO: suscripción en tiempo real a cambios en user_profiles para el usuario actual (avatar, alias, etc.)
+  useEffect(() => {
+    if (!user) return
+    const channel = supabase.channel(`user_profile:${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'user_profiles',
+        filter: `id=eq.${user.id}`,
+      }, (payload: any) => {
+        console.log('[AuthProvider] RT cambio perfil:', payload)
+        const newRecord = payload.new || payload.old
+        setProfile(prev => prev ? { ...prev, ...newRecord } : newRecord)
+      })
+      .subscribe((status) => {
+        console.log('[AuthProvider] Canal realtime status:', status)
+      })
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user])
+
+  // NUEVO: listener para evento custom disparado desde el formulario al subir avatar
+  useEffect(() => {
+    const handler = (e: any) => {
+      const { avatarUrl, fullName } = e.detail || {}
+      setProfile(prev => prev ? { ...prev, avatar_url: avatarUrl || prev.avatar_url, full_name: fullName || prev.full_name } : prev)
+    }
+    window.addEventListener('avatar_updated', handler as EventListener)
+    return () => window.removeEventListener('avatar_updated', handler as EventListener)
+  }, [])
+
   useEffect(() => {
     if (user) {
-      loadUserProfile(user.id).then(setProfile)
+      loadUserProfile(user.id).then(p => p && setProfile(p))
     } else {
       setProfile(null)
     }
