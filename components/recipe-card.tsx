@@ -152,17 +152,15 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
             </div>
           )}
 
-          {/* Icono flotante de eliminar receta - ahora centrado abajo de la foto */}
-          {canDelete && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20">
-              <DeleteRecipeButton
-                recipeId={String(recipe.id)}
-                recipeUserId={recipe.user_id}
-                recipeName={recipe.name}
-                iconOnly
-              />
-            </div>
-          )}
+          {/* Icono flotante de eliminar receta: siempre visible (deshabilitado con tooltip si no tiene permisos) */}
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20">
+            <DeleteRecipeButton
+              recipeId={String(recipe.id)}
+              recipeUserId={recipe.user_id}
+              recipeName={recipe.name}
+              iconOnly
+            />
+          </div>
 
           {/* Mostrar ID de receta y menús solo para admin */}
           {profile && profile.role === 'admin' && (

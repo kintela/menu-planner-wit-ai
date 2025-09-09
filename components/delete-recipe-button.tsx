@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ConfirmationDialog } from "./confirmation-dialog"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 
 interface DeleteRecipeButtonProps {
   recipeId: string
@@ -37,6 +39,14 @@ export function DeleteRecipeButton({
 
   const isAdmin = profile && profile.role === "admin"
   const canDelete = isAdmin || (user && (user.id === recipeUserId || user.email === recipeUserId))
+
+  const tooltipMessage = !user
+    ? "Inicia sesión para eliminar. Solo puedes eliminar tus propias recetas"
+    : !canDelete
+      ? "Solo puedes eliminar tus propias recetas"
+      : isAdmin && user?.id !== recipeUserId
+        ? "Eliminar receta (admin)"
+        : "Eliminar receta"
 
   // Función para verificar si la receta está en menús
   async function checkIfRecipeInMenu() {
@@ -206,33 +216,51 @@ export function DeleteRecipeButton({
 
   return (
     <>
-      <Button
-        variant="destructive"
-        size={iconOnly ? "sm" : "default"}
-        onClick={handleDeleteClick}
-        disabled={!canDelete || isDeleting || isChecking}
-      >
-        {isDeleting || isChecking ? (
-          iconOnly ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {isChecking ? "Verificando..." : "Eliminando..."}
-            </>
-          )
-        ) : iconOnly ? (
-          <Trash2 className="h-4 w-4" />
-        ) : (
-          <>
-            <Trash2 className="mr-2 h-4 w-4" />
-            Eliminar
-          </>
-        )}
-      </Button>
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={canDelete ? "destructive" : iconOnly ? "ghost" : "outline"}
+              size={iconOnly ? "sm" : "default"}
+              onClick={canDelete ? handleDeleteClick : (e) => { e.preventDefault() }}
+              aria-disabled={!canDelete || isDeleting || isChecking}
+              disabled={canDelete ? (isDeleting || isChecking) : false}
+              className={cn(
+                iconOnly ? "h-8 w-8 p-0" : "",
+                !canDelete && !isDeleting && !isChecking
+                  ? "bg-gray-200 text-gray-500 hover:bg-gray-200 cursor-not-allowed border border-gray-300"
+                  : ""
+              )}
+            >
+              {isDeleting || isChecking ? (
+                iconOnly ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {isChecking ? "Verificando..." : "Eliminando..."}
+                  </>
+                )
+              ) : iconOnly ? (
+                <Trash2 className="h-4 w-4" />
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Eliminar
+                </>
+              )}
+            </Button>
+          </TooltipTrigger>
+          {(!canDelete || isAdmin) && (
+            <TooltipContent side="top">
+              <p className="max-w-[240px] text-center leading-snug">{tooltipMessage}</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
 
       {/* Confirmación normal de eliminación */}
-      <ConfirmationDialog
+  <ConfirmationDialog
         isOpen={showInitialConfirm}
         onClose={() => setShowInitialConfirm(false)}
         onConfirm={handleConfirmDelete}
@@ -253,7 +281,6 @@ export function DeleteRecipeButton({
         confirmText="Eliminar de menús y receta"
         cancelText="Cancelar"
         variant="destructive"
-        icon={<AlertCircle className="h-6 w-6 text-amber-500" />}
       />
     </>
   )
