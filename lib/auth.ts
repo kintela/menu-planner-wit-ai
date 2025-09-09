@@ -1,3 +1,4 @@
+// SERVER-ONLY: Este módulo usa Supabase server client y debe cargarse solo en componentes/route handlers del servidor.
 import { createServerClient } from "@/lib/supabase/server"
 import type { UserProfile, UserRole } from "@/lib/types"
 
@@ -110,7 +111,7 @@ export async function hasRole(cookieStore: any, role: UserRole, userId?: string)
 }
 
 export async function canAccessFeature(feature: string, userId?: string): Promise<boolean> {
-  const profile = await getCurrentUserProfile()
+  const profile = await getCurrentUserProfile(undefined as any)
   if (!profile) return false
 
   const permissions = getPermissionsByRole(profile.role)

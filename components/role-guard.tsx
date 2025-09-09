@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useUserProfile } from "@/hooks/use-user-profile"
 import { useAuth } from "@/components/auth/auth-provider"
-import { getPermissionsByRole } from "@/lib/auth"
+import { getPermissionsByRole } from "@/lib/auth-client"
 import type { UserRole } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"

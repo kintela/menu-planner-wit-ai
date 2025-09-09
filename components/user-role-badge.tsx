@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge"
 import { Shield, User, Eye } from "lucide-react"
 import type { UserRole } from "@/lib/types"
-import { getRoleDisplayName } from "@/lib/auth"
+import { getRoleDisplayName } from "@/lib/auth-client"
 
 interface UserRoleBadgeProps {
   role: UserRole

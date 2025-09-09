@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { UserRoleBadge } from "@/components/user-role-badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { User, Mail, Calendar, Shield } from "lucide-react"
-import { getRoleDescription } from "@/lib/auth"
+import { getRoleDescription } from "@/lib/auth-client"
 import { ClientOnlyDate } from "@/components/ui/client-only-date"
 
 export function UserProfileInfo() {
