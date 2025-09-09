@@ -220,54 +220,22 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
 
       console.log("Datos de la receta a insertar:", recipeData)
 
-      // Crear cliente de Supabase
-      const supabase = createClient()
-
-      console.log("Cliente de Supabase creado, iniciando inserción...")
-
-      // Insertar la receta con timeout
-      const insertPromise = supabase.from("recipes").insert(recipeData).select().single()
-
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Timeout: La inserción tardó demasiado")), 30000)
+      // Inserción vía API server-side (usa service key) para evitar bloqueos en el cliente
+      console.log('Llamando POST /api/recipes ...')
+      const t0 = performance.now()
+      const resp = await fetch('/api/recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...recipeData, categories: selectedCategories, user_id: user.id }),
       })
-
-      const { data: recipe, error } = (await Promise.race([insertPromise, timeoutPromise])) as any
-
-      if (error) {
-        console.error("Error creating recipe:", error)
-        throw new Error(`Error de base de datos: ${error.message}`)
+      const elapsed = performance.now() - t0
+      console.log('Respuesta /api/recipes en', elapsed.toFixed(0), 'ms status', resp.status)
+      let apiJson: any = null
+      try { apiJson = await resp.json() } catch { throw new Error('Respuesta inválida del servidor') }
+      if (!resp.ok || !apiJson?.success) {
+        throw new Error(apiJson?.error || 'Error creando la receta (API)')
       }
-
-      if (!recipe) {
-        throw new Error("No se recibió respuesta de la base de datos")
-      }
-
-      console.log("Receta creada exitosamente:", recipe)
-
-      // Insertar las categorías seleccionadas
-      if (selectedCategories.length > 0) {
-        const categoryRelations = selectedCategories.map((categoryId) => ({
-          recipe_id: recipe.id,
-          category_id: categoryId,
-        }))
-
-        console.log("Insertando relaciones de categorías:", categoryRelations)
-
-        const { error: categoryError } = await supabase.from("recipe_categories").insert(categoryRelations)
-
-        if (categoryError) {
-          console.error("Error creating category relations:", categoryError)
-          // No lanzar error aquí, la receta ya se creó
-          toast({
-            title: "Receta creada con advertencia",
-            description: "La receta se creó pero hubo un problema con las categorías.",
-            variant: "destructive",
-          })
-        } else {
-          console.log("Categorías asociadas correctamente")
-        }
-      }
+      console.log('Receta creada ID=', apiJson.recipe_id)
 
       // Mostrar toast de éxito
       toast({
@@ -278,9 +246,7 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
       console.log("Proceso completado, redirigiendo...")
 
       // Redirigir después de un breve delay
-      setTimeout(() => {
-        window.location.href = "/recipes"
-      }, 1500)
+  setTimeout(() => { window.location.href = `/recipes/${apiJson.recipe_id}` }, 1200)
     } catch (error) {
       console.error("Error completo en handleSubmit:", error)
 

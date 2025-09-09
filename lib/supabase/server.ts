@@ -1,6 +1,6 @@
 import { createServerClient as supabaseCreateServerClient } from "@supabase/ssr"
-// This file should only be used in Server Components or API routes.
-// Move the cookies() usage to the calling Server Component or API route and pass cookies as a parameter if needed.
+import { cookies } from 'next/headers'
+// Server helper: permite llamada sin pasar cookieStore explícito.
 
 type CookieStore = {
   getAll: () => any
@@ -8,13 +8,22 @@ type CookieStore = {
 }
 type CookieToSet = { name: string, value: string, options?: any }
 
-export function createServerClient(cookieStore: CookieStore) {
-  if (!cookieStore || typeof cookieStore.getAll !== 'function') {
-    console.error("❌ Error: cookieStore no está definido o no tiene el método getAll.");
-    cookieStore = {
-      getAll: () => [],
-      set: () => {},
-    };
+export function createServerClient(cookieStore?: CookieStore) {
+  // Intentar obtener cookieStore real de Next si no se pasó
+  if (!cookieStore) {
+    try {
+      const ck = cookies()
+      cookieStore = {
+        getAll: () => ck.getAll(),
+        set: (name, value, options) => ck.set(name, value, options),
+      }
+    } catch {
+      // SSR context no disponible (tests), usar mock silencioso
+      cookieStore = {
+        getAll: () => [],
+        set: () => {},
+      }
+    }
   }
 
   return supabaseCreateServerClient(
@@ -22,19 +31,17 @@ export function createServerClient(cookieStore: CookieStore) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        async getAll() {
-          return await cookieStore.getAll();
+        getAll() {
+          return cookieStore!.getAll()
         },
         setAll(cookiesToSet: CookieToSet[]) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
-          } catch {
-            // Ignorar errores en setAll
-          }
+          cookiesToSet.forEach(({ name, value, options }) => {
+            try { cookieStore!.set(name, value, options) } catch { /* ignore */ }
+          })
         },
       },
-    }
-  );
+    },
+  )
 }
 
 // Export for backward compatibility
