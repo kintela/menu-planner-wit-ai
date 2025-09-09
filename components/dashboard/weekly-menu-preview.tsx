@@ -1,3 +1,4 @@
+"use server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { createServerClient } from "@/lib/supabase/server"
@@ -66,7 +67,9 @@ export async function WeeklyMenuPreview({ userId }: WeeklyMenuPreviewProps) {
                         {dayItems.map((item, idx) => (
                           <div key={idx} className="text-xs text-muted-foreground flex items-center">
                             <ChefHat className="mr-1 h-3 w-3" />
-                            {item.recipes?.name || "Sin receta"}
+                            {Array.isArray(item.recipes)
+                              ? ((item.recipes as any)[0]?.name || "Sin receta")
+                              : (item as any).recipes?.name || "Sin receta"}
                           </div>
                         ))}
                       </div>

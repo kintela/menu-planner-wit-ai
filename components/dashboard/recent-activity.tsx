@@ -1,3 +1,4 @@
+"use server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { createServerClient } from "@/lib/supabase/server"
@@ -47,13 +48,18 @@ export async function RecentActivity({ userId }: RecentActivityProps) {
       icon: ChefHat,
     })) || []),
 
-    ...(recentRatings.data?.map((rating) => ({
-      type: "rating" as const,
-      title: `Valoraste: ${rating.recipes?.name}`,
-      time: rating.created_at,
-      rating: rating.rating,
-      icon: Star,
-    })) || []),
+    ...(recentRatings.data?.map((rating) => {
+      const recipeName = Array.isArray(rating.recipes)
+        ? rating.recipes[0]?.name
+        : (rating as any).recipes?.name
+      return {
+        type: "rating" as const,
+        title: `Valoraste: ${recipeName || 'Receta'}`,
+        time: rating.created_at,
+        rating: rating.rating,
+        icon: Star,
+      }
+    }) || []),
 
     ...(recentMenus.data?.map((menu) => ({
       type: "menu" as const,
