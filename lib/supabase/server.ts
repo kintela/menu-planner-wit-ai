@@ -1,5 +1,14 @@
+import 'server-only'
 import { createServerClient as supabaseCreateServerClient } from "@supabase/ssr"
-import { cookies } from 'next/headers'
+// Importar cookies solo si está disponible (entorno App Router). En build de Vercel puede marcar error si se interpreta fuera de RSC.
+let cookiesFn: (() => any) | null = null
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const mod = require('next/headers') as typeof import('next/headers')
+  cookiesFn = mod.cookies
+} catch {
+  cookiesFn = null
+}
 // Server helper: permite llamada sin pasar cookieStore explícito.
 
 type CookieStore = {
@@ -11,18 +20,18 @@ type CookieToSet = { name: string, value: string, options?: any }
 export function createServerClient(cookieStore?: CookieStore) {
   // Intentar obtener cookieStore real de Next si no se pasó
   if (!cookieStore) {
-    try {
-      const ck = cookies()
-      cookieStore = {
-        getAll: () => ck.getAll(),
-        set: (name, value, options) => ck.set(name, value, options),
+    if (cookiesFn) {
+      try {
+        const ck = cookiesFn()
+        cookieStore = {
+          getAll: () => ck.getAll(),
+          set: (name, value, options) => ck.set(name, value, options),
+        }
+      } catch {
+        cookieStore = { getAll: () => [], set: () => {} }
       }
-    } catch {
-      // SSR context no disponible (tests), usar mock silencioso
-      cookieStore = {
-        getAll: () => [],
-        set: () => {},
-      }
+    } else {
+      cookieStore = { getAll: () => [], set: () => {} }
     }
   }
 
