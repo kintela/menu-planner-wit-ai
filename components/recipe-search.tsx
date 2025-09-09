@@ -1,6 +1,11 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+
+// Declaración global para la función de limpieza expuesta
+declare global {
+  interface Window { clearRecipeFilters?: () => void }
+}
 import { Search, RefreshCw } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -30,11 +35,13 @@ export function RecipeSearch({
 }: RecipeSearchProps) {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [key, setKey] = useState(0)
+  // Estado local para que las teclas aparezcan instantáneamente aunque el padre tarde en recalcular filtros
+  const [localSearch, setLocalSearch] = useState(searchTerm)
 
-  // Sincronizar el input con el estado del padre
+  // Mantener sincronizado si el padre limpia / cambia externamente el término
   useEffect(() => {
-    if (searchInputRef.current && searchInputRef.current.value !== searchTerm) {
-      searchInputRef.current.value = searchTerm
+    if (searchTerm !== localSearch) {
+      setLocalSearch(searchTerm)
     }
   }, [searchTerm])
 
@@ -47,7 +54,12 @@ export function RecipeSearch({
   }
 
   const handleSearchChange = (value: string) => {
-    onFiltersChange(value, selectedCategories)
+    // Solo actualiza texto local, sin disparar filtro aún
+    setLocalSearch(value)
+  }
+
+  const executeSearch = () => {
+    onFiltersChange(localSearch, selectedCategories)
   }
 
   // Función para limpiar filtros (solo estado local)
@@ -55,9 +67,7 @@ export function RecipeSearch({
     console.log("🧹 Limpiando filtros desde RecipeSearch...")
 
     // Limpiar input de búsqueda físicamente
-    if (searchInputRef.current) {
-      searchInputRef.current.value = ""
-    }
+  setLocalSearch("")
 
     // Limpiar todos los inputs de búsqueda
     const searchInputs = document.querySelectorAll('input[type="search"]')
@@ -102,11 +112,20 @@ export function RecipeSearch({
             type="search"
             placeholder="Buscar por nombre o ingrediente..."
             className="pl-8"
-            value={searchTerm}
+            value={localSearch}
             onChange={(e) => handleSearchChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                executeSearch()
+              }
+            }}
             data-testid="search-input"
           />
         </div>
+        <Button type="button" onClick={executeSearch} variant="default" title="Buscar" className="flex items-center gap-2">
+          <Search className="h-4 w-4" />
+          Buscar
+        </Button>
         <Button type="button" variant="outline" onClick={() => window.location.reload()} title="Recargar página">
           <RefreshCw className="h-4 w-4" />
         </Button>

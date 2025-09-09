@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useTransition, useDeferredValue, memo } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Search, Filter, X } from "lucide-react"
 import Link from "next/link"
-import { RecipeCard } from "@/components/recipe-card"
+import { RecipeCard as RawRecipeCard } from "@/components/recipe-card"
 import { SimpleNavigation } from "@/components/simple-navigation"
 import { useAuth } from "@/components/auth/auth-provider"
 
@@ -50,13 +50,19 @@ interface RecipesPageClientProps {
   userProfiles?: any[]
 }
 
+// Memo del RecipeCard para evitar re-renders masivos durante la escritura
+const RecipeCard = memo(RawRecipeCard)
+RecipeCard.displayName = 'RecipeCardMemo'
+
 export function RecipesPageClient({ initialRecipes, initialCategories, userProfiles = [] }: RecipesPageClientProps) {
   // Asegurar que siempre tengamos arrays válidos
   const recipes = Array.isArray(initialRecipes) ? initialRecipes : []
   const categories = Array.isArray(initialCategories) ? initialCategories : []
 
   const { user, profile } = useAuth();
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchTerm, setSearchTerm] = useState("") // término realmente usado para filtrar
+  const [inputValue, setInputValue] = useState("") // texto que el usuario escribe instantáneamente
+  const [isPending, startTransition] = useTransition()
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [showFilters, setShowFilters] = useState(false)
   const [ownerFilter, setOwnerFilter] = useState<"all" | "mine">("all")
@@ -78,13 +84,16 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
 
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
+  // Diferir el valor de búsqueda para que React renderice antes el input
+  const deferredSearch = useDeferredValue(searchTerm)
+
   const filteredRecipes = useMemo(() => {
     return recipes.filter((recipe) => {
       const matchesSearch =
-        !searchTerm ||
-        (recipe.name && recipe.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (recipe.ingredients && recipe.ingredients.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (String(recipe.id) === searchTerm.trim());
+        !deferredSearch ||
+        (recipe.name && recipe.name.toLowerCase().includes(deferredSearch.toLowerCase())) ||
+        (recipe.ingredients && recipe.ingredients.toLowerCase().includes(deferredSearch.toLowerCase())) ||
+        (String(recipe.id) === deferredSearch.trim());
 
       const matchesCategory =
         !selectedCategory ||
@@ -100,7 +109,17 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
 
       return matchesSearch && matchesCategory && matchesOwner && matchesIa && matchesUser
     })
-  }, [recipes, searchTerm, selectedCategory, ownerFilter, iaOnly, user, selectedUserId])
+  }, [recipes, deferredSearch, selectedCategory, ownerFilter, iaOnly, user, selectedUserId])
+
+  // Debounce: actualizar searchTerm (el que filtra) solo después de que el usuario pare de teclear 250ms
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      startTransition(() => {
+        setSearchTerm(inputValue)
+      })
+    }, 250)
+    return () => clearTimeout(handle)
+  }, [inputValue])
 
   const clearFilters = () => {
     setSearchTerm("")
@@ -176,11 +195,14 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 placeholder="Buscar recetas..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
                 className="pl-10 pr-2 text-sm h-9"
                 style={{ width: 220 }}
               />
+              {isPending && (
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 animate-pulse">Filtrando...</div>
+              )}
             </div>
             {/* Opciones de filtro: Todas / Las mías */}
             <div className="flex gap-2 items-center">
