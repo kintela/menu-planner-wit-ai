@@ -1,4 +1,5 @@
-import 'server-only'
+// Nota: retirado 'server-only' porque Vercel/webpack lo está incluyendo en un contexto pages-like.
+// Este módulo debe usarse solo desde código server (páginas/route handlers async en app/).
 import { createServerClient as supabaseCreateServerClient } from "@supabase/ssr"
 // Importar cookies solo si está disponible (entorno App Router). En build de Vercel puede marcar error si se interpreta fuera de RSC.
 let cookiesFn: (() => any) | null = null
