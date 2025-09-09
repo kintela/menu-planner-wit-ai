@@ -4,8 +4,9 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ChefHat, Flame, User, Video, Eye, X, ArrowRight, Edit, Lock } from "lucide-react"
+import { ChefHat, Flame, User, Video, Eye, X, ArrowRight, Edit } from "lucide-react"
 import Link from "next/link"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import Image from "next/image"
 import { useAuth } from "@/components/auth/auth-provider"
 import { DeleteRecipeButton } from "./delete-recipe-button"
@@ -76,19 +77,18 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
     )
   }
 
-  // Detectar si el usuario es admin (si existe user.role)
-  const isAdmin = profile && profile.role === "admin"
-  const canEdit = isAdmin || (user && recipe.user_id === user.id)
-  const canDelete = isAdmin || (user && recipe.user_id === user.id)
+  // Solo el propietario puede editar (requisito actualizado)
+  const canEdit = !!(user && recipe.user_id === user.id)
+  // Mantener delete con misma regla (puede ajustarse si se requiere distinto)
+  const canDelete = !!(user && recipe.user_id === user.id)
 
-  // DEBUG: Mostrar info de receta y usuario en consola para admin
-  if (isAdmin) {
-    /*console.log("[RecipeCard][ADMIN] recipe.id:", recipe.id)
-    console.log("[RecipeCard][ADMIN] recipe.menu_ids:", recipe.menu_ids)
-    console.log("[RecipeCard][ADMIN] recipe:", recipe)
-    console.log("[RecipeCard][ADMIN] user:", user)
-    console.log("[RecipeCard][ADMIN] profile:", profile)*/
-  }
+  const editTooltip = !user
+    ? "Inicia sesión para poder editar. Solo puedes editar tus propias recetas"
+    : !canEdit
+      ? "Solo puedes editar tus propias recetas"
+      : "Editar receta"
+
+  // DEBUG opcional: se eliminó logging admin
 
   return (
     <>
@@ -165,7 +165,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
           )}
 
           {/* Mostrar ID de receta y menús solo para admin */}
-          {isAdmin && (
+          {profile && profile.role === 'admin' && (
             <div className="absolute bottom-2 left-2 z-20 bg-black/70 text-white text-xs rounded px-2 py-1 flex flex-col gap-0.5">
               <span>ID: {recipe.id}</span>
               {Array.isArray(recipe.menu_ids) && recipe.menu_ids.length > 0 ? (
@@ -227,25 +227,36 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
               </Button>
             </Link>
 
-            {/* Edit button - show if user puede editar o es admin */}
-            {canEdit ? (
-              <Link href={`/recipes/${recipe.id}/edit`} className="flex-1">
-                <Button size="sm" className="w-full bg-green-600 hover:bg-green-700 text-white border-0">
-                  Editar
-                  <Edit className="h-4 w-4 ml-2" />
-                </Button>
-              </Link>
-            ) : (
-              <Button
-                size="sm"
-                className="flex-1 bg-gray-400 text-gray-600 cursor-not-allowed"
-                disabled
-                title={!user ? "Inicia sesión para editar recetas" : "Solo puedes editar tus propias recetas"}
-              >
-                {!user ? <Lock className="h-4 w-4 mr-2" /> : <Edit className="h-4 w-4 mr-2" />}
-                Editar
-              </Button>
-            )}
+            {/* Edit button - always visible but disabled with tooltip if no permiso */}
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {canEdit ? (
+                    <Link href={`/recipes/${recipe.id}/edit`} className="flex-1">
+                      <Button size="sm" className="w-full bg-green-600 hover:bg-green-700 text-white border-0">
+                        Editar
+                        <Edit className="h-4 w-4 ml-2" />
+                      </Button>
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-disabled="true"
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-gray-200 text-gray-500 text-sm font-medium h-9 px-3 opacity-80 cursor-not-allowed select-none"
+                      onClick={(e) => e.preventDefault()}
+                    >
+                      Editar
+                      <Edit className="h-4 w-4" />
+                    </button>
+                  )}
+                </TooltipTrigger>
+                {!canEdit && (
+                  <TooltipContent side="top">
+                    <p className="max-w-[220px] text-center leading-snug">{editTooltip}</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </CardContent>
       </Card>

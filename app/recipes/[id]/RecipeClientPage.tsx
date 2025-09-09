@@ -1,8 +1,10 @@
 "use client"
 import { useState } from "react"
+import { useAuth } from '@/components/auth/auth-provider'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, User } from "lucide-react"
+import { ArrowLeft, User, Edit } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { RecipeImage } from "@/components/recipe-image"
 import { VideoEmbed } from "@/components/video-embed"
 
@@ -73,6 +75,7 @@ function UserInfo({ user }: { user: UserProfile | null }) {
 
 export default function RecipeClientPage({ params, recipe, user, error }: RecipeClientPageProps) {
   const [showVideo, setShowVideo] = useState(false)
+  const { user: sessionUser } = useAuth()
 
   console.log("🔍 DEBUG - RecipeClientPage iniciado con:", {
     id: params.id,
@@ -125,9 +128,47 @@ export default function RecipeClientPage({ params, recipe, user, error }: Recipe
               Volver
             </Link>
           </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/recipes/${params.id}/edit`}>Editar</Link>
-          </Button>
+          {(() => {
+            const isOwner = !!(sessionUser && recipe && recipe.user_id === sessionUser.id)
+            const editId = (recipe?.id != null ? String(recipe.id) : params.id)
+            if (!editId || editId === 'undefined') return null
+            const tooltipMsg = !sessionUser
+              ? "Inicia sesión para editar. Solo puedes editar tus propias recetas"
+              : !isOwner
+                ? "Solo puedes editar tus propias recetas"
+                : "Editar receta"
+            return (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    {isOwner ? (
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/recipes/${editId}/edit`} className="flex items-center gap-2">
+                          <Edit className="h-4 w-4" />
+                          Editar
+                        </Link>
+                      </Button>
+                    ) : (
+                      <button
+                        type="button"
+                        aria-disabled="true"
+                        className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-gray-100 text-gray-500 text-sm font-medium h-9 px-3 opacity-80 cursor-not-allowed select-none"
+                        onClick={(e) => e.preventDefault()}
+                      >
+                        <Edit className="h-4 w-4" />
+                        Editar
+                      </button>
+                    )}
+                  </TooltipTrigger>
+                  {!isOwner && (
+                    <TooltipContent side="bottom">
+                      <p className="max-w-[240px] text-center leading-snug">{tooltipMsg}</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
+            )
+          })()}
         </div>
       </div>
 
@@ -157,9 +198,9 @@ export default function RecipeClientPage({ params, recipe, user, error }: Recipe
           )}
 
           {/* Source link - esquina superior derecha */}
-          {recipe.source_url && (
+      {recipe.source_url && (
             <button
-              onClick={() => window.open(recipe.source_url, "_blank", "noopener,noreferrer")}
+        onClick={() => { if (recipe.source_url) window.open(recipe.source_url, "_blank", "noopener,noreferrer") }}
               className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 z-10 transition-colors"
               title="Ver fuente original"
             >
