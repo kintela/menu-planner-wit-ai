@@ -22,6 +22,7 @@ export default function EditRecipePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [canEdit, setCanEdit] = useState<boolean | null>(null)
+  const [slow, setSlow] = useState(false)
 
   useEffect(() => {
     //console.log("[DEBUG] user:", user, "authLoading:", authLoading, "params.id:", params.id)
@@ -36,12 +37,30 @@ export default function EditRecipePage() {
       try {
         const supabase = getSupabaseClient()
 
-        // Primero obtener la receta
-        const { data: recipeData, error: recipeError } = await supabase
-          .from("recipes")
-          .select("*")
-          .eq("id", params.id)
-          .single()
+        // Normalizar ID y validar
+        const rawId = Array.isArray((params as any).id) ? (params as any).id[0] : (params as any).id
+        const idNum = Number(rawId)
+        if (!rawId || Number.isNaN(idNum)) {
+          setError("ID de receta inválido")
+          return
+        }
+
+        // Timeout helper
+        const withTimeout = async <T,>(p: Promise<T>, ms = 12000): Promise<T> => {
+          return await Promise.race([
+            p,
+            new Promise<T>((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), ms)) as Promise<T>,
+          ])
+        }
+
+        // Mostrar aviso de lentitud si tarda mucho
+        const slowTimer = setTimeout(() => setSlow(true), 6000)
+
+        // Primero obtener la receta (con timeout)
+        const { data: recipeData, error: recipeError } = await withTimeout(
+          supabase.from("recipes").select("*").eq("id", idNum).single(),
+          12000
+        )
 
         //console.log("[DEBUG] recipeData:", recipeData, "recipeError:", recipeError)
 
@@ -53,53 +72,36 @@ export default function EditRecipePage() {
 
         setRecipe(recipeData)
 
-        // Verificar si es el autor
-        const isAuthor = recipeData.user_id === user.id
-
-        // Verificar si es admin
-        let isAdmin = false
-        try {
-          const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single()
-          isAdmin = profile?.role === "admin"
-          //console.log("[DEBUG] user_profiles profile:", profile)
-        } catch (err) {
-          // Intentar con la tabla profiles si user_profiles falla
-          try {
-            const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
-            isAdmin = profile?.role === "admin"
-            console.log("[DEBUG] profiles profile:", profile)
-          } catch (err2) {
-            console.error("Error checking admin status:", err2)
-            isAdmin = false
-          }
-        }
-
-        // Determinar si puede editar
-        const hasPermission = isAuthor || isAdmin
+        // Solo el autor puede editar (alineado con el resto de la app)
+        const hasPermission = recipeData.user_id === user.id
         setCanEdit(hasPermission)
         //console.log("[DEBUG] isAuthor:", isAuthor, "isAdmin:", isAdmin, "hasPermission:", hasPermission)
 
         // Si tiene permisos, cargar categorías
         if (hasPermission) {
           // Obtener las categorías de la receta
-          const { data: recipeCategories } = await supabase
-            .from("recipe_categories")
-            .select("category_id")
-            .eq("recipe_id", recipeData.id)
+          const { data: recipeCategories } = await withTimeout(
+            supabase.from("recipe_categories").select("category_id").eq("recipe_id", recipeData.id),
+            10000
+          )
 
           const categoryIds = recipeCategories?.map((rc) => rc.category_id) || []
           setSelectedCategoryIds(categoryIds)
           console.log("[DEBUG] recipeCategories:", recipeCategories)
 
           // Obtener todas las categorías
-          const { data: categoriesData } = await supabase.from("categories").select("*").order("name")
+          const { data: categoriesData } = await withTimeout(
+            supabase.from("categories").select("*").order("name"),
+            10000
+          )
 
           setCategories(categoriesData || [])
           console.log("[DEBUG] categoriesData:", categoriesData)
         }
+        clearTimeout(slowTimer)
       } catch (err) {
         console.error("Error loading data:", err)
-        setError("Error al cargar los datos")
+        setError(err instanceof Error && err.message === "TIMEOUT" ? "La carga tardó demasiado" : "Error al cargar los datos")
       } finally {
         setLoading(false)
       }
@@ -155,8 +157,10 @@ export default function EditRecipePage() {
       <div className="container py-10">
         <div className="flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin" />
-
           <span className="ml-2">Verificando permisos...</span>
+          {slow && (
+            <span className="ml-4 text-sm text-muted-foreground">Está tardando más de lo normal…</span>
+          )}
         </div>
       </div>
     )
