@@ -111,13 +111,13 @@ export default function WeeklyMenuPage() {
         .select("*")
         .eq("user_id", user.id)
         .eq("start_date", startDate.toISOString().split("T")[0])
-        .single()
+        .maybeSingle()
 
       if (menuError && menuError.code !== "PGRST116") {
         throw menuError
       }
 
-      setCurrentMenu(menuData)
+      setCurrentMenu(menuData || null)
 
       // Inicializar menú vacío primero
       const emptyMenu: Record<number, MenuDay> = {}

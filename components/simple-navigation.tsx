@@ -11,15 +11,18 @@ import { getSupabaseClient } from "@/lib/supabase/client"
 
 export function SimpleNavigation() {
   const pathname = usePathname()
-  const { user, loading, signOut } = useAuth()
-  const [userProfile, setUserProfile] = useState<any>(null)
+  const { user, profile, loading, signOut } = useAuth()
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadUserAvatar() {
       if (!user) {
-        setUserProfile(null)
         setAvatarUrl(null)
+        return
+      }
+
+      if (profile?.avatar_url) {
+        setAvatarUrl(profile.avatar_url)
         return
       }
 
@@ -46,19 +49,6 @@ export function SimpleNavigation() {
         } else {
           setAvatarUrl(null)
         }
-
-        // También cargar el perfil del usuario para obtener el nombre
-        const { data: profile, error: profileError } = await supabase
-          .from("user_profiles")
-          .select("*")
-          .eq("id", user.id)
-          .maybeSingle()
-
-        if (profileError) {
-          console.error("Error loading user profile for navigation:", profileError)
-        }
-
-        setUserProfile(profile)
       } catch (error) {
         console.error("Error loading user avatar:", error)
         setAvatarUrl(null)
@@ -66,11 +56,11 @@ export function SimpleNavigation() {
     }
 
     loadUserAvatar()
-  }, [user])
+  }, [user, profile?.avatar_url])
 
   const getInitials = () => {
-    if (userProfile?.full_name) {
-      return userProfile.full_name
+    if (profile?.full_name) {
+      return profile.full_name
         .split(" ")
         .map((name: string) => name[0])
         .join("")

@@ -113,7 +113,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
         .select("*")
         .eq("user_id", userId)
         .eq("start_date", startDateStr)
-        .single()
+        .maybeSingle()
 
       if (menuError && menuError.code !== "PGRST116") {
         console.error("Error buscando menú existente:", menuError)
