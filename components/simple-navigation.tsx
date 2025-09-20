@@ -48,7 +48,15 @@ export function SimpleNavigation() {
         }
 
         // También cargar el perfil del usuario para obtener el nombre
-        const { data: profile } = await supabase.from("user_profiles").select("*").eq("id", user.id).single()
+        const { data: profile, error: profileError } = await supabase
+          .from("user_profiles")
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle()
+
+        if (profileError) {
+          console.error("Error loading user profile for navigation:", profileError)
+        }
 
         setUserProfile(profile)
       } catch (error) {
