@@ -194,25 +194,6 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
     const recipe = recipeObj || recipes.find(r => r.id === recipeId)
     if (!recipe) return
 
-    // Clasificación para validar límite de días por ingrediente principal
-    const cls = classifyRecipe(recipe)
-    // Recuento de días ya usados para la misma categoría principal
-    const categoryDays = new Set(
-      menuEntries
-        .filter(e => e.recipe)
-        .filter(e => classifyRecipe(e.recipe as Recipe).primaryCategory === cls.primaryCategory)
-        .map(e => e.day)
-    )
-    // Si ya hay 2 días distintos y el día actual sería un tercero, bloquear
-    if (categoryDays.size >= 2 && !categoryDays.has(day)) {
-      toast({
-        title: "Límite alcanzado",
-        description: `Ya usaste ingredientes de tipo '${cls.primaryCategory}' en 2 días distintos. Elige otra receta para más variedad.`,
-        variant: "destructive"
-      })
-      return
-    }
-
     const [meal_type, orderStr] = mealTypeKey.split('-')
     const dish_order = parseInt(orderStr)
     
