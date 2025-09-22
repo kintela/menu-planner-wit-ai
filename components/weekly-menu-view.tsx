@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -10,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Calendar, ChefHat, Flame, Users, Trash2, Plus, User } from "lucide-react"
+import { Calendar, ChefHat, Flame, Users, Trash2, Plus, User, Eye } from "lucide-react"
 import { RefreshCcw } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { RecipeSelector } from "./recipe-selector"
@@ -881,39 +882,56 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
                             </div>
                           </div>
 
-                          {entry.recipe.user_profiles && (
-                            <div className="absolute left-2 bottom-2 flex items-center gap-1 text-xs bg-black/60 text-white backdrop-blur-sm rounded px-2 py-1 w-fit z-10">
-                              {entry.recipe.user_profiles.avatar_url ? (
-                                <Image
-                                  src={entry.recipe.user_profiles.avatar_url}
-                                  alt="Avatar"
-                                  width={12}
-                                  height={12}
-                                  className="h-3 w-3 rounded-full object-cover flex-shrink-0"
-                                />
-                              ) : (
-                                <User className="h-3 w-3 flex-shrink-0" />
-                              )}
-                              <span className="truncate">
-                                {entry.recipe.user_profiles.alias || 
-                                 entry.recipe.user_profiles.full_name || 
-                                 (entry.recipe.user_profiles.first_name && entry.recipe.user_profiles.last_name 
-                                   ? `${entry.recipe.user_profiles.first_name} ${entry.recipe.user_profiles.last_name}` 
-                                   : entry.recipe.user_profiles.first_name) ||
-                                 'Usuario'}
-                              </span>
+                          <div className="absolute left-2 bottom-2 right-2 flex items-center justify-between">
+                            {entry.recipe.user_profiles ? (
+                              <div className="flex items-center gap-1 text-xs bg-black/60 text-white backdrop-blur-sm rounded px-2 py-1 w-fit">
+                                {entry.recipe.user_profiles.avatar_url ? (
+                                  <Image
+                                    src={entry.recipe.user_profiles.avatar_url}
+                                    alt="Avatar"
+                                    width={12}
+                                    height={12}
+                                    className="h-3 w-3 rounded-full object-cover flex-shrink-0"
+                                  />
+                                ) : (
+                                  <User className="h-3 w-3 flex-shrink-0" />
+                                )}
+                                <span className="truncate">
+                                  {entry.recipe.user_profiles.alias || 
+                                   entry.recipe.user_profiles.full_name || 
+                                   (entry.recipe.user_profiles.first_name && entry.recipe.user_profiles.last_name 
+                                     ? `${entry.recipe.user_profiles.first_name} ${entry.recipe.user_profiles.last_name}` 
+                                     : entry.recipe.user_profiles.first_name) ||
+                                   'Usuario'}
+                                </span>
+                              </div>
+                            ) : <span />}
+                            <div className="flex items-center gap-2">
+                              <Button
+                                asChild
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 flex-shrink-0 rounded-full bg-white/80 hover:bg-white"
+                                title="Ver receta"
+                              >
+                                <Link
+                                  href={`/recipes/${entry.recipe.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  <Eye className="h-4 w-4 text-gray-700" />
+                                </Link>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => entry.id && removeRecipeFromMenu(entry.id)}
+                                className="h-7 w-7 p-0 flex-shrink-0 rounded-full bg-white/80 hover:bg-white"
+                                title="Eliminar receta"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-600" />
+                              </Button>
                             </div>
-                          )}
-                          <div className="absolute right-2 bottom-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => entry.id && removeRecipeFromMenu(entry.id)}
-                              className="h-8 w-8 p-0 flex-shrink-0"
-                              title="Eliminar receta"
-                            >
-                              <Trash2 className="h-5 w-5 text-red-600" />
-                            </Button>
                           </div>
                         </div>
                       ) : (
