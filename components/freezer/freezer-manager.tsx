@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { Loader2, Plus, Boxes, Snowflake, Trash2 } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
+import { ConfirmationDialog } from "@/components/confirmation-dialog"
 
 const ITEM_STATES = ["fresco", "abierto", "bajo", "agotado"] as const
 const DRAWER_OPTIONS = [1, 2, 3, 4, 5] as const
@@ -156,6 +157,7 @@ export function FreezerManager() {
   const [itemForms, setItemForms] = useState<Record<string, ItemFormState>>({})
   const [addingItems, setAddingItems] = useState<Record<string, boolean>>({})
   const [deletingItems, setDeletingItems] = useState<Record<string, boolean>>({})
+  const [pendingDeletion, setPendingDeletion] = useState<{ drawerId: string; itemId: string; itemName: string } | null>(null)
 
   useEffect(() => {
     let isActive = true
@@ -482,16 +484,11 @@ export function FreezerManager() {
     }
   }
 
-  const handleDeleteItem = async (drawerId: string, itemId: string, itemName: string) => {
-    const confirmed = window.confirm(`¿Seguro que quieres eliminar ${itemName}?`)
-    if (!confirmed) {
-      setDeletingItems((prev) => {
-        const { [itemId]: _, ...rest } = prev
-        return rest
-      })
-      return
-    }
+  const promptDeleteItem = (drawerId: string, itemId: string, itemName: string) => {
+    setPendingDeletion({ drawerId, itemId, itemName })
+  }
 
+  const deleteItem = async ({ drawerId, itemId, itemName }: { drawerId: string; itemId: string; itemName: string }) => {
     setDeletingItems((prev) => ({ ...prev, [itemId]: true }))
 
     try {
@@ -526,6 +523,12 @@ export function FreezerManager() {
         return rest
       })
     }
+  }
+
+  const handleConfirmDelete = () => {
+    if (!pendingDeletion) return
+    const deletion = pendingDeletion
+    void deleteItem(deletion)
   }
 
   if (authLoading) {
@@ -680,7 +683,7 @@ export function FreezerManager() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleDeleteItem(drawer.id, item.id, item.nombre)}
+                                onClick={() => promptDeleteItem(drawer.id, item.id, item.nombre)}
                                 disabled={Boolean(deletingItems[item.id])}
                                 aria-label={`Eliminar ${item.nombre}`}
                               >
@@ -825,6 +828,18 @@ export function FreezerManager() {
           </div>
         )}
       </section>
+      {pendingDeletion && (
+        <ConfirmationDialog
+          isOpen
+          onClose={() => setPendingDeletion(null)}
+          onConfirm={handleConfirmDelete}
+          title="Eliminar elemento"
+          description={`¿Seguro que quieres eliminar ${pendingDeletion.itemName}? Esta acción no se puede deshacer.`}
+          confirmText="Eliminar"
+          cancelText="Cancelar"
+          variant="destructive"
+        />
+      )}
     </div>
   )
 }
