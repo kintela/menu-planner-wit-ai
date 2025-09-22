@@ -3,12 +3,43 @@
 import React, { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Calendar, ChefHat, Flame, Users, Trash2, Plus, User } from "lucide-react"
 import { RefreshCcw } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { RecipeSelector } from "./recipe-selector"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
+
+const formatDateLabel = (value?: string | null) => {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  try {
+    return new Intl.DateTimeFormat("es-ES", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(date)
+  } catch (error) {
+    return value
+  }
+}
+
+const buildMenuLabel = (name?: string | null, start?: string | null, end?: string | null) => {
+  if (name && name.trim().length > 0) return name
+  const startLabel = formatDateLabel(start)
+  const endLabel = formatDateLabel(end)
+  if (startLabel && endLabel) return `Menú ${startLabel} - ${endLabel}`
+  if (startLabel) return `Menú ${startLabel}`
+  return "Menú guardado"
+}
 
 interface Recipe {
   id: number
@@ -33,6 +64,14 @@ interface MenuEntry {
   dish_order: number
   recipe_id: number
   recipe?: Recipe
+}
+
+interface SavedMenuOption {
+  id: number
+  name?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  label: string
 }
 
 interface WeeklyMenuViewProps {
@@ -63,9 +102,164 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
   })
   const [recipes, setRecipes] = useState<Recipe[]>(initialRecipes)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [savedMenus, setSavedMenus] = useState<SavedMenuOption[]>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
+  const [isApplyingTemplate, setIsApplyingTemplate] = useState(false)
 
   const supabase = createClient()
   const { toast } = useToast()
+
+  const mergeRecipesFromEntries = (entries: MenuEntry[]) => {
+    const recipesFromEntries = entries
+      .map((entry) => entry.recipe)
+      .filter((recipe): recipe is Recipe => Boolean(recipe))
+
+    if (recipesFromEntries.length === 0) return
+
+    setRecipes((prev) => {
+      const map = new Map(prev.map((recipe) => [recipe.id, recipe]))
+      for (const recipe of recipesFromEntries) {
+        if (!map.has(recipe.id)) {
+          map.set(recipe.id, recipe)
+        }
+      }
+      return Array.from(map.values())
+    })
+  }
+
+  const mapMenuItemsToEntries = (menuItems: any[]): MenuEntry[] => {
+    if (!Array.isArray(menuItems)) return []
+
+    return menuItems.map((entry) => {
+      const dayIndexRaw = typeof entry.day_of_week === "number"
+        ? entry.day_of_week
+        : Number.parseInt(entry.day_of_week, 10)
+      const dayIndex = Number.isNaN(dayIndexRaw) ? 0 : dayIndexRaw
+
+      return {
+        id: entry.id,
+        day: DAYS[dayIndex] ?? DAYS[0],
+        meal_type: entry.meal_type,
+        dish_order: entry.dish_order,
+        recipe_id: entry.recipe_id,
+        recipe: entry.recipes
+          ? {
+              id: (entry.recipes as any).id,
+              name: (entry.recipes as any).name,
+              calories: (entry.recipes as any).calories,
+              image_url: (entry.recipes as any).image_url,
+              user_profiles: (entry.recipes as any).user_profiles ?? undefined,
+            }
+          : undefined,
+      }
+    })
+  }
+
+  const fetchSavedMenus = async (currentWeekStart?: string) => {
+    if (!userId) return
+
+    try {
+      const { data, error } = await supabase
+        .from("weekly_menus")
+        .select("id, name, start_date, end_date, is_saved")
+        .eq("user_id", userId)
+        .eq("is_saved", true)
+        .order("start_date", { ascending: false })
+        .limit(25)
+
+      if (error) {
+        console.error("Error fetching saved menus:", error)
+        return
+      }
+
+      const formatted: SavedMenuOption[] = (data ?? [])
+        .filter((menu) => !currentWeekStart || menu.start_date !== currentWeekStart)
+        .map((menu) => ({
+          id: menu.id,
+          name: menu.name,
+          start_date: menu.start_date,
+          end_date: menu.end_date,
+          label: buildMenuLabel(menu.name, menu.start_date, menu.end_date),
+        }))
+
+      setSavedMenus(formatted)
+    } catch (error) {
+      console.error("Error fetching saved menus:", error)
+    }
+  }
+
+  const applySavedMenu = async (menuId: number) => {
+    setIsApplyingTemplate(true)
+    try {
+      const { data: menuItems, error } = await supabase
+        .from("menu_items")
+        .select(`
+          id,
+          day_of_week,
+          meal_type,
+          dish_order,
+          recipe_id,
+          recipes (
+            id,
+            name,
+            calories,
+            image_url,
+            user_profiles (
+              id,
+              full_name,
+              first_name,
+              last_name,
+              alias,
+              avatar_url,
+              email
+            )
+          )
+        `)
+        .eq("weekly_menu_id", menuId)
+        .order("day_of_week")
+        .order("meal_type")
+        .order("dish_order")
+
+      if (error) {
+        console.error("Error loading saved menu items:", error)
+        toast({
+          title: "No se pudo cargar el menú seleccionado",
+          description: "Inténtalo de nuevo más tarde.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const formattedEntries = mapMenuItemsToEntries(menuItems || [])
+      mergeRecipesFromEntries(formattedEntries)
+      setMenuEntries(formattedEntries)
+
+      toast({
+        title: "Menú cargado",
+        description: "El menú guardado se ha aplicado a la semana actual. No olvides guardar los cambios.",
+      })
+    } finally {
+      setIsApplyingTemplate(false)
+    }
+  }
+
+  const handleSavedMenuSelection = async (value: string) => {
+    if (value === "__current") {
+      setSelectedTemplateId(null)
+      if (weekDates.startDateStr && weekDates.endDateStr) {
+        await loadExistingMenu(weekDates.startDateStr, weekDates.endDateStr)
+      }
+      return
+    }
+
+    if (!value) return
+
+    const menuId = Number.parseInt(value, 10)
+    if (Number.isNaN(menuId)) return
+
+    setSelectedTemplateId(value)
+    await applySavedMenu(menuId)
+  }
 
   useEffect(() => {
     const initializeWeekAndLoadMenu = async () => {
@@ -94,6 +288,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
       setWeekDates({ startDateStr, endDateStr, weekText })
 
       await loadExistingMenu(startDateStr, endDateStr)
+      await fetchSavedMenus(startDateStr)
     }
 
     if (userId) {
@@ -123,6 +318,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
 
       if (existingMenu) {
         setExistingMenuId(existingMenu.id)
+        setSelectedTemplateId(null)
 
         const { data: menuItems, error: itemsError } = await supabase
           .from("menu_items")
@@ -157,28 +353,13 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
           console.error("Error cargando items del menú:", itemsError)
           setMenuEntries([])
         } else {
-          if (menuItems && menuItems.length > 0) {
-            const formattedEntries = menuItems.map((entry) => ({
-              id: entry.id,
-              day: DAYS[entry.day_of_week],
-              meal_type: entry.meal_type,
-              dish_order: entry.dish_order,
-              recipe_id: entry.recipe_id,
-              recipe: entry.recipes ? {
-                id: (entry.recipes as any).id,
-                name: (entry.recipes as any).name,
-                calories: (entry.recipes as any).calories,
-                image_url: (entry.recipes as any).image_url,
-                user_profiles: (entry.recipes as any).user_profiles || null
-              } : undefined
-            }))
-            setMenuEntries(formattedEntries)
-          } else {
-            setMenuEntries([])
-          }
+          const formattedEntries = mapMenuItemsToEntries(menuItems || [])
+          mergeRecipesFromEntries(formattedEntries)
+          setMenuEntries(formattedEntries)
         }
       } else {
         setExistingMenuId(null)
+        setSelectedTemplateId(null)
         setMenuEntries([])
       }
     } catch (error) {
@@ -301,6 +482,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
       })
 
       await loadExistingMenu(weekDates.startDateStr, weekDates.endDateStr)
+      await fetchSavedMenus(weekDates.startDateStr)
       
     } catch (error) {
       console.error("Error guardando menú:", error)
@@ -583,12 +765,41 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
               Planificador Semanal
             </CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Select
+                onValueChange={handleSavedMenuSelection}
+                value={selectedTemplateId ?? ""}
+              >
+                <SelectTrigger
+                  className="w-full sm:w-64"
+                  disabled={isApplyingTemplate || (savedMenus.length === 0 && !selectedTemplateId)}
+                >
+                  <SelectValue
+                    placeholder={savedMenus.length ? "Cargar menú guardado" : "Sin menús guardados"}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {savedMenus.length ? (
+                    <>
+                      <SelectItem value="__current">Menú de esta semana</SelectItem>
+                      {savedMenus.map((menu) => (
+                        <SelectItem key={menu.id} value={String(menu.id)}>
+                          {menu.label}
+                        </SelectItem>
+                      ))}
+                    </>
+                  ) : (
+                    <SelectItem value="__none" disabled>
+                      No hay menús guardados
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
               <Button
                 type="button"
                 variant="outline"
@@ -600,7 +811,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
               </Button>
               <Button
                 onClick={saveWeeklyMenu}
-                disabled={menuEntries.length === 0 || isSaving}
+                disabled={menuEntries.length === 0 || isSaving || isApplyingTemplate}
                 size="sm"
                 className="shrink-0"
               >
