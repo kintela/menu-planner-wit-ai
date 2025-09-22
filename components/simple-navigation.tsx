@@ -146,7 +146,10 @@ export function SimpleNavigation() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={signOut}
+                  onClick={async () => {
+                    setAvatarUrl(null)
+                    await signOut()
+                  }}
                   className="flex items-center space-x-2 bg-transparent"
                 >
                   <LogOut className="h-4 w-4" />
@@ -165,8 +168,10 @@ export function SimpleNavigation() {
             )}
 
             {/* Mobile actions */}
-            <div className="md:hidden flex items-center gap-3">
-              {user ? (
+            <div className="md:hidden flex items-center gap-2">
+              {loading ? (
+                <div className="text-sm text-gray-500">Cargando...</div>
+              ) : user ? (
                 <>
                   <Avatar className="h-8 w-8">
                     {avatarUrl ? (
@@ -184,13 +189,24 @@ export function SimpleNavigation() {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    onClick={signOut}
+                    onClick={async () => {
+                      setIsMobileMenuOpen(false)
+                      setAvatarUrl(null)
+                      await signOut()
+                    }}
                     aria-label="Cerrar sesión"
                   >
                     <LogOut className="h-5 w-5" />
                   </Button>
                 </>
-              ) : null}
+              ) : (
+                <Button asChild size="sm">
+                  <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
+                    <User className="h-4 w-4 mr-2" />
+                    Iniciar sesión
+                  </Link>
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="ghost"
@@ -235,9 +251,10 @@ export function SimpleNavigation() {
               <Button
                 variant="outline"
                 className="w-full justify-center"
-                onClick={() => {
+                onClick={async () => {
                   setIsMobileMenuOpen(false)
-                  void signOut()
+                  setAvatarUrl(null)
+                  await signOut()
                 }}
               >
                 <LogOut className="h-4 w-4 mr-2" />
