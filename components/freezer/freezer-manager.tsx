@@ -483,6 +483,15 @@ export function FreezerManager() {
   }
 
   const handleDeleteItem = async (drawerId: string, itemId: string, itemName: string) => {
+    const confirmed = window.confirm(`¿Seguro que quieres eliminar ${itemName}?`)
+    if (!confirmed) {
+      setDeletingItems((prev) => {
+        const { [itemId]: _, ...rest } = prev
+        return rest
+      })
+      return
+    }
+
     setDeletingItems((prev) => ({ ...prev, [itemId]: true }))
 
     try {
