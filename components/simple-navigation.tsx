@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, BookOpen, Calendar, LogOut, Snowflake, User } from "lucide-react"
+import { Home, BookOpen, Calendar, LogOut, Menu, Snowflake, User, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/components/auth/auth-provider"
@@ -13,6 +13,7 @@ export function SimpleNavigation() {
   const pathname = usePathname()
   const { user, profile, loading, signOut } = useAuth()
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     async function loadUserAvatar() {
@@ -91,6 +92,10 @@ export function SimpleNavigation() {
     { href: "/freezer", label: "Congelador", icon: Snowflake },
   ]
 
+  useEffect(() => {
+    setIsMobileMenuOpen(false)
+  }, [pathname])
+
   return (
     <nav className="sticky top-0 z-50 bg-white border-b shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -125,7 +130,7 @@ export function SimpleNavigation() {
             {loading ? (
               <div className="text-sm text-gray-500">Cargando...</div>
             ) : user ? (
-              <div className="flex items-center space-x-3">
+              <div className="hidden md:flex items-center space-x-3">
                 <Avatar className="h-8 w-8">
                   <AvatarImage
                     src={avatarUrl || undefined}
@@ -153,16 +158,86 @@ export function SimpleNavigation() {
                 </Button>
               </div>
             ) : (
-              <Button asChild>
-                <Link href="/login">
+              <div className="hidden md:block">
+                <Button asChild>
+                  <Link href="/login">
+                    <User className="h-4 w-4 mr-2" />
+                    Iniciar Sesión
+                  </Link>
+                </Button>
+              </div>
+            )}
+
+            {/* Mobile actions */}
+            <div className="md:hidden flex items-center gap-3">
+              {user ? (
+                <Avatar className="h-8 w-8">
+                  <AvatarImage
+                    src={avatarUrl || undefined}
+                    alt="Avatar"
+                    onError={() => setAvatarUrl(null)}
+                  />
+                  <AvatarFallback className="bg-blue-100 text-blue-600 text-xs font-medium">
+                    {getInitials()}
+                  </AvatarFallback>
+                </Avatar>
+              ) : null}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+                aria-label={isMobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
+              >
+                {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {isMobileMenuOpen && (
+        <div className="md:hidden border-t bg-white shadow-sm">
+          <div className="px-4 py-3 space-y-3">
+            {navItems.map((item) => {
+              const Icon = item.icon
+              const isActive = pathname === item.href
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                    isActive ? "border-blue-200 bg-blue-50 text-blue-600" : "border-transparent text-gray-700 hover:border-blue-100 hover:bg-gray-50"
+                  }`}
+                >
+                  <span className="flex items-center gap-3">
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </span>
+                  {isActive && <span className="text-xs text-blue-500">•</span>}
+                </Link>
+              )
+            })}
+
+            {loading ? (
+              <div className="text-sm text-gray-500">Cargando...</div>
+            ) : user ? (
+              <Button variant="outline" className="w-full justify-center" onClick={signOut}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Cerrar sesión
+              </Button>
+            ) : (
+              <Button asChild className="w-full justify-center">
+                <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
                   <User className="h-4 w-4 mr-2" />
-                  Iniciar Sesión
+                  Iniciar sesión
                 </Link>
               </Button>
             )}
           </div>
         </div>
-      </div>
+      )}
     </nav>
   )
 }
