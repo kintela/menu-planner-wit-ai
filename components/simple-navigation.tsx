@@ -132,17 +132,13 @@ export function SimpleNavigation() {
             ) : user ? (
               <div className="hidden md:flex items-center space-x-3">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage
-                    src={avatarUrl || undefined}
-                    alt="Avatar"
-                    onError={() => {
-                      console.log("Error loading avatar image")
-                      setAvatarUrl(null)
-                    }}
-                    onLoad={() => {
-                      //console.log("Avatar image loaded successfully")
-                    }}
-                  />
+                  {avatarUrl ? (
+                    <AvatarImage
+                      src={avatarUrl}
+                      alt="Avatar"
+                      onError={() => setAvatarUrl(null)}
+                    />
+                  ) : null}
                   <AvatarFallback className="bg-blue-100 text-blue-600 text-xs font-medium">
                     {getInitials()}
                   </AvatarFallback>
@@ -171,16 +167,29 @@ export function SimpleNavigation() {
             {/* Mobile actions */}
             <div className="md:hidden flex items-center gap-3">
               {user ? (
-                <Avatar className="h-8 w-8">
-                  <AvatarImage
-                    src={avatarUrl || undefined}
-                    alt="Avatar"
-                    onError={() => setAvatarUrl(null)}
-                  />
-                  <AvatarFallback className="bg-blue-100 text-blue-600 text-xs font-medium">
-                    {getInitials()}
-                  </AvatarFallback>
-                </Avatar>
+                <>
+                  <Avatar className="h-8 w-8">
+                    {avatarUrl ? (
+                      <AvatarImage
+                        src={avatarUrl}
+                        alt="Avatar"
+                        onError={() => setAvatarUrl(null)}
+                      />
+                    ) : null}
+                    <AvatarFallback className="bg-blue-100 text-blue-600 text-xs font-medium">
+                      {getInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={signOut}
+                    aria-label="Cerrar sesión"
+                  >
+                    <LogOut className="h-5 w-5" />
+                  </Button>
+                </>
               ) : null}
               <Button
                 type="button"
@@ -223,7 +232,14 @@ export function SimpleNavigation() {
             {loading ? (
               <div className="text-sm text-gray-500">Cargando...</div>
             ) : user ? (
-              <Button variant="outline" className="w-full justify-center" onClick={signOut}>
+              <Button
+                variant="outline"
+                className="w-full justify-center"
+                onClick={() => {
+                  setIsMobileMenuOpen(false)
+                  void signOut()
+                }}
+              >
                 <LogOut className="h-4 w-4 mr-2" />
                 Cerrar sesión
               </Button>
