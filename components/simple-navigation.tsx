@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, BookOpen, Calendar, LogOut, User } from "lucide-react"
+import { Home, BookOpen, Calendar, LogOut, Snowflake, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/components/auth/auth-provider"
@@ -88,6 +88,7 @@ export function SimpleNavigation() {
     { href: "/", label: "Inicio", icon: Home },
     { href: "/recipes", label: "Recetas", icon: BookOpen },
     { href: "/weekly-menu", label: "Planificar", icon: Calendar },
+    { href: "/freezer", label: "Congelador", icon: Snowflake },
   ]
 
   return (

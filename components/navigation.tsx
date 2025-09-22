@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
-import { User, LogOut, Menu, X, Home, Book, Calendar, Plus, Search, Settings } from "lucide-react"
+import { User, LogOut, Menu, X, Home, Book, Calendar, Plus, Search, Settings, Snowflake } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getSupabaseClient } from "@/lib/supabase/client"
 import { useAuth } from "@/components/auth/auth-provider"
@@ -43,6 +43,10 @@ export function Navigation() {
           <Link href="/calendar" className="hover:text-gray-300 flex items-center">
             <Calendar className="mr-1 h-5 w-5" />
             Calendar
+          </Link>
+          <Link href="/freezer" className="hover:text-gray-300 flex items-center">
+            <Snowflake className="mr-1 h-5 w-5" />
+            Freezer
           </Link>
           <Link href="/create" className="hover:text-gray-300 flex items-center">
             <Plus className="h-5 w-5" />
@@ -108,6 +112,10 @@ export function Navigation() {
             <Link href="/calendar" className="hover:text-gray-300 flex items-center">
               <Calendar className="mr-1 h-5 w-5" />
               Calendar
+            </Link>
+            <Link href="/freezer" className="hover:text-gray-300 flex items-center">
+              <Snowflake className="mr-1 h-5 w-5" />
+              Freezer
             </Link>
             <Link href="/create" className="hover:text-gray-300 flex items-center">
               <Plus className="h-5 w-5" />
