@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { getSupabaseClient } from "@/lib/supabase/client"
-import { Loader2, Plus, Boxes, Snowflake, Trash2 } from "lucide-react"
+import { Loader2, Plus, Boxes, Snowflake, Trash2, Search } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
 
@@ -144,6 +144,23 @@ const formatDate = (dateString?: string | null) => {
   }
 }
 
+const itemMatchesSearch = (item: FreezerItem, search: string) => {
+  if (!search) return true
+  const haystack: string[] = []
+  if (item.nombre) haystack.push(item.nombre)
+  if (item.categoria) haystack.push(item.categoria)
+  if (item.notas) haystack.push(item.notas)
+  if (item.unidad) haystack.push(item.unidad)
+  if (item.estado) haystack.push(item.estado)
+  if (item.fecha_compra) haystack.push(item.fecha_compra)
+  if (item.fecha_congelacion) haystack.push(item.fecha_congelacion)
+  if (item.fecha_caducidad) haystack.push(item.fecha_caducidad)
+  if (item.cantidad !== null && item.cantidad !== undefined) {
+    haystack.push(String(item.cantidad))
+  }
+  return haystack.some((value) => value.toLowerCase().includes(search))
+}
+
 export function FreezerManager() {
   const { user, loading: authLoading } = useAuth()
   const { toast } = useToast()
@@ -152,12 +169,16 @@ export function FreezerManager() {
   const [freezer, setFreezer] = useState<Freezer | null>(null)
   const [drawers, setDrawers] = useState<FreezerDrawer[]>([])
   const [drawerCountValue, setDrawerCountValue] = useState("")
+  const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(true)
   const [creatingDrawers, setCreatingDrawers] = useState(false)
   const [itemForms, setItemForms] = useState<Record<string, ItemFormState>>({})
   const [addingItems, setAddingItems] = useState<Record<string, boolean>>({})
   const [deletingItems, setDeletingItems] = useState<Record<string, boolean>>({})
   const [pendingDeletion, setPendingDeletion] = useState<{ drawerId: string; itemId: string; itemName: string } | null>(null)
+
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase()
+  const isSearching = normalizedSearchTerm.length > 0
 
   useEffect(() => {
     let isActive = true
@@ -166,6 +187,7 @@ export function FreezerManager() {
       setFreezer(null)
       setDrawers([])
       setDrawerCountValue("")
+      setSearchTerm("")
       setItemForms({})
       setLoading(false)
       return
@@ -586,7 +608,10 @@ export function FreezerManager() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form className="flex flex-col gap-4 sm:flex-row sm:items-end" onSubmit={handleDrawerCountSubmit}>
+            <form
+              className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end md:flex-nowrap md:gap-3"
+              onSubmit={handleDrawerCountSubmit}
+            >
               <div className="w-full sm:w-44">
                 <Label htmlFor="drawer-count">Número de cajones</Label>
                 <select
@@ -616,6 +641,20 @@ export function FreezerManager() {
                   </>
                 )}
               </Button>
+              <div className="w-full sm:flex-1 md:w-64 md:flex-none">
+                <Label htmlFor="drawer-search">Buscar elementos</Label>
+                <div className="relative mt-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                  <Input
+                    id="drawer-search"
+                    type="search"
+                    placeholder="Nombre, notas, categoría..."
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
             </form>
           </CardContent>
         </Card>
@@ -642,6 +681,11 @@ export function FreezerManager() {
           <div className="grid gap-6 md:grid-cols-2">
             {drawers.map((drawer) => {
               const formState = itemForms[drawer.id] ?? EMPTY_ITEM_FORM
+              const visibleItems = isSearching
+                ? drawer.items.filter((item) => itemMatchesSearch(item, normalizedSearchTerm))
+                : drawer.items
+              const hasItems = drawer.items.length > 0
+              const hasVisibleItems = visibleItems.length > 0
               return (
                 <Card key={drawer.id} className="flex flex-col">
                   <CardHeader>
@@ -650,18 +694,26 @@ export function FreezerManager() {
                       {drawer.nombre}
                     </CardTitle>
                     <CardDescription>
-                      {drawer.items.length === 0
+                      {!hasItems
                         ? "Este cajón está vacío. Añade tu primer elemento."
-                        : `${drawer.items.length} elemento(s) guardado(s).`}
+                        : isSearching
+                          ? hasVisibleItems
+                            ? `${visibleItems.length} coincidencia(s) en este cajón.`
+                            : "Sin coincidencias para tu búsqueda en este cajón."
+                          : `${drawer.items.length} elemento(s) guardado(s).`}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-4 flex-1">
                     <div className="space-y-3">
-                      {drawer.items.length === 0 ? (
+                      {!hasItems ? (
                         <p className="text-sm text-gray-600">No hay elementos registrados en este cajón.</p>
+                      ) : !hasVisibleItems ? (
+                        <p className="text-sm text-gray-600">
+                          {`No hay elementos que coincidan con "${searchTerm}".`}
+                        </p>
                       ) : (
                         <ul className="space-y-3">
-                          {drawer.items.map((item) => (
+                          {visibleItems.map((item) => (
                             <li key={item.id} className="flex items-start justify-between rounded-md border p-3">
                               <div>
                                 <p className="font-medium text-gray-900">{item.nombre}</p>
