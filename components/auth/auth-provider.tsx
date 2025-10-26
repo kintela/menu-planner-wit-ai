@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useEffect, useRef, useState } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
 import type { User } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase/client"
 import type { UserProfile } from "@/lib/types"
@@ -30,10 +30,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
-  const signingOutRef = useRef(false)
 
-  const loadUserProfile = async (userId: string) => {
+  const loadUserProfile = async (userId: string, accessToken?: string | null) => {
     try {
+      const response = await fetch("/api/profile", {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        cache: "no-store",
+      })
+
+      if (response.ok) {
+        const payload = await response.json()
+        if (payload?.profile) {
+          console.log("[AuthProvider] Perfil cargado desde API", payload.profile)
+          return payload.profile as UserProfile
+        }
+      } else {
+        console.warn("[AuthProvider] /api/profile respondió", response.status)
+      }
+    } catch (apiError) {
+      console.warn("[AuthProvider] Error llamando a /api/profile:", apiError)
+    }
+
+    try {
+      let token = accessToken
+      if (!token) {
+        try {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession()
+          token = session?.access_token ?? null
+        } catch (sessionError) {
+          console.warn("[AuthProvider] No se pudo obtener access token para fallback:", sessionError)
+        }
+      }
+
       const { data, error } = await supabase
         .from("user_profiles")
         .select("*")
@@ -41,24 +76,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle()
 
       if (error) {
-        console.error("Error loading user profile:", error)
+        console.error("[AuthProvider] Error loading user profile (client):", error)
         return null
+      }
+
+      if (data) {
+        console.log("[AuthProvider] Perfil cargado desde Supabase client", data)
+      } else {
+        console.warn("[AuthProvider] Supabase client devolvió perfil vacío")
       }
 
       return data
     } catch (error) {
-      console.error("Error loading user profile:", error)
+      console.error("[AuthProvider] Error loading user profile (client exception):", error)
       return null
     }
   }
 
   // NUEVO: función con reintentos para casos donde el trigger aún no creó la fila
-  const loadUserProfileWithRetry = async (userId: string, attempts = [300, 1200, 3000, 5000, 8000]) => {
-    const first = await loadUserProfile(userId)
+  const loadUserProfileWithRetry = async (userId: string, accessToken?: string | null, attempts = [300, 1200, 3000, 5000, 8000]) => {
+    const first = await loadUserProfile(userId, accessToken)
     if (first) return first
     for (const delay of attempts) {
       await new Promise(r => setTimeout(r, delay))
-      const again = await loadUserProfile(userId)
+      const again = await loadUserProfile(userId, accessToken)
       if (again) return again
     }
     return null
@@ -88,7 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (mounted) {
           setUser(session?.user ?? null)
           if (session?.user) {
-            const userProfile = await loadUserProfileWithRetry(session.user.id)
+            const userProfile = await loadUserProfileWithRetry(session.user.id, session?.access_token ?? null)
             setProfile(userProfile)
           } else {
             setProfile(null)
@@ -115,24 +156,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
 
-      if (signingOutRef.current && event !== "SIGNED_OUT") {
-        console.log("[AuthProvider] Ignorando evento auth durante signOut:", event)
-        return
-      }
-
       try {
         if (session?.user) {
           setUser(session.user)
-          const userProfile = await loadUserProfileWithRetry(session.user.id)
+          const userProfile = await loadUserProfileWithRetry(session.user.id, session?.access_token ?? null)
           setProfile(userProfile)
           console.log("[AuthProvider] onAuthStateChange: user=", session.user)
         } else {
           setUser(null)
           setProfile(null)
-          if (signingOutRef.current) {
-            console.log("[AuthProvider] Evento SIGNED_OUT recibido")
-            signingOutRef.current = false
-          }
           console.log("[AuthProvider] onAuthStateChange: user=null")
         }
       } catch (error) {
@@ -188,7 +220,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (user) {
-      loadUserProfile(user.id).then(p => p && setProfile(p))
+      supabase.auth.getSession()
+        .then(({ data }) => loadUserProfileWithRetry(user.id, data.session?.access_token ?? null))
+        .then((p) => p && setProfile(p))
+        .catch((error) => {
+          console.warn("[AuthProvider] Error cargando perfil tras user change:", error)
+        })
     } else {
       setProfile(null)
     }
@@ -198,7 +235,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log("[AuthProvider] Iniciando signOut...")
 
     // Actualizar UI inmediatamente
-    signingOutRef.current = true
     setUser(null)
     setProfile(null)
     setLoading(false)
@@ -244,7 +280,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.warn("[AuthProvider] No se pudieron limpiar tokens de Supabase:", storageError)
     }
 
-    signingOutRef.current = false
     console.log("[AuthProvider] Redirigiendo a /login tras signOut")
     try {
       router.replace("/login")
