@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useRef, useState } from "react"
 import type { User } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase/client"
 import type { UserProfile } from "@/lib/types"
@@ -29,7 +29,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
-  const router = useRouter();
+  const router = useRouter()
+  const signingOutRef = useRef(false)
 
   const loadUserProfile = async (userId: string) => {
     try {
@@ -114,6 +115,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
 
+      if (signingOutRef.current && event !== "SIGNED_OUT") {
+        console.log("[AuthProvider] Ignorando evento auth durante signOut:", event)
+        return
+      }
+
       try {
         if (session?.user) {
           setUser(session.user)
@@ -123,6 +129,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setUser(null)
           setProfile(null)
+          if (signingOutRef.current) {
+            console.log("[AuthProvider] Evento SIGNED_OUT recibido")
+            signingOutRef.current = false
+          }
           console.log("[AuthProvider] onAuthStateChange: user=null")
         }
       } catch (error) {
@@ -185,13 +195,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user])
 
   const signOut = async () => {
+    console.log("[AuthProvider] Iniciando signOut...")
+
+    // Actualizar UI inmediatamente
+    signingOutRef.current = true
+    setUser(null)
+    setProfile(null)
+    setLoading(false)
+    console.log("[AuthProvider] Estado preliminar tras signOut -> user=null, profile=null")
+
     try {
-      await supabase.auth.signOut()
-      setUser(null)
-      setProfile(null)
-      router.push('/login'); // Redirigir al usuario a la página de inicio de sesión
+      const response = await fetch("/api/auth/sign-out", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        console.warn("[AuthProvider] sign-out API respondió error:", payload)
+      } else {
+        console.log("[AuthProvider] API sign-out completado")
+      }
+    } catch (apiError) {
+      console.warn("[AuthProvider] Error llamando al API sign-out:", apiError)
+    }
+
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error("[AuthProvider] Error en signOut local:", error)
+      } else {
+        console.log("[AuthProvider] supabase.auth.signOut completado")
+      }
     } catch (error) {
-      console.error("Error signing out:", error)
+      console.error("[AuthProvider] Excepción en signOut local:", error)
+    }
+
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("sb-")) {
+          localStorage.removeItem(key)
+        }
+      })
+    } catch (storageError) {
+      console.warn("[AuthProvider] No se pudieron limpiar tokens de Supabase:", storageError)
+    }
+
+    signingOutRef.current = false
+    console.log("[AuthProvider] Redirigiendo a /login tras signOut")
+    try {
+      router.replace("/login")
+      router.refresh()
+    } catch (navigationError) {
+      console.warn("[AuthProvider] Error usando router.replace, haciendo fallback a location.assign", navigationError)
+      window.location.assign("/login")
     }
   }
 

@@ -4,7 +4,6 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Home, BookOpen, Calendar, LogOut, Menu, Snowflake, User, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth } from "@/components/auth/auth-provider"
 import { useEffect, useState } from "react"
 import { getSupabaseClient } from "@/lib/supabase/client"
@@ -22,16 +21,41 @@ export function SimpleNavigation() {
         return
       }
 
-      if (profile?.avatar_url) {
-        setAvatarUrl(profile.avatar_url)
-        return
-      }
-
       try {
         const supabase = getSupabaseClient()
 
+        const resolveFromStorage = (path: string | null | undefined) => {
+          if (!path) return null
+
+          const trimmed = path.trim()
+          if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return trimmed
+          }
+
+          let normalizedPath = trimmed.replace(/^\/+/, "")
+
+          if (normalizedPath.startsWith("avatars/")) {
+            normalizedPath = normalizedPath.slice("avatars/".length)
+          }
+
+          if (!normalizedPath.startsWith(`${user.id}/`)) {
+            normalizedPath = `${user.id}/${normalizedPath}`.replace(/^\/+/, "")
+          }
+          const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(normalizedPath)
+          return urlData?.publicUrl || null
+        }
+
+        const fromProfile = resolveFromStorage(profile?.avatar_url)
+        if (fromProfile) {
+          const urlWithCacheBuster = fromProfile.includes("?")
+            ? `${fromProfile}&_=${Date.now()}`
+            : `${fromProfile}?_=${Date.now()}`
+          setAvatarUrl(urlWithCacheBuster)
+          return
+        }
+
         // Buscar archivos en la carpeta del usuario en el bucket avatars
-        const { data: files, error } = await supabase.storage.from("avatars").list(user.id, {
+        const { data: files } = await supabase.storage.from("avatars").list(user.id, {
           limit: 10,
           sortBy: { column: "created_at", order: "desc" },
         })
@@ -46,7 +70,14 @@ export function SimpleNavigation() {
           // Obtener la URL pública
           const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath)
 
-          setAvatarUrl(urlData.publicUrl)
+          if (urlData?.publicUrl) {
+            const urlWithCacheBuster = urlData.publicUrl.includes("?")
+              ? `${urlData.publicUrl}&_=${Date.now()}`
+              : `${urlData.publicUrl}?_=${Date.now()}`
+            setAvatarUrl(urlWithCacheBuster)
+          } else {
+            setAvatarUrl(null)
+          }
         } else {
           setAvatarUrl(null)
         }
@@ -131,18 +162,19 @@ export function SimpleNavigation() {
               <div className="text-sm text-gray-500">Cargando...</div>
             ) : user ? (
               <div className="hidden md:flex items-center space-x-3">
-                <Avatar className="h-8 w-8">
-                  {avatarUrl ? (
-                    <AvatarImage
-                      src={avatarUrl}
-                      alt="Avatar"
-                      onError={() => setAvatarUrl(null)}
-                    />
-                  ) : null}
-                  <AvatarFallback className="bg-blue-100 text-blue-600 text-xs font-medium">
+                {avatarUrl ? (
+                  <img
+                    key={avatarUrl}
+                    src={avatarUrl}
+                    alt="Avatar"
+                    className="h-8 w-8 rounded-full object-cover"
+                    onError={() => setAvatarUrl(null)}
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 text-xs font-medium flex items-center justify-center">
                     {getInitials()}
-                  </AvatarFallback>
-                </Avatar>
+                  </div>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -173,18 +205,19 @@ export function SimpleNavigation() {
                 <div className="text-sm text-gray-500">Cargando...</div>
               ) : user ? (
                 <>
-                  <Avatar className="h-8 w-8">
-                    {avatarUrl ? (
-                      <AvatarImage
-                        src={avatarUrl}
-                        alt="Avatar"
-                        onError={() => setAvatarUrl(null)}
-                      />
-                    ) : null}
-                    <AvatarFallback className="bg-blue-100 text-blue-600 text-xs font-medium">
+                  {avatarUrl ? (
+                    <img
+                      key={avatarUrl}
+                      src={avatarUrl}
+                      alt="Avatar"
+                      className="h-8 w-8 rounded-full object-cover"
+                      onError={() => setAvatarUrl(null)}
+                    />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 text-xs font-medium flex items-center justify-center">
                       {getInitials()}
-                    </AvatarFallback>
-                  </Avatar>
+                    </div>
+                  )}
                   <Button
                     type="button"
                     variant="ghost"

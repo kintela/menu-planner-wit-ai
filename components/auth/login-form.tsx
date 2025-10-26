@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,14 +17,6 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const supabase = createClient()
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-  const clearPendingTimeout = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-      timeoutRef.current = null
-    }
-  }
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -36,22 +28,10 @@ export function LoginForm() {
     setMessage(null)
 
     try {
-      const signInPromise = supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
-      }).catch((signInError) => {
-        console.error("[LoginForm] Error tardío en login:", signInError)
-        throw signInError
       })
-
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutRef.current = setTimeout(() => {
-          reject(new Error("La solicitud de inicio de sesión está tardando demasiado. Revisa tu conexión e inténtalo de nuevo."))
-        }, 15000)
-      })
-
-      const { error } = await Promise.race([signInPromise, timeoutPromise])
-      clearPendingTimeout()
 
       if (error) {
         console.error("[LoginForm] Error al iniciar sesión:", error)
@@ -68,7 +48,6 @@ export function LoginForm() {
         setError("Error inesperado al iniciar sesión")
       }
     } finally {
-      clearPendingTimeout()
       setLoading(false)
     }
   }
