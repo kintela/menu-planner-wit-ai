@@ -12,15 +12,10 @@ export default function LoginPage() {
   const redirect = searchParams.get('redirect');
 
   useEffect(() => {
-    if (!loading && user && profile) {
-      // Si hay un parámetro redirect en la URL, usar ese
-      if (redirect) {
-        console.log("🔄 Redirigiendo a:", redirect);
-        router.push(redirect);
-      } else {
-        console.log("🔄 Redirigiendo al dashboard");
-        router.push('/dashboard');
-      }
+    if (!loading && user) {
+      const destination = redirect || "/recipes";
+      console.log("🔄 Usuario autenticado. Redirigiendo a:", destination, "Perfil cargado:", !!profile);
+      router.replace(destination);
     }
   }, [user, profile, loading, redirect, router]);
 

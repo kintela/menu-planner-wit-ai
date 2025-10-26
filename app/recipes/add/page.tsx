@@ -4,7 +4,6 @@ import { useAuth } from "@/components/auth/auth-provider"
 import { AddRecipeForm } from "@/components/add-recipe-form"
 import { Loader2, AlertCircle, Plus } from "lucide-react"
 import { useEffect, useState, useRef } from "react"
-import { createClient } from "@/lib/supabase/client"
 import type { Category } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,18 +22,25 @@ export default function AddRecipePage() {
 
       try {
         loadingRef.current = true
-        const supabase = createClient()
 
         console.log("Cargando categorías...")
-        const { data, error } = await supabase.from("categories").select("*").order("name")
+        const response = await fetch("/api/categories", {
+          method: "GET",
+          cache: "no-store",
+          credentials: "include",
+        })
 
-        if (error) {
-          console.error("Error loading categories:", error)
+        if (!response.ok) {
+          console.error("Error loading categories:", response.status, response.statusText)
           setCategories([])
-        } else {
-          setCategories(data || [])
-          console.log("Categorías cargadas:", data?.length || 0)
+          return
         }
+
+        const payload = await response.json()
+        const fetchedCategories = Array.isArray(payload?.categories) ? payload.categories : []
+
+        setCategories(fetchedCategories)
+        console.log("Categorías cargadas:", fetchedCategories.length)
       } catch (error) {
         console.error("Error loading categories:", error)
         setCategories([])

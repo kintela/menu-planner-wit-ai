@@ -60,6 +60,7 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
   const categories = Array.isArray(initialCategories) ? initialCategories : []
 
   const { user, profile } = useAuth();
+  const isAuthenticated = Boolean(user);
   const [searchTerm, setSearchTerm] = useState("") // término realmente usado para filtrar
   const [inputValue, setInputValue] = useState("") // texto que el usuario escribe instantáneamente
   const [isPending, startTransition] = useTransition()
@@ -131,6 +132,22 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
 
   const hasActiveFilters = searchTerm || selectedCategory || ownerFilter !== "all" || iaOnly || selectedUserId
 
+  const renderAddRecipeButton = (label: string) => {
+    if (isAuthenticated) {
+      return (
+        <Button asChild className="px-6 py-2 rounded-lg shadow-sm">
+          <Link href="/recipes/add">{label}</Link>
+        </Button>
+      )
+    }
+
+    return (
+      <Button className="px-6 py-2 rounded-lg shadow-sm" disabled>
+        {label}
+      </Button>
+    )
+  }
+
   if (recipes.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -138,13 +155,7 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Recetas</h1>
-            <Link
-              href="/recipes/add"
-              className="inline-flex items-center justify-center px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 text-decoration-none"
-              style={{ textDecoration: "none", backgroundColor: "#2563eb !important", color: "white !important" }}
-            >
-              Añadir Receta
-            </Link>
+            {renderAddRecipeButton("Añadir Receta")}
           </div>
 
           <Card className="text-center py-12">
@@ -152,13 +163,7 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
               <div className="max-w-md mx-auto">
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No hay recetas disponibles</h3>
                 <p className="text-gray-600 mb-6">Comienza añadiendo tu primera receta para ver el contenido aquí.</p>
-                <Link
-                  href="/recipes/add"
-                  className="inline-flex items-center justify-center px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 text-decoration-none"
-                  style={{ textDecoration: "none", backgroundColor: "#2563eb !important", color: "white !important" }}
-                >
-                  Añadir Primera Receta
-                </Link>
+                {renderAddRecipeButton("Añadir Primera Receta")}
               </div>
             </CardContent>
           </Card>
@@ -179,13 +184,7 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
               {filteredRecipes.length} de {recipes.length} recetas
             </p>
           </div>
-          <Link
-            href="/recipes/add"
-            className="inline-flex items-center justify-center px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 text-decoration-none"
-            style={{ textDecoration: "none", backgroundColor: "#2563eb !important", color: "white !important" }}
-          >
-            Añadir Receta
-          </Link>
+          {renderAddRecipeButton("Añadir Receta")}
         </div>
 
         {/* Search and Filters */}
@@ -318,13 +317,7 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
                       Limpiar filtros
                     </Button>
                   )}
-                  <Link
-                    href="/recipes/add"
-                    className="inline-flex items-center justify-center px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-colors duration-200 text-decoration-none"
-                    style={{ textDecoration: "none", backgroundColor: "#2563eb !important", color: "white !important" }}
-                  >
-                    Añadir Receta
-                  </Link>
+                  {renderAddRecipeButton("Añadir Receta")}
                 </div>
               </div>
             </CardContent>

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,33 +17,63 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const supabase = createClient()
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const clearPendingTimeout = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+    }
+  }
+
+  const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+
+    if (loading) return
+
     setLoading(true)
     setError(null)
     setMessage(null)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
+      const signInPromise = supabase.auth.signInWithPassword({
+        email: email.trim(),
         password,
+      }).catch((signInError) => {
+        console.error("[LoginForm] Error tardío en login:", signInError)
+        throw signInError
       })
 
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutRef.current = setTimeout(() => {
+          reject(new Error("La solicitud de inicio de sesión está tardando demasiado. Revisa tu conexión e inténtalo de nuevo."))
+        }, 15000)
+      })
+
+      const { error } = await Promise.race([signInPromise, timeoutPromise])
+      clearPendingTimeout()
+
       if (error) {
+        console.error("[LoginForm] Error al iniciar sesión:", error)
         setError(error.message)
       } else {
         setMessage("¡Inicio de sesión exitoso!")
         // No hacer nada más aquí, dejar que el LoginPage maneje la redirección
       }
     } catch (err) {
-      setError("Error inesperado al iniciar sesión")
+      console.error("[LoginForm] Excepción al iniciar sesión:", err)
+      if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError("Error inesperado al iniciar sesión")
+      }
     } finally {
+      clearPendingTimeout()
       setLoading(false)
     }
   }
 
-  const handleSignUp = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
@@ -75,7 +105,7 @@ export function LoginForm() {
           <CardDescription className="text-center">Inicia sesión o crea una cuenta para continuar</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4">
+          <form className="space-y-4" onSubmit={handleSignIn}>
             <div>
               <Label htmlFor="email">Email</Label>
               <Input
@@ -112,10 +142,16 @@ export function LoginForm() {
             )}
 
             <div className="space-y-2">
-              <Button onClick={handleSignIn} disabled={loading} className="w-full">
+              <Button type="submit" disabled={loading} className="w-full">
                 {loading ? "Cargando..." : "Iniciar Sesión"}
               </Button>
-              <Button onClick={handleSignUp} disabled={loading} variant="outline" className="w-full bg-transparent">
+              <Button
+                type="button"
+                onClick={handleSignUp}
+                disabled={loading}
+                variant="outline"
+                className="w-full bg-transparent"
+              >
                 {loading ? "Cargando..." : "Crear Cuenta"}
               </Button>
             </div>
