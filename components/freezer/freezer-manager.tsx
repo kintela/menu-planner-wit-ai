@@ -1,6 +1,6 @@
 "use client"
 
-import { type FormEvent, useEffect, useMemo, useState } from "react"
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -183,6 +183,10 @@ export function FreezerManager() {
   useEffect(() => {
     let isActive = true
 
+    if (authLoading) {
+      return
+    }
+
     if (!user) {
       setFreezer(null)
       setDrawers([])
@@ -194,69 +198,66 @@ export function FreezerManager() {
     }
 
     const fetchData = async () => {
+      if (authLoading) {
+        return
+      }
       setLoading(true)
       try {
         const { data, error } = await supabase
           .from("congeladores")
-          .select(`
-            id,
-            nombre,
-            descripcion,
-            cajones_congelador (
+          .select(
+            `
               id,
               nombre,
-              posicion,
               descripcion,
-              creado_en,
-              elementos_cajon (
+              cajones_congelador (
                 id,
-                cajon_id,
                 nombre,
-                cantidad,
-                unidad,
-                estado,
-                categoria,
-                fecha_compra,
-                fecha_congelacion,
-                fecha_caducidad,
-                notas,
-                imagen_url,
-                creado_en
+                posicion,
+                descripcion,
+                creado_en,
+                elementos_cajon (
+                  id,
+                  cajon_id,
+                  nombre,
+                  cantidad,
+                  unidad,
+                  estado,
+                  categoria,
+                  fecha_compra,
+                  fecha_congelacion,
+                  fecha_caducidad,
+                  notas,
+                  imagen_url,
+                  creado_en
+                )
               )
-            )
-          `)
+            `,
+          )
           .eq("usuario_id", user.id)
           .order("posicion", { ascending: true, foreignTable: "cajones_congelador" })
           .order("creado_en", { ascending: true, foreignTable: "cajones_congelador.elementos_cajon" })
           .maybeSingle()
+        console.log("[FreezerManager] Supabase data: ", JSON.stringify(data))
+        console.log("[FreezerManager] Supabase error: ", error)
+
+        if (!isActive) return
 
         if (error && error.code !== "PGRST116") {
           throw error
         }
 
-        let freezerData = data
-
-        if (!freezerData) {
-          const { data: createdFreezer, error: createError } = await supabase
-            .from("congeladores")
-            .insert({ usuario_id: user.id })
-            .select("id, nombre, descripcion")
-            .single()
-
-          if (createError) {
-            throw createError
-          }
-
-          freezerData = { ...createdFreezer, cajones_congelador: [] }
-        }
-
-        if (!isActive) return
+        const freezerData = data ?? { id: null, nombre: "", descripcion: null, cajones_congelador: [] }
 
         const normalizedDrawers = Array.isArray(freezerData.cajones_congelador)
           ? freezerData.cajones_congelador.map(normalizeDrawer).sort((a, b) => a.posicion - b.posicion)
           : []
 
-        setFreezer({ id: String(freezerData.id), nombre: freezerData.nombre, descripcion: freezerData.descripcion })
+        setFreezer(
+          freezerData?.id
+            ? { id: String(freezerData.id), nombre: freezerData.nombre, descripcion: freezerData.descripcion }
+            : null,
+        )
         setDrawers(normalizedDrawers)
         setDrawerCountValue(normalizedDrawers.length ? String(normalizedDrawers.length) : "")
         setItemForms((prev) => {
@@ -289,7 +290,7 @@ export function FreezerManager() {
     return () => {
       isActive = false
     }
-  }, [supabase, toast, user])
+  }, [supabase, toast, user, authLoading])
 
   const handleDrawerCountSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -348,37 +349,25 @@ export function FreezerManager() {
         congelador_id: freezer.id,
       }))
 
-      const { data, error } = await supabase
-        .from("cajones_congelador")
-        .insert(payload)
-        .select(`
-          id,
-          nombre,
-          posicion,
-          descripcion,
-          creado_en,
-          elementos_cajon (
-            id,
-            cajon_id,
-            nombre,
-            cantidad,
-            unidad,
-            estado,
-            categoria,
-            fecha_compra,
-            fecha_congelacion,
-            fecha_caducidad,
-            notas,
-            imagen_url,
-            creado_en
-          )
-        `)
+      const response = await fetch("/api/freezer/drawers", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ freezerId: freezer.id, drawers: payload }),
+      })
 
-      if (error) {
-        throw error
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.error || `Error ${response.status}`)
       }
 
-      const normalized = Array.isArray(data) ? data.map(normalizeDrawer) : []
+      const { drawers: createdDrawers } = await response.json()
+
+      const normalized = Array.isArray(createdDrawers)
+        ? createdDrawers.map((drawer: any) => ({
+            ...normalizeDrawer({ ...drawer, elementos_cajon: [] }),
+          }))
+        : []
       setDrawers((prev) => {
         const next = [...prev, ...normalized].sort((a, b) => a.posicion - b.posicion)
         setDrawerCountValue(next.length ? String(next.length) : "")
