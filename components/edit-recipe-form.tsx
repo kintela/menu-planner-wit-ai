@@ -106,26 +106,31 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
     setImageFile(file)
     setUploadingImage(true)
     try {
-      const supabase = getSupabaseClient()
-      const fileExt = file.name.split(".").pop()
-      const fileName = `recipe-${recipe.id}-${Date.now()}.${fileExt}` // solo el nombre, sin carpeta
-      const filePath = fileName
-      console.log("[SUBIDA] Intentando subir imagen:", filePath, file)
-      const { error: uploadError } = await supabase.storage.from("recipe-images").upload(filePath, file, { upsert: true })
-      if (uploadError) {
-        console.error("[SUBIDA] Error al subir imagen:", uploadError)
-        toast({ title: "Error al subir imagen", description: uploadError.message || "Error desconocido", variant: "destructive" })
+      const uploadFormData = new FormData()
+      uploadFormData.append("file", file)
+
+      const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
+        method: "POST",
+        body: uploadFormData,
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        const message = payload?.error || response.statusText || "Error desconocido"
+        console.error("[SUBIDA] Error al subir imagen (API):", response.status, message)
+        toast({ title: "Error al subir imagen", description: message, variant: "destructive" })
         return
       }
-      const { data, error: urlError } = supabase.storage.from("recipe-images").getPublicUrl(filePath)
-      if (urlError) {
-        console.error("[SUBIDA] Error al obtener URL pública:", urlError)
-        toast({ title: "Error al obtener URL de imagen", description: urlError.message || "Error desconocido", variant: "destructive" })
+
+      const data = await response.json()
+      if (!data?.url) {
+        toast({ title: "Error", description: "Respuesta inválida al subir la imagen", variant: "destructive" })
         return
       }
-      setFormData((prev) => ({ ...prev, image_url: data.publicUrl }))
+
+      setFormData((prev) => ({ ...prev, image_url: data.url }))
       toast({ title: "Imagen subida", description: "La imagen se subió correctamente." })
-      console.log("[SUBIDA] Imagen subida y URL pública:", data.publicUrl)
+      console.log("[SUBIDA] Imagen subida y URL pública:", data.url)
     } catch (err: any) {
       console.error("[SUBIDA] Excepción inesperada:", err)
       toast({ title: "Error inesperado al subir imagen", description: err?.message || "Error desconocido", variant: "destructive" })

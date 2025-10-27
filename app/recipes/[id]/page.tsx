@@ -45,7 +45,7 @@ async function getRecipeWithUser(id: string): Promise<{ recipe: Recipe | null; u
     let user: UserProfile | null = null
     if (recipe.user_id) {
       const { data: userData, error: userError } = await supabase
-        .from("profiles")
+        .from("user_profiles")
         .select("id, email, full_name, alias, avatar_url")
         .eq("id", recipe.user_id)
         .single()

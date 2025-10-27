@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { getSupabaseClient } from "@/lib/supabase/client"
 import { EditRecipeForm } from "@/components/edit-recipe-form"
 import type { Category, Recipe } from "@/lib/types"
 
@@ -35,8 +34,6 @@ export default function EditRecipePage() {
       }
 
       try {
-        const supabase = getSupabaseClient()
-
         // Normalizar ID y validar
         const rawId = Array.isArray((params as any).id) ? (params as any).id[0] : (params as any).id
         const idNum = Number(rawId)
@@ -56,20 +53,24 @@ export default function EditRecipePage() {
         // Mostrar aviso de lentitud si tarda mucho
         const slowTimer = setTimeout(() => setSlow(true), 6000)
 
-        // Primero obtener la receta (con timeout)
-        const { data: recipeData, error: recipeError } = await withTimeout(
-          supabase.from("recipes").select("*").eq("id", idNum).single(),
-          12000
+        // Primero obtener la receta (con timeout) vía API
+        const recipeResponse = await withTimeout(
+          fetch(`/api/recipes/${idNum}`, {
+            method: "GET",
+            credentials: "include",
+            cache: "no-store",
+          }),
+          12000,
         )
 
-        //console.log("[DEBUG] recipeData:", recipeData, "recipeError:", recipeError)
-
-        if (recipeError || !recipeData) {
-          setError("Receta no encontrada")
+        if (!recipeResponse.ok) {
+          console.warn("[EditRecipePage] /api/recipes", idNum, "respondió", recipeResponse.status)
+          setError(recipeResponse.status === 404 ? "Receta no encontrada" : "Error al cargar la receta")
           setLoading(false)
           return
         }
 
+        const recipeData = await recipeResponse.json()
         setRecipe(recipeData)
 
         // Solo el autor puede editar (alineado con el resto de la app)
@@ -79,24 +80,36 @@ export default function EditRecipePage() {
 
         // Si tiene permisos, cargar categorías
         if (hasPermission) {
-          // Obtener las categorías de la receta
-          const { data: recipeCategories } = await withTimeout(
-            supabase.from("recipe_categories").select("category_id").eq("recipe_id", recipeData.id),
-            10000
-          )
+          const recipeCategories = Array.isArray(recipeData?.recipe_categories)
+            ? recipeData.recipe_categories
+            : []
 
-          const categoryIds = recipeCategories?.map((rc) => rc.category_id) || []
+          const categoryIds = recipeCategories
+            .map((rc: any) => rc.category_id || rc.categories?.id)
+            .filter((id: any) => id !== undefined && id !== null)
+            .map((id: any) => Number(id))
           setSelectedCategoryIds(categoryIds)
           console.log("[DEBUG] recipeCategories:", recipeCategories)
 
-          // Obtener todas las categorías
-          const { data: categoriesData } = await withTimeout(
-            supabase.from("categories").select("*").order("name"),
-            10000
+          // Obtener todas las categorías vía API (evita RLS en el cliente)
+          const categoriesResponse = await withTimeout(
+            fetch("/api/categories", {
+              method: "GET",
+              credentials: "include",
+              cache: "no-store",
+            }),
+            10000,
           )
 
-          setCategories(categoriesData || [])
-          console.log("[DEBUG] categoriesData:", categoriesData)
+          if (!categoriesResponse.ok) {
+            console.warn("[EditRecipePage] /api/categories respondió", categoriesResponse.status)
+            setCategories([])
+          } else {
+            const payload = await categoriesResponse.json()
+            const categoriesData = Array.isArray(payload?.categories) ? payload.categories : []
+            setCategories(categoriesData)
+            console.log("[DEBUG] categoriesData:", categoriesData)
+          }
         }
         clearTimeout(slowTimer)
       } catch (err) {
