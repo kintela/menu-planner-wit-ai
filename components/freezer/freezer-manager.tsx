@@ -175,7 +175,13 @@ export function FreezerManager() {
   const [itemForms, setItemForms] = useState<Record<string, ItemFormState>>({})
   const [addingItems, setAddingItems] = useState<Record<string, boolean>>({})
   const [deletingItems, setDeletingItems] = useState<Record<string, boolean>>({})
+  const [clearingDrawers, setClearingDrawers] = useState<Record<string, boolean>>({})
   const [pendingDeletion, setPendingDeletion] = useState<{ drawerId: string; itemId: string; itemName: string } | null>(null)
+  const [pendingDrawerClear, setPendingDrawerClear] = useState<{
+    drawerId: string
+    drawerName: string
+    itemCount: number
+  } | null>(null)
 
   const normalizedSearchTerm = searchTerm.trim().toLowerCase()
   const isSearching = normalizedSearchTerm.length > 0
@@ -499,6 +505,13 @@ export function FreezerManager() {
     setPendingDeletion({ drawerId, itemId, itemName })
   }
 
+  const promptClearDrawer = (drawerId: string, drawerName: string, itemCount: number) => {
+    if (itemCount === 0) {
+      return
+    }
+    setPendingDrawerClear({ drawerId, drawerName, itemCount })
+  }
+
   const deleteItem = async ({ drawerId, itemId, itemName }: { drawerId: string; itemId: string; itemName: string }) => {
     setDeletingItems((prev) => ({ ...prev, [itemId]: true }))
 
@@ -540,6 +553,69 @@ export function FreezerManager() {
     if (!pendingDeletion) return
     const deletion = pendingDeletion
     void deleteItem(deletion)
+  }
+
+  const clearDrawerItems = async ({
+    drawerId,
+    drawerName,
+    itemCount,
+  }: {
+    drawerId: string
+    drawerName: string
+    itemCount: number
+  }) => {
+    setClearingDrawers((prev) => ({ ...prev, [drawerId]: true }))
+
+    const drawerToClear = drawers.find((drawer) => drawer.id === drawerId)
+    const drawerItemIds = drawerToClear?.items.map((item) => item.id) ?? []
+
+    try {
+      const { error } = await supabase.from("elementos_cajon").delete().eq("cajon_id", drawerId)
+
+      if (error) {
+        throw error
+      }
+
+      setDrawers((prev) =>
+        prev.map((drawer) => (drawer.id === drawerId ? { ...drawer, items: [] } : drawer)),
+      )
+
+      if (drawerItemIds.length > 0) {
+        setDeletingItems((prev) => {
+          const next = { ...prev }
+          for (const itemId of drawerItemIds) {
+            delete next[itemId]
+          }
+          return next
+        })
+      }
+
+      toast({
+        title: "Cajón vaciado",
+        description:
+          itemCount === 1
+            ? `Se eliminó 1 elemento de ${drawerName}.`
+            : `Se eliminaron ${itemCount} elementos de ${drawerName}.`,
+      })
+    } catch (error: any) {
+      console.error("[FreezerManager] Error clearing drawer items", error)
+      toast({
+        variant: "destructive",
+        title: "No se pudo vaciar el cajón",
+        description: error?.message ?? "Inténtalo más tarde.",
+      })
+    } finally {
+      setClearingDrawers((prev) => {
+        const { [drawerId]: _, ...rest } = prev
+        return rest
+      })
+    }
+  }
+
+  const handleConfirmDrawerClear = () => {
+    if (!pendingDrawerClear) return
+    const request = pendingDrawerClear
+    void clearDrawerItems(request)
   }
 
   if (authLoading) {
@@ -677,12 +753,27 @@ export function FreezerManager() {
               const hasVisibleItems = visibleItems.length > 0
               return (
                 <Card key={drawer.id} className="flex flex-col">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                  <CardHeader className="relative">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-4 top-4"
+                      onClick={() => promptClearDrawer(drawer.id, drawer.nombre, drawer.items.length)}
+                      disabled={!hasItems || Boolean(clearingDrawers[drawer.id])}
+                      aria-label={`Vaciar ${drawer.nombre}`}
+                    >
+                      {clearingDrawers[drawer.id] ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <CardTitle className="flex items-center gap-2 pr-12">
                       <Snowflake className="h-5 w-5 text-blue-500" />
                       {drawer.nombre}
                     </CardTitle>
-                    <CardDescription>
+                    <CardDescription className="pr-12">
                       {!hasItems
                         ? "Este cajón está vacío. Añade tu primer elemento."
                         : isSearching
@@ -877,6 +968,22 @@ export function FreezerManager() {
           title="Eliminar elemento"
           description={`¿Seguro que quieres eliminar ${pendingDeletion.itemName}? Esta acción no se puede deshacer.`}
           confirmText="Eliminar"
+          cancelText="Cancelar"
+          variant="destructive"
+        />
+      )}
+      {pendingDrawerClear && (
+        <ConfirmationDialog
+          isOpen
+          onClose={() => setPendingDrawerClear(null)}
+          onConfirm={handleConfirmDrawerClear}
+          title="Vaciar cajón"
+          description={`¿Eliminar todos los elementos de ${pendingDrawerClear.drawerName}? Se eliminarán ${
+            pendingDrawerClear.itemCount === 1
+              ? "1 elemento"
+              : `${pendingDrawerClear.itemCount} elementos`
+          } y no se puede deshacer.`}
+          confirmText="Vaciar cajón"
           cancelText="Cancelar"
           variant="destructive"
         />
