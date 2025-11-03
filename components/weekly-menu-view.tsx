@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -101,6 +101,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
     endDateStr: '',
     weekText: ''
   })
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date | null>(null)
   const [recipes, setRecipes] = useState<Recipe[]>(initialRecipes)
   const [isGenerating, setIsGenerating] = useState(false)
   const [savedMenus, setSavedMenus] = useState<SavedMenuOption[]>([])
@@ -262,40 +263,78 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
     await applySavedMenu(menuId)
   }
 
+  const currentWeekBaseline = useMemo(() => {
+    const today = new Date()
+    const start = new Date(today)
+    const day = start.getDay()
+    const diff = start.getDate() - day + (day === 0 ? -6 : 1)
+    start.setDate(diff)
+    start.setHours(0, 0, 0, 0)
+    return start
+  }, [])
+
+  const getWeekSummary = (start: Date) => {
+    const normalizedStart = new Date(start)
+    normalizedStart.setHours(0, 0, 0, 0)
+    const end = new Date(normalizedStart)
+    end.setDate(normalizedStart.getDate() + 6)
+
+    const startDateStr = normalizedStart.toISOString().split("T")[0]
+    const endDateStr = end.toISOString().split("T")[0]
+
+    const formatDisplayDate = (date: Date) => {
+      const day = date.getDate().toString().padStart(2, "0")
+      const month = (date.getMonth() + 1).toString().padStart(2, "0")
+      const year = date.getFullYear()
+      return `${day}/${month}/${year}`
+    }
+
+    const weekText = `${formatDisplayDate(normalizedStart)} al ${formatDisplayDate(end)}`
+
+    return { startDateStr, endDateStr, weekText }
+  }
+
   useEffect(() => {
-    const initializeWeekAndLoadMenu = async () => {
-      const today = new Date()
-      const startOfWeek = new Date(today)
-      const day = startOfWeek.getDay()
-      const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1) // Lunes
-      startOfWeek.setDate(diff)
-      startOfWeek.setHours(0, 0, 0, 0)
-      
-      const endOfWeek = new Date(startOfWeek)
-      endOfWeek.setDate(startOfWeek.getDate() + 6)
+    if (!userId) return
+    setCurrentWeekStart((prev) => prev ?? currentWeekBaseline)
+  }, [currentWeekBaseline, userId])
 
-      const startDateStr = startOfWeek.toISOString().split('T')[0]
-      const endDateStr = endOfWeek.toISOString().split('T')[0]
-      
-      const formatDate = (date: Date) => {
-        const day = date.getDate().toString().padStart(2, '0')
-        const month = (date.getMonth() + 1).toString().padStart(2, '0')
-        const year = date.getFullYear()
-        return `${day}/${month}/${year}`
-      }
-
-      const weekText = `${formatDate(startOfWeek)} al ${formatDate(endOfWeek)}`
-
-      setWeekDates({ startDateStr, endDateStr, weekText })
-
-      await loadExistingMenu(startDateStr, endDateStr)
-      await fetchSavedMenus(startDateStr)
+  useEffect(() => {
+    if (!userId || !currentWeekStart) {
+      return
     }
 
-    if (userId) {
-      initializeWeekAndLoadMenu()
+    const summary = getWeekSummary(currentWeekStart)
+    setWeekDates(summary)
+    setSelectedTemplateId(null)
+    setIsLoading(true)
+
+    const run = async () => {
+      await loadExistingMenu(summary.startDateStr, summary.endDateStr)
+      await fetchSavedMenus(summary.startDateStr)
     }
-  }, [userId])
+
+    void run()
+  }, [currentWeekStart, userId])
+
+  const goToCurrentWeek = () => {
+    setCurrentWeekStart(currentWeekBaseline)
+  }
+
+  const goToNextWeek = () => {
+    setCurrentWeekStart((prev) => {
+      const base = prev ?? currentWeekBaseline
+      const next = new Date(base)
+      next.setDate(next.getDate() + 7)
+      next.setHours(0, 0, 0, 0)
+      return next
+    })
+  }
+
+  const baselineSummary = useMemo(() => getWeekSummary(currentWeekBaseline), [currentWeekBaseline])
+  const isViewingCurrentWeek = weekDates.startDateStr
+    ? weekDates.startDateStr === baselineSummary.startDateStr
+    : true
 
   const loadExistingMenu = async (startDateStr: string, endDateStr: string) => {
     try {
@@ -771,7 +810,27 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
               <Calendar className="h-5 w-5" />
               Planificador Semanal
             </CardTitle>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={goToCurrentWeek}
+                  disabled={isLoading || isViewingCurrentWeek}
+                >
+                  Semana actual
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={goToNextWeek}
+                  disabled={isLoading}
+                >
+                  Próxima semana
+                </Button>
+              </div>
               <Select
                 onValueChange={handleSavedMenuSelection}
                 value={selectedTemplateId ?? ""}
