@@ -18,6 +18,16 @@ import { RecipeSelector } from "./recipe-selector"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
 
 const formatDateLabel = (value?: string | null) => {
   if (!value) return null
@@ -88,6 +98,38 @@ const MEAL_TYPES = [
   { key: "cena", order: 1, label: "Cena", color: "border-orange-300 bg-orange-50" },
 ]
 
+type MenuStrategy = "balanced" | "healthy" | "indulgent"
+
+const STRATEGY_OPTIONS: Array<{ value: MenuStrategy; title: string; description: string }> = [
+  {
+    value: "balanced",
+    title: "Ni pa tí ni pa mi",
+    description: "Una mezcla equilibrada de platos ligeros, contundentes y clásicos.",
+  },
+  {
+    value: "healthy",
+    title: "Sano sano...",
+    description: "Prioriza verduras, legumbres y opciones ligeras con mejor perfil nutricional.",
+  },
+  {
+    value: "indulgent",
+    title: "Me da todo igual",
+    description: "Menú con platos más calóricos y contundentes para darse un capricho.",
+  },
+]
+
+const HEAVY_LIMIT: Record<MenuStrategy, number> = {
+  balanced: 3,
+  healthy: 1,
+  indulgent: 7,
+}
+
+const CATEGORY_USAGE_LIMIT: Record<MenuStrategy, number> = {
+  balanced: 2,
+  healthy: 2,
+  indulgent: 3,
+}
+
 export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipes = [], userId }: WeeklyMenuViewProps) {
   const [menuEntries, setMenuEntries] = useState<MenuEntry[]>([])
   const [showRecipeSelector, setShowRecipeSelector] = useState<{
@@ -108,6 +150,9 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
   const [savedMenus, setSavedMenus] = useState<SavedMenuOption[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false)
+  const [currentStrategy, setCurrentStrategy] = useState<MenuStrategy>("balanced")
+  const [showGenerationDialog, setShowGenerationDialog] = useState(false)
+  const [pendingStrategy, setPendingStrategy] = useState<MenuStrategy>("balanced")
   const [isClearingAll, setIsClearingAll] = useState(false)
   const [showClearDialog, setShowClearDialog] = useState(false)
 
@@ -338,6 +383,19 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
   const isViewingCurrentWeek = weekDates.startDateStr
     ? weekDates.startDateStr === baselineSummary.startDateStr
     : true
+
+  const openGenerationDialog = () => {
+    if (isGenerating || recipes.length === 0) {
+      return
+    }
+    setPendingStrategy(currentStrategy)
+    setShowGenerationDialog(true)
+  }
+
+  const handleConfirmGeneration = () => {
+    setShowGenerationDialog(false)
+    void generateRandomMenu(pendingStrategy)
+  }
 
   const handleClearWeekRequest = () => {
     if (isClearingAll || menuEntries.length === 0) {
@@ -720,56 +778,169 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
     return counts
   }
 
-  function canUseCategory(cat: string, usageCounts: Record<string, number>) {
+  function canUseCategory(cat: string, usageCounts: Record<string, number>, limit = 2) {
     if (cat === 'postre') return false
-    return (usageCounts[cat] || 0) < 2
+    return (usageCounts[cat] || 0) < limit
   }
 
-  function generateHealthyDayMenu(day: string, globalUsageCounts: Record<string, number>, heavyUsed: {count: number}, enrichedAll: { r: Recipe; cls: ReturnType<typeof classifyRecipe> }[]) {
+  type MenuSlot = "first" | "second" | "dinner"
+
+  function computeCandidateScore(
+    strategy: MenuStrategy,
+    slot: MenuSlot,
+    candidate: { r: Recipe; cls: ReturnType<typeof classifyRecipe> },
+  ) {
+    const { cls, r } = candidate
+    const caloriesEstimate =
+      r.calories ??
+      (cls.weight === 3 ? 850 : cls.weight === 2 ? 600 : cls.weight === 1 ? 320 : 450)
+
+    let score = 0
+
+    if (strategy === "healthy") {
+      score += cls.healthScore * 2
+      if (["vegetal", "sopa", "legumbre"].includes(cls.primaryCategory)) score += 80
+      if (["pescado", "marisco"].includes(cls.primaryCategory)) score += 50
+      if (slot === "second" && ["legumbre", "pescado", "pollo", "pavo"].includes(cls.primaryCategory)) score += 25
+      if (cls.weight === 1) score += slot === "second" ? 10 : 35
+      if (cls.weight === 3) score -= 120
+      if (caloriesEstimate > 600) score -= (caloriesEstimate - 600) / 3
+    } else if (strategy === "indulgent") {
+      score += cls.weight * 90
+      score += caloriesEstimate / 3
+      if (slot === "second") score += 40
+      if (slot === "dinner" && cls.weight === 3) score += 25
+      if (["vegetal", "sopa", "legumbre"].includes(cls.primaryCategory)) score -= 35
+      if (cls.healthScore > 60) score -= 10
+    } else {
+      const targetWeight = slot === "second" ? 2.5 : 1.5
+      score -= Math.abs(cls.weight - targetWeight) * 65
+      score += cls.healthScore
+      if (["vegetal", "legumbre", "pescado", "pollo", "pavo"].includes(cls.primaryCategory)) score += 20
+      if (caloriesEstimate < 450) score += 10
+      if (caloriesEstimate > 750) score -= 10
+    }
+
+    return score
+  }
+
+  function generateDayMenu(
+    day: string,
+    strategy: MenuStrategy,
+    globalUsageCounts: Record<string, number>,
+    heavyUsed: { count: number },
+    enrichedAll: { r: Recipe; cls: ReturnType<typeof classifyRecipe> }[],
+  ) {
     const results: MenuEntry[] = []
+    const usedRecipeIds = new Set<number>()
+    const dayCategories = new Set<string>()
+    const savoryCandidates = enrichedAll.filter((item) => !item.cls.isDessert)
+    const pool = savoryCandidates.length > 0 ? savoryCandidates : enrichedAll
+    const heavyLimit = HEAVY_LIMIT[strategy]
+    const maxCategoryUsage = CATEGORY_USAGE_LIMIT[strategy]
 
-    const savoryEnriched = enrichedAll.filter(e => !e.cls.isDessert)
-    const lightOrMedium = savoryEnriched.filter(e => e.cls.weight <= 2)
+    const pickCandidate = (
+      slot: MenuSlot,
+      opts: { minWeight?: number; maxWeight?: number; avoidCategories?: string[]; allowHeavy?: boolean } = {},
+    ) => {
+      let filtered = pool.filter((entry) => !usedRecipeIds.has(entry.r.id))
+      if (opts.minWeight !== undefined) filtered = filtered.filter((entry) => entry.cls.weight >= opts.minWeight!)
+      if (opts.maxWeight !== undefined) filtered = filtered.filter((entry) => entry.cls.weight <= opts.maxWeight!)
 
-    function pickCandidate(pool: typeof enrichedAll, opts: {avoidCategories?: string[], minWeight?: number, maxWeight?: number, allowHeavy?: boolean} = {}) {
-      let filtered = pool.filter(e => canUseCategory(e.cls.primaryCategory, globalUsageCounts))
-      if (opts.minWeight) filtered = filtered.filter(e => e.cls.weight >= opts.minWeight!)
-      if (opts.maxWeight) filtered = filtered.filter(e => e.cls.weight <= opts.maxWeight!)
-      if (opts.allowHeavy === false) filtered = filtered.filter(e => e.cls.weight < 3)
-      if (opts.avoidCategories && opts.avoidCategories.length) filtered = filtered.filter(e => !opts.avoidCategories!.includes(e.cls.primaryCategory))
-      if (filtered.length === 0) filtered = pool
-      // Orden más saludable primero
-      filtered = [...filtered].sort((a,b) => b.cls.healthScore - a.cls.healthScore)
-      // Tomar top 30% para algo de variación
-      const sliceSize = Math.max(3, Math.ceil(filtered.length * 0.3))
-      const top = filtered.slice(0, sliceSize)
-      return shuffle(top)[0]
+      const heavyAllowed = opts.allowHeavy ?? true
+      if (!heavyAllowed || heavyUsed.count >= heavyLimit) {
+        filtered = filtered.filter((entry) => entry.cls.weight < 3)
+      }
+
+      if (opts.avoidCategories?.length) {
+        filtered = filtered.filter((entry) => !opts.avoidCategories!.includes(entry.cls.primaryCategory))
+      }
+
+      filtered = filtered.filter((entry) =>
+        canUseCategory(entry.cls.primaryCategory, globalUsageCounts, maxCategoryUsage),
+      )
+
+      if (filtered.length === 0) {
+        filtered = pool.filter((entry) => !usedRecipeIds.has(entry.r.id))
+        if (!heavyAllowed || heavyUsed.count >= heavyLimit) {
+          filtered = filtered.filter((entry) => entry.cls.weight < 3)
+        }
+        if (filtered.length === 0) {
+          return undefined
+        }
+      }
+
+      const scored = filtered.map((entry) => ({
+        entry,
+        score: computeCandidateScore(strategy, slot, entry),
+      }))
+
+      scored.sort((a, b) => b.score - a.score)
+      const sliceSize = Math.max(1, Math.min(5, Math.ceil(scored.length * 0.4)))
+      const chosen = scored.slice(0, sliceSize)[Math.floor(Math.random() * sliceSize)]?.entry
+      return chosen
     }
 
-    const first = pickCandidate(lightOrMedium, { maxWeight: 2 })
+    const commitCandidate = (candidate: { r: Recipe; cls: ReturnType<typeof classifyRecipe> }, slot: MenuSlot) => {
+      const mealMeta =
+        slot === "first"
+          ? { meal_type: "comida", dish_order: 1 as const }
+          : slot === "second"
+            ? { meal_type: "comida", dish_order: 2 as const }
+            : { meal_type: "cena", dish_order: 1 as const }
+
+      results.push({
+        id: Date.now() + Math.random(),
+        day,
+        meal_type: mealMeta.meal_type,
+        dish_order: mealMeta.dish_order,
+        recipe_id: candidate.r.id,
+        recipe: candidate.r,
+      })
+
+      usedRecipeIds.add(candidate.r.id)
+      dayCategories.add(candidate.cls.primaryCategory)
+      globalUsageCounts[candidate.cls.primaryCategory] =
+        (globalUsageCounts[candidate.cls.primaryCategory] || 0) + 1
+      if (candidate.cls.weight === 3) {
+        heavyUsed.count += 1
+      }
+    }
+
+    const first = pickCandidate("first", {
+      maxWeight: strategy === "indulgent" ? undefined : 2,
+      allowHeavy: strategy === "indulgent" && heavyUsed.count < heavyLimit,
+    })
     if (first) {
-      results.push({ id: Date.now() + Math.random(), day, meal_type: 'comida', dish_order: 1, recipe_id: first.r.id, recipe: first.r })
-      globalUsageCounts[first.cls.primaryCategory] = (globalUsageCounts[first.cls.primaryCategory] || 0) + 1
+      commitCandidate(first, "first")
     }
 
-    const avoidCat = first ? [classifyRecipe(first.r).primaryCategory] : []
-    let second = pickCandidate(savoryEnriched, { minWeight: 2, allowHeavy: heavyUsed.count < 3, avoidCategories: avoidCat })
-    if (second && second.cls.weight === 3) heavyUsed.count += 1
+    const second = pickCandidate("second", {
+      minWeight: strategy === "healthy" ? 1 : 2,
+      maxWeight: strategy === "healthy" ? 2 : undefined,
+      allowHeavy: strategy !== "healthy" && heavyUsed.count < heavyLimit,
+      avoidCategories:
+        first && strategy !== "indulgent" ? [first.cls.primaryCategory] : undefined,
+    })
     if (second) {
-      results.push({ id: Date.now() + Math.random(), day, meal_type: 'comida', dish_order: 2, recipe_id: second.r.id, recipe: second.r })
-      globalUsageCounts[second.cls.primaryCategory] = (globalUsageCounts[second.cls.primaryCategory] || 0) + 1
+      commitCandidate(second, "second")
     }
 
-    const dinner = pickCandidate(lightOrMedium, { maxWeight: 2, avoidCategories: [] })
+    const dinner = pickCandidate("dinner", {
+      maxWeight: strategy === "indulgent" ? undefined : 2,
+      minWeight: strategy === "indulgent" ? 2 : undefined,
+      allowHeavy: strategy === "indulgent" && heavyUsed.count < heavyLimit,
+      avoidCategories:
+        strategy === "indulgent" ? undefined : Array.from(dayCategories.values()),
+    })
     if (dinner) {
-      results.push({ id: Date.now() + Math.random(), day, meal_type: 'cena', dish_order: 1, recipe_id: dinner.r.id, recipe: dinner.r })
-      globalUsageCounts[dinner.cls.primaryCategory] = (globalUsageCounts[dinner.cls.primaryCategory] || 0) + 1
+      commitCandidate(dinner, "dinner")
     }
 
     return results
   }
 
-  async function generateRandomMenu() {
+  async function generateRandomMenu(strategy: MenuStrategy) {
     if (!recipes || recipes.length === 0) {
       toast({ title: "Sin recetas", description: "No hay recetas disponibles para generar el menú.", variant: "destructive" })
       return
@@ -777,17 +948,33 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
 
     setIsGenerating(true)
     try {
+      setCurrentStrategy(strategy)
       const enriched = recipes.map(r => ({ r, cls: classifyRecipe(r) }))
       const usageCounts: Record<string, number> = {}
       const heavyUsed = { count: 0 }
       const newEntries: MenuEntry[] = []
       DAYS.forEach(day => {
-        const dayEntries = generateHealthyDayMenu(day, usageCounts, heavyUsed, enriched)
+        const dayEntries = generateDayMenu(day, strategy, usageCounts, heavyUsed, enriched)
         newEntries.push(...dayEntries)
       })
       setMenuEntries(newEntries)
-      const categoriesOverLimit = Object.entries(usageCounts).filter(([_, v]) => v > 2).length
-      toast({ title: "Menú generado", description: categoriesOverLimit ? "Se excedieron límites por falta de opciones, revisa." : "Menú saludable creado. Revisa y guarda." })
+      const categoriesOverLimit = Object.entries(usageCounts).filter(([_, v]) => {
+        const limit = CATEGORY_USAGE_LIMIT[strategy]
+        return v > limit
+      }).length
+
+      const description =
+        strategy === "healthy"
+          ? categoriesOverLimit
+            ? "Menú saludable con algunas repeticiones por falta de opciones ligeras."
+            : "Menú saludable creado con predominio de verduras y platos ligeros."
+          : strategy === "indulgent"
+            ? "Menú contundente listo. ¡Prepárate para platos potentes!"
+            : categoriesOverLimit
+              ? "Menú equilibrado con alguna repetición por disponibilidad limitada."
+              : "Menú equilibrado generado. Revisa y guarda los cambios."
+
+      toast({ title: "Menú generado", description })
     } catch (err) {
       console.error("Error generando menú aleatorio:", err)
       toast({ title: "Error", description: "No se pudo generar el menú.", variant: "destructive" })
@@ -801,9 +988,15 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
     const usageCounts = computeUsageCounts(day)
     const heavyUsed = { count: otherEntries.filter(e => e.recipe && classifyRecipe(e.recipe).weight === 3).length }
     const enriched = recipes.map(r => ({ r, cls: classifyRecipe(r) }))
-    const newDayEntries = generateHealthyDayMenu(day, usageCounts, heavyUsed, enriched)
+    const newDayEntries = generateDayMenu(day, currentStrategy, usageCounts, heavyUsed, enriched)
     setMenuEntries([...otherEntries, ...newDayEntries])
-    toast({ title: `Día ${day} regenerado`, description: "Ajustado con criterios saludables." })
+    const regenDescription =
+      currentStrategy === "healthy"
+        ? "Regenerado con opciones saludables."
+        : currentStrategy === "indulgent"
+          ? "Regenerado con platos contundentes."
+          : "Ajustado con una combinación equilibrada."
+    toast({ title: `Día ${day} regenerado`, description: regenDescription })
   }
 
   return (
@@ -928,7 +1121,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={generateRandomMenu}
+                onClick={openGenerationDialog}
                 disabled={isGenerating || recipes.length === 0}
               >
                 {isGenerating ? "Generando..." : "Generar aleatorio"}
@@ -1101,6 +1294,57 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
           />
         </div>
       )}
+      <Dialog
+        open={showGenerationDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowGenerationDialog(false)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>¿Qué tipo de menú quieres?</DialogTitle>
+            <DialogDescription className="text-sm">
+              Selecciona el estilo de menú para ajustar las recetas que se generarán automáticamente.
+            </DialogDescription>
+          </DialogHeader>
+          <RadioGroup
+            value={pendingStrategy}
+            onValueChange={(value) => setPendingStrategy(value as MenuStrategy)}
+            className="space-y-3"
+          >
+            {STRATEGY_OPTIONS.map((option) => {
+              const optionId = `menu-strategy-${option.value}`
+              return (
+                <Label
+                  key={option.value}
+                  htmlFor={optionId}
+                  className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors ${
+                    pendingStrategy === option.value
+                      ? "border-primary bg-primary/10"
+                      : "border-border hover:bg-muted/60"
+                  }`}
+                >
+                  <RadioGroupItem id={optionId} value={option.value} className="mt-1" />
+                  <div>
+                    <p className="text-sm font-semibold">{option.title}</p>
+                    <p className="text-xs text-muted-foreground">{option.description}</p>
+                  </div>
+                </Label>
+              )
+            })}
+          </RadioGroup>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowGenerationDialog(false)} disabled={isGenerating}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmGeneration} disabled={isGenerating}>
+              {isGenerating ? "Generando..." : "Generar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {showClearDialog && (
         <ConfirmationDialog
           isOpen
