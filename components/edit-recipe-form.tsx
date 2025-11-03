@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { X } from "lucide-react"
+import { X, Upload } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useSession } from "@/hooks/use-session"
 import { getSupabaseClient } from "@/lib/supabase/client"
@@ -60,6 +60,7 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (recipe.recipe_categories) {
@@ -287,13 +288,27 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
 
           <div>
             <Label htmlFor="image_file">Imagen de la receta</Label>
-            <Input
-              id="image_file"
-              type="file"
-              accept="image/*"
-              onChange={handleImageFileChange}
-              disabled={uploadingImage}
-            />
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingImage}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                {uploadingImage ? "Subiendo..." : "Seleccionar imagen"}
+              </Button>
+              <input
+                ref={fileInputRef}
+                id="image_file"
+                type="file"
+                accept="image/*"
+                onChange={handleImageFileChange}
+                className="hidden"
+                disabled={uploadingImage}
+              />
+              {imageFile?.name && <span className="text-sm text-muted-foreground">{imageFile.name}</span>}
+            </div>
             {uploadingImage && <span className="text-xs text-blue-600">Subiendo imagen...</span>}
             {formData.image_url && (
               <div className="mt-2">
