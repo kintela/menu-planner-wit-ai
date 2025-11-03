@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/client"
 import { RecipeSelector } from "./recipe-selector"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
+import { ConfirmationDialog } from "@/components/confirmation-dialog"
 
 const formatDateLabel = (value?: string | null) => {
   if (!value) return null
@@ -107,6 +108,8 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
   const [savedMenus, setSavedMenus] = useState<SavedMenuOption[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false)
+  const [isClearingAll, setIsClearingAll] = useState(false)
+  const [showClearDialog, setShowClearDialog] = useState(false)
 
   const supabase = createClient()
   const { toast } = useToast()
@@ -335,6 +338,50 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
   const isViewingCurrentWeek = weekDates.startDateStr
     ? weekDates.startDateStr === baselineSummary.startDateStr
     : true
+
+  const handleClearWeekRequest = () => {
+    if (isClearingAll || menuEntries.length === 0) {
+      return
+    }
+    setShowClearDialog(true)
+  }
+
+  const handleConfirmClearWeek = async () => {
+    if (isClearingAll) return
+    setIsClearingAll(true)
+
+    try {
+      if (existingMenuId) {
+        const { error } = await supabase.from("menu_items").delete().eq("weekly_menu_id", existingMenuId)
+        if (error) {
+          throw error
+        }
+      }
+
+      setMenuEntries([])
+      toast({
+        title: "Planificador vaciado",
+        description: "Se eliminaron todas las comidas de la semana seleccionada.",
+      })
+
+      if (weekDates.startDateStr) {
+        await fetchSavedMenus(weekDates.startDateStr)
+      }
+    } catch (error: any) {
+      console.error("Error clearing weekly menu:", error)
+      toast({
+        title: "No se pudo vaciar el planificador",
+        description: error?.message ?? "Inténtalo de nuevo más tarde.",
+        variant: "destructive",
+      })
+      if (weekDates.startDateStr && weekDates.endDateStr) {
+        await loadExistingMenu(weekDates.startDateStr, weekDates.endDateStr)
+      }
+    } finally {
+      setIsClearingAll(false)
+      setShowClearDialog(false)
+    }
+  }
 
   const loadExistingMenu = async (startDateStr: string, endDateStr: string) => {
     try {
@@ -831,6 +878,23 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
                   Próxima semana
                 </Button>
               </div>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={handleClearWeekRequest}
+                disabled={
+                  isClearingAll ||
+                  isLoading ||
+                  isSaving ||
+                  isGenerating ||
+                  isApplyingTemplate ||
+                  menuEntries.length === 0
+                }
+                className="shrink-0"
+              >
+                {isClearingAll ? "Vaciando..." : "Vaciar semana"}
+              </Button>
               <Select
                 onValueChange={handleSavedMenuSelection}
                 value={selectedTemplateId ?? ""}
@@ -1036,6 +1100,18 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
             onCancel={() => setShowRecipeSelector(null)}
           />
         </div>
+      )}
+      {showClearDialog && (
+        <ConfirmationDialog
+          isOpen
+          onClose={() => setShowClearDialog(false)}
+          onConfirm={handleConfirmClearWeek}
+          title="Vaciar planificador"
+          description="¿Seguro que quieres borrar todas las comidas planificadas de esta semana? Esta acción no se puede deshacer."
+          confirmText="Vaciar semana"
+          cancelText="Cancelar"
+          variant="destructive"
+        />
       )}
     </div>
   )
