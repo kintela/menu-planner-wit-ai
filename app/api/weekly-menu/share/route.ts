@@ -44,7 +44,9 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;")
 
-function prepareMenuForEmail(menuItems: any[]) {
+function prepareMenuForEmail(menuItems: any[], baseUrl: string) {
+  const normalizedBase = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl
+
   const getMealSortKey = (mealType: string, dishOrder?: number | null) => {
     if (mealType === "comida") {
       if (dishOrder === 1) return 1
@@ -95,6 +97,15 @@ function prepareMenuForEmail(menuItems: any[]) {
       const rawName = typeof recipe.name === "string" ? recipe.name.trim() : ""
       const recipeName = rawName.length > 0 ? rawName : "Receta sin título"
 
+      const recipeIdRaw =
+        typeof item.recipe_id === "number"
+          ? item.recipe_id
+          : typeof item.recipe_id === "string"
+            ? Number.parseInt(item.recipe_id, 10)
+            : null
+      const recipeId = Number.isNaN(recipeIdRaw ?? NaN) ? null : recipeIdRaw
+      const recipeLink = recipeId ? `${normalizedBase}/recipes/${recipeId}` : null
+
       const caloriesRaw =
         typeof recipe.calories === "number"
           ? recipe.calories
@@ -107,6 +118,7 @@ function prepareMenuForEmail(menuItems: any[]) {
         label,
         recipeName,
         calories,
+        recipeLink,
       }
     })
 
@@ -122,7 +134,8 @@ function prepareMenuForEmail(menuItems: any[]) {
         items.length > 0
           ? items.map((item) => {
               const caloriesFragment = typeof item.calories === "number" ? ` (${item.calories} kcal)` : ""
-              return `  - ${item.label}: ${item.recipeName}${caloriesFragment}`
+              const linkFragment = item.recipeLink ? ` -> ${item.recipeLink}` : ""
+              return `  - ${item.label}: ${item.recipeName}${caloriesFragment}${linkFragment}`
             })
           : ["  - Sin platos guardados."]
       return [`${dayName}:`, ...lines].join("\n")
@@ -139,9 +152,12 @@ function prepareMenuForEmail(menuItems: any[]) {
                   typeof item.calories === "number"
                     ? `<span style="color:#6b7280;"> (${item.calories.toLocaleString("es-ES")} kcal)</span>`
                     : ""
+                const recipeNameHtml = item.recipeLink
+                  ? `<a href="${escapeHtml(item.recipeLink)}" style="color:#2563eb;text-decoration:none;" target="_blank" rel="noopener noreferrer">${escapeHtml(item.recipeName)}</a>`
+                  : `<span style="color:#1f2937;">${escapeHtml(item.recipeName)}</span>`
                 return `<li style="margin:6px 0;">
                     <span style="font-weight:600;color:#111827;">${escapeHtml(item.label)}:</span>
-                    <span style="color:#1f2937;">${escapeHtml(item.recipeName)}</span>${caloriesFragment}
+                    ${recipeNameHtml}${caloriesFragment}
                   </li>`
               })
               .join("")
@@ -271,7 +287,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "El menú está vacío. Añade recetas antes de compartirlo." }, { status: 400 })
     }
 
-    const { plainSummary, htmlSummary } = prepareMenuForEmail(menuItems)
+    const requestUrl = new URL(req.url)
+    const origin =
+      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || `${requestUrl.protocol}//${requestUrl.host}`
+
+    const { plainSummary, htmlSummary } = prepareMenuForEmail(menuItems, origin)
 
     const { data: profile } = await supabase
       .from("user_profiles")
