@@ -45,9 +45,40 @@ const escapeHtml = (value: string) =>
     .replace(/'/g, "&#39;")
 
 function prepareMenuForEmail(menuItems: any[]) {
+  const getMealSortKey = (mealType: string, dishOrder?: number | null) => {
+    if (mealType === "comida") {
+      if (dishOrder === 1) return 1
+      if (dishOrder === 2) return 2
+      return 2.5 + (dishOrder ?? 0) / 10
+    }
+    if (mealType === "cena") {
+      return 3
+    }
+    return 10 + (dishOrder ?? 0)
+  }
+
   const grouped = DAYS.map((dayName, dayIndex) => {
     const itemsForDay = (menuItems ?? []).filter((item) => parseDayIndex(item.day_of_week) === dayIndex)
-    const normalizedItems = itemsForDay.map((item) => {
+    const normalizedItems = [...itemsForDay].sort((a, b) => {
+      const mealTypeA = typeof a.meal_type === "string" ? a.meal_type : ""
+      const dishOrderRawA =
+        typeof a.dish_order === "number"
+          ? a.dish_order
+          : typeof a.dish_order === "string"
+            ? Number.parseInt(a.dish_order, 10)
+            : undefined
+      const dishOrderA = Number.isNaN(dishOrderRawA) ? undefined : dishOrderRawA
+      const mealTypeB = typeof b.meal_type === "string" ? b.meal_type : ""
+      const dishOrderRawB =
+        typeof b.dish_order === "number"
+          ? b.dish_order
+          : typeof b.dish_order === "string"
+            ? Number.parseInt(b.dish_order, 10)
+            : undefined
+      const dishOrderB = Number.isNaN(dishOrderRawB) ? undefined : dishOrderRawB
+
+      return getMealSortKey(mealTypeA, dishOrderA) - getMealSortKey(mealTypeB, dishOrderB)
+    }).map((item) => {
       const mealType = typeof item.meal_type === "string" ? item.meal_type : ""
       const dishOrderRaw =
         typeof item.dish_order === "number"
@@ -255,11 +286,6 @@ export async function POST(req: NextRequest) {
       user.email ||
       "Alguien"
 
-    const requestUrl = new URL(req.url)
-    const origin =
-      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || `${requestUrl.protocol}//${requestUrl.host}`
-    const shareLink = `${origin}/weekly-menu/${normalizedWeekStart}`
-
     const weekSummary = formatWeekSpan(menu.start_date, menu.end_date)
 
     const smtpHost = process.env.SMTP_HOST
@@ -299,14 +325,11 @@ export async function POST(req: NextRequest) {
         ``,
         plainSummary,
         ``,
-        `Puedes consultarlo también en MenuPlanner: ${shareLink}`,
-        ``,
         `¡Buen provecho!`,
       ].join("\n")
 
       const safeSenderName = escapeHtml(senderName)
       const safeWeekSummary = escapeHtml(weekSummary)
-      const safeShareLink = escapeHtml(shareLink)
 
       const htmlBody = `<!DOCTYPE html>
 <html lang="es">
@@ -331,13 +354,6 @@ export async function POST(req: NextRequest) {
                 <p style="margin:0 0 16px;">Hola,</p>
                 <p style="margin:0 0 24px;color:#374151;">Te enviamos los platos planificados para ${safeWeekSummary}:</p>
                 ${htmlSummary}
-                <div style="margin:32px 0 24px;text-align:center;">
-                  <a href="${safeShareLink}" style="display:inline-block;padding:12px 24px;background-color:#111827;color:#ffffff;text-decoration:none;border-radius:9999px;font-weight:600;">Ver en MenuPlanner</a>
-                </div>
-                <p style="margin:0 0 8px;color:#6b7280;font-size:13px;">Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
-                <p style="margin:0 0 24px;color:#2563eb;font-size:14px;word-break:break-all;">
-                  <a href="${safeShareLink}" style="color:#2563eb;text-decoration:none;">${safeShareLink}</a>
-                </p>
                 <p style="margin:0;color:#111827;">¡Buen provecho!</p>
               </td>
             </tr>
