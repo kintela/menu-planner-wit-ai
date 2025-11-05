@@ -46,14 +46,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.ok) {
         const payload = await response.json()
         if (payload?.profile) {
-          console.log("[AuthProvider] Perfil cargado desde API", payload.profile)
           return payload.profile as UserProfile
         }
-      } else {
-        console.warn("[AuthProvider] /api/profile respondió", response.status)
       }
-    } catch (apiError) {
-      console.warn("[AuthProvider] Error llamando a /api/profile:", apiError)
+    } catch {
+      /* ignore profile fetch errors */
     }
 
     try {
@@ -64,8 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             data: { session },
           } = await supabase.auth.getSession()
           token = session?.access_token ?? null
-        } catch (sessionError) {
-          console.warn("[AuthProvider] No se pudo obtener access token para fallback:", sessionError)
+        } catch {
+          /* ignore session token errors */
         }
       }
 
@@ -76,19 +73,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle()
 
       if (error) {
-        console.error("[AuthProvider] Error loading user profile (client):", error)
         return null
       }
 
-      if (data) {
-        console.log("[AuthProvider] Perfil cargado desde Supabase client", data)
-      } else {
-        console.warn("[AuthProvider] Supabase client devolvió perfil vacío")
-      }
-
-      return data
-    } catch (error) {
-      console.error("[AuthProvider] Error loading user profile (client exception):", error)
+      return data ?? null
+    } catch {
       return null
     }
   }
@@ -111,20 +100,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (mounted) setLoading(false)
     }, 5000)
 
-    // Log para depuración
-    console.log("[AuthProvider] Montado. Estado inicial: loading=true, user=null")
-
     // Get initial session with error handling
     const getInitialSession = async () => {
       try {
         const {
           data: { session },
-          error,
         } = await supabase.auth.getSession()
-
-        if (error) {
-          console.error("Error getting session:", error)
-        }
 
         if (mounted) {
           setUser(session?.user ?? null)
@@ -135,15 +116,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setProfile(null)
           }
           setLoading(false)
-          console.log("[AuthProvider] getInitialSession: loading=false, user=", session?.user)
         }
-      } catch (error) {
-        console.error("Error in getInitialSession:", error)
+      } catch {
         if (mounted) {
           setUser(null)
           setProfile(null)
           setLoading(false)
-          console.log("[AuthProvider] getInitialSession: loading=false, user=null (error)")
         }
       }
     }
@@ -153,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return
 
       try {
@@ -161,28 +139,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(session.user)
           const userProfile = await loadUserProfileWithRetry(session.user.id, session?.access_token ?? null)
           setProfile(userProfile)
-          console.log("[AuthProvider] onAuthStateChange: user=", session.user)
         } else {
           setUser(null)
           setProfile(null)
-          console.log("[AuthProvider] onAuthStateChange: user=null")
         }
-      } catch (error) {
-        console.error("Error in auth state change:", error)
+      } catch {
         setUser(null)
         setProfile(null)
-        console.log("[AuthProvider] onAuthStateChange: user=null (error)")
       }
 
       setLoading(false)
-      console.log("[AuthProvider] onAuthStateChange: loading=false")
     })
 
     return () => {
       mounted = false
       clearTimeout(timeout)
       subscription.unsubscribe()
-      console.log("[AuthProvider] Desmontado")
     }
   }, [])
 
@@ -196,13 +168,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         table: 'user_profiles',
         filter: `id=eq.${user.id}`,
       }, (payload: any) => {
-        console.log('[AuthProvider] RT cambio perfil:', payload)
         const newRecord = payload.new || payload.old
         setProfile(prev => prev ? { ...prev, ...newRecord } : newRecord)
       })
-      .subscribe((status) => {
-        console.log('[AuthProvider] Canal realtime status:', status)
-      })
+      .subscribe()
     return () => {
       supabase.removeChannel(channel)
     }
@@ -223,22 +192,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       supabase.auth.getSession()
         .then(({ data }) => loadUserProfileWithRetry(user.id, data.session?.access_token ?? null))
         .then((p) => p && setProfile(p))
-        .catch((error) => {
-          console.warn("[AuthProvider] Error cargando perfil tras user change:", error)
-        })
+        .catch(() => {})
     } else {
       setProfile(null)
     }
   }, [user])
 
   const signOut = async () => {
-    console.log("[AuthProvider] Iniciando signOut...")
-
     // Actualizar UI inmediatamente
     setUser(null)
     setProfile(null)
     setLoading(false)
-    console.log("[AuthProvider] Estado preliminar tras signOut -> user=null, profile=null")
 
     try {
       const response = await fetch("/api/auth/sign-out", {
@@ -250,24 +214,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({}))
-        console.warn("[AuthProvider] sign-out API respondió error:", payload)
-      } else {
-        console.log("[AuthProvider] API sign-out completado")
+        await response.json().catch(() => ({}))
       }
-    } catch (apiError) {
-      console.warn("[AuthProvider] Error llamando al API sign-out:", apiError)
+    } catch {
+      /* ignore sign-out API errors */
     }
 
     try {
       const { error } = await supabase.auth.signOut()
       if (error) {
-        console.error("[AuthProvider] Error en signOut local:", error)
-      } else {
-        console.log("[AuthProvider] supabase.auth.signOut completado")
+        throw error
       }
-    } catch (error) {
-      console.error("[AuthProvider] Excepción en signOut local:", error)
+    } catch {
+      /* ignore Supabase sign-out errors */
     }
 
     try {
@@ -276,16 +235,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.removeItem(key)
         }
       })
-    } catch (storageError) {
-      console.warn("[AuthProvider] No se pudieron limpiar tokens de Supabase:", storageError)
+    } catch {
+      /* ignore storage cleanup errors */
     }
 
-    console.log("[AuthProvider] Redirigiendo a /login tras signOut")
     try {
       router.replace("/login")
       router.refresh()
-    } catch (navigationError) {
-      console.warn("[AuthProvider] Error usando router.replace, haciendo fallback a location.assign", navigationError)
+    } catch {
       window.location.assign("/login")
     }
   }
