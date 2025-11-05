@@ -139,6 +139,24 @@ const formatDateToIso = (date: Date) => {
   return `${year}-${month}-${day}`
 }
 
+const buildStartDateCandidates = (startIso: string) => {
+  const candidates = new Set<string>()
+  if (startIso) {
+    candidates.add(startIso)
+    const base = new Date(`${startIso}T00:00:00`)
+    if (!Number.isNaN(base.getTime())) {
+      const before = new Date(base)
+      before.setDate(before.getDate() - 1)
+      candidates.add(formatDateToIso(before))
+
+      const after = new Date(base)
+      after.setDate(after.getDate() + 1)
+      candidates.add(formatDateToIso(after))
+    }
+  }
+  return Array.from(candidates)
+}
+
 export const WeeklyMenuView = React.memo(function WeeklyMenuView({
   initialRecipes = [],
   userId,
@@ -608,11 +626,15 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({
         return
       }
 
+      const startCandidates = buildStartDateCandidates(startDateStr)
+
       const { data: existingMenu, error: menuError } = await supabase
         .from("weekly_menus")
         .select("*")
         .eq("user_id", userId)
-        .eq("start_date", startDateStr)
+        .in("start_date", startCandidates)
+        .order("start_date", { ascending: false })
+        .limit(1)
         .maybeSingle()
 
       if (menuError && menuError.code !== "PGRST116") {
@@ -624,6 +646,12 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({
       if (existingMenu) {
         setExistingMenuId(existingMenu.id)
         setSelectedTemplateId(null)
+
+        if (existingMenu.start_date && existingMenu.start_date !== startDateStr) {
+          const candidateSummary = getWeekSummary(existingMenu.start_date)
+          setWeekDates(candidateSummary)
+          setCurrentWeekStart(existingMenu.start_date)
+        }
 
         const { data: menuItems, error: itemsError } = await supabase
           .from("menu_items")
