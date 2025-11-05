@@ -6,6 +6,129 @@ export const runtime = "nodejs"
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+const MEAL_LABELS: Record<string, Record<number, string>> = {
+  comida: {
+    1: "Primer plato",
+    2: "Segundo plato",
+  },
+  cena: {
+    1: "Cena",
+    2: "Cena",
+  },
+}
+
+const parseDayIndex = (value: unknown) => {
+  if (typeof value === "number" && Number.isInteger(value)) {
+    return value
+  }
+  if (typeof value === "string") {
+    const parsed = Number.parseInt(value, 10)
+    if (!Number.isNaN(parsed)) {
+      return parsed
+    }
+  }
+  return 0
+}
+
+const capitalize = (value: string) => {
+  if (!value) return value
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+
+function prepareMenuForEmail(menuItems: any[]) {
+  const grouped = DAYS.map((dayName, dayIndex) => {
+    const itemsForDay = (menuItems ?? []).filter((item) => parseDayIndex(item.day_of_week) === dayIndex)
+    const normalizedItems = itemsForDay.map((item) => {
+      const mealType = typeof item.meal_type === "string" ? item.meal_type : ""
+      const dishOrderRaw =
+        typeof item.dish_order === "number"
+          ? item.dish_order
+          : typeof item.dish_order === "string"
+            ? Number.parseInt(item.dish_order, 10)
+            : undefined
+      const dishOrder = Number.isNaN(dishOrderRaw) ? undefined : dishOrderRaw
+      const label =
+        (mealType && dishOrder ? MEAL_LABELS[mealType]?.[dishOrder] : undefined) ??
+        `${capitalize(mealType || "Plato")} ${dishOrder ?? ""}`.trim()
+
+      const recipe = item.recipes ?? {}
+      const rawName = typeof recipe.name === "string" ? recipe.name.trim() : ""
+      const recipeName = rawName.length > 0 ? rawName : "Receta sin título"
+
+      const caloriesRaw =
+        typeof recipe.calories === "number"
+          ? recipe.calories
+          : typeof recipe.calories === "string"
+            ? Number.parseFloat(recipe.calories)
+            : null
+      const calories = Number.isFinite(caloriesRaw ?? NaN) ? Math.round(caloriesRaw ?? 0) : null
+
+      return {
+        label,
+        recipeName,
+        calories,
+      }
+    })
+
+    return {
+      dayName,
+      items: normalizedItems,
+    }
+  })
+
+  const plainSummary = grouped
+    .map(({ dayName, items }) => {
+      const lines =
+        items.length > 0
+          ? items.map((item) => {
+              const caloriesFragment = typeof item.calories === "number" ? ` (${item.calories} kcal)` : ""
+              return `  - ${item.label}: ${item.recipeName}${caloriesFragment}`
+            })
+          : ["  - Sin platos guardados."]
+      return [`${dayName}:`, ...lines].join("\n")
+    })
+    .join("\n\n")
+
+  const htmlSummary = grouped
+    .map(({ dayName, items }) => {
+      const itemsHtml =
+        items.length > 0
+          ? items
+              .map((item) => {
+                const caloriesFragment =
+                  typeof item.calories === "number"
+                    ? `<span style="color:#6b7280;"> (${item.calories.toLocaleString("es-ES")} kcal)</span>`
+                    : ""
+                return `<li style="margin:6px 0;">
+                    <span style="font-weight:600;color:#111827;">${escapeHtml(item.label)}:</span>
+                    <span style="color:#1f2937;">${escapeHtml(item.recipeName)}</span>${caloriesFragment}
+                  </li>`
+              })
+              .join("")
+          : `<li style="margin:6px 0; color:#6b7280;">No hay platos guardados.</li>`
+
+      return `<div style="border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px;margin-bottom:16px;background-color:#f9fafb;">
+        <h3 style="margin:0 0 8px;font-size:16px;color:#0f172a;">${escapeHtml(dayName)}</h3>
+        <ul style="margin:0;padding-left:18px;color:#374151;list-style:disc;">${itemsHtml}</ul>
+      </div>`
+    })
+    .join("")
+
+  return {
+    plainSummary,
+    htmlSummary,
+  }
+}
+
 function normalizeIsoDate(source: string) {
   const trimmed = source.trim()
   const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/)
@@ -88,9 +211,25 @@ export async function POST(req: NextRequest) {
 
     const { data: menuItems, error: itemsError } = await supabase
       .from("menu_items")
-      .select("id")
+      .select(
+        `
+          id,
+          day_of_week,
+          meal_type,
+          dish_order,
+          recipe_id,
+          recipes (
+            id,
+            name,
+            calories,
+            image_url
+          )
+        `,
+      )
       .eq("weekly_menu_id", menu.id)
-      .limit(1)
+      .order("day_of_week")
+      .order("meal_type")
+      .order("dish_order")
 
     if (itemsError) {
       console.error("[Share Weekly Menu] Error comprobando items:", itemsError)
@@ -100,6 +239,8 @@ export async function POST(req: NextRequest) {
     if (!menuItems?.length) {
       return NextResponse.json({ error: "El menú está vacío. Añade recetas antes de compartirlo." }, { status: 400 })
     }
+
+    const { plainSummary, htmlSummary } = prepareMenuForEmail(menuItems)
 
     const { data: profile } = await supabase
       .from("user_profiles")
@@ -155,18 +296,62 @@ export async function POST(req: NextRequest) {
         `Hola,`,
         ``,
         `${senderName} ha compartido contigo su menú semanal ${weekSummary}.`,
-        `Puedes consultarlo iniciando sesión en MenuPlanner: ${shareLink}`,
+        ``,
+        plainSummary,
+        ``,
+        `Puedes consultarlo también en MenuPlanner: ${shareLink}`,
         ``,
         `¡Buen provecho!`,
       ].join("\n")
 
-      const htmlBody = `
-        <p>Hola,</p>
-        <p><strong>${senderName}</strong> ha compartido contigo su menú semanal ${weekSummary}.</p>
-        <p>Puedes consultarlo iniciando sesión en MenuPlanner:</p>
-        <p><a href="${shareLink}" rel="noopener noreferrer" target="_blank">${shareLink}</a></p>
-        <p>¡Buen provecho!</p>
-      `
+      const safeSenderName = escapeHtml(senderName)
+      const safeWeekSummary = escapeHtml(weekSummary)
+      const safeShareLink = escapeHtml(shareLink)
+
+      const htmlBody = `<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Menú semanal ${safeWeekSummary}</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f3f4f6;">
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f3f4f6;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:640px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 12px 28px rgba(17,24,39,0.08);">
+            <tr>
+              <td style="background:linear-gradient(135deg,#111827,#1f2937);padding:32px 36px;">
+                <h1 style="margin:0;font-size:26px;color:#ffffff;font-family:'Helvetica Neue',Arial,sans-serif;">MenuPlanner</h1>
+                <p style="margin:12px 0 0;font-size:16px;color:#e5e7eb;font-family:'Helvetica Neue',Arial,sans-serif;">${safeSenderName} ha compartido su menú semanal ${safeWeekSummary}.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px;font-family:'Helvetica Neue',Arial,sans-serif;color:#111827;">
+                <p style="margin:0 0 16px;">Hola,</p>
+                <p style="margin:0 0 24px;color:#374151;">Te enviamos los platos planificados para ${safeWeekSummary}:</p>
+                ${htmlSummary}
+                <div style="margin:32px 0 24px;text-align:center;">
+                  <a href="${safeShareLink}" style="display:inline-block;padding:12px 24px;background-color:#111827;color:#ffffff;text-decoration:none;border-radius:9999px;font-weight:600;">Ver en MenuPlanner</a>
+                </div>
+                <p style="margin:0 0 8px;color:#6b7280;font-size:13px;">Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
+                <p style="margin:0 0 24px;color:#2563eb;font-size:14px;word-break:break-all;">
+                  <a href="${safeShareLink}" style="color:#2563eb;text-decoration:none;">${safeShareLink}</a>
+                </p>
+                <p style="margin:0;color:#111827;">¡Buen provecho!</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="background-color:#111827;padding:20px;text-align:center;">
+                <p style="margin:0;font-size:12px;color:#d1d5db;font-family:'Helvetica Neue',Arial,sans-serif;">Enviado desde MenuPlanner</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`
 
       await transporter.sendMail({
         from: {
