@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -11,8 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Calendar, ChefHat, Flame, Users, Trash2, Plus, User, Eye } from "lucide-react"
-import { RefreshCcw } from "lucide-react"
+import { Calendar, ChefHat, Flame, Users, Trash2, Plus, User, Eye, Share2, RefreshCcw, Copy, Check } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { RecipeSelector } from "./recipe-selector"
 import { useToast } from "@/hooks/use-toast"
@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 
 const formatDateLabel = (value?: string | null) => {
   if (!value) return null
@@ -89,6 +90,7 @@ interface SavedMenuOption {
 interface WeeklyMenuViewProps {
   initialRecipes?: Recipe[]
   userId: string // Necesitamos el userId
+  initialWeekStart?: string
 }
 
 const DAYS = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
@@ -130,7 +132,18 @@ const CATEGORY_USAGE_LIMIT: Record<MenuStrategy, number> = {
   indulgent: 3,
 }
 
-export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipes = [], userId }: WeeklyMenuViewProps) {
+const formatDateToIso = (date: Date) => {
+  const year = date.getFullYear()
+  const month = (date.getMonth() + 1).toString().padStart(2, "0")
+  const day = date.getDate().toString().padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
+export const WeeklyMenuView = React.memo(function WeeklyMenuView({
+  initialRecipes = [],
+  userId,
+  initialWeekStart,
+}: WeeklyMenuViewProps) {
   const [menuEntries, setMenuEntries] = useState<MenuEntry[]>([])
   const [showRecipeSelector, setShowRecipeSelector] = useState<{
     day: string
@@ -144,7 +157,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
     endDateStr: '',
     weekText: ''
   })
-  const [currentWeekStart, setCurrentWeekStart] = useState<Date | null>(null)
+  const [currentWeekStart, setCurrentWeekStart] = useState<string | null>(null)
   const [recipes, setRecipes] = useState<Recipe[]>(initialRecipes)
   const [isGenerating, setIsGenerating] = useState(false)
   const [savedMenus, setSavedMenus] = useState<SavedMenuOption[]>([])
@@ -155,9 +168,16 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
   const [pendingStrategy, setPendingStrategy] = useState<MenuStrategy>("balanced")
   const [isClearingAll, setIsClearingAll] = useState(false)
   const [showClearDialog, setShowClearDialog] = useState(false)
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
+  const [shareEmail, setShareEmail] = useState("")
+  const [isSharing, setIsSharing] = useState(false)
+  const [shareError, setShareError] = useState<string | null>(null)
+  const [copiedLink, setCopiedLink] = useState(false)
 
   const supabase = createClient()
   const { toast } = useToast()
+  const router = useRouter()
+  const pathname = usePathname()
 
   const mergeRecipesFromEntries = (entries: MenuEntry[]) => {
     const recipesFromEntries = entries
@@ -318,17 +338,24 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
     const diff = start.getDate() - day + (day === 0 ? -6 : 1)
     start.setDate(diff)
     start.setHours(0, 0, 0, 0)
-    return start
+    return formatDateToIso(start)
   }, [])
 
-  const getWeekSummary = (start: Date) => {
-    const normalizedStart = new Date(start)
+  const getWeekSummary = (startIso: string) => {
+    const normalizedStart = new Date(`${startIso}T00:00:00`)
+    if (Number.isNaN(normalizedStart.getTime())) {
+      return {
+        startDateStr: startIso,
+        endDateStr: startIso,
+        weekText: startIso,
+      }
+    }
     normalizedStart.setHours(0, 0, 0, 0)
     const end = new Date(normalizedStart)
     end.setDate(normalizedStart.getDate() + 6)
 
-    const startDateStr = normalizedStart.toISOString().split("T")[0]
-    const endDateStr = end.toISOString().split("T")[0]
+    const startDateStr = formatDateToIso(normalizedStart)
+    const endDateStr = formatDateToIso(end)
 
     const formatDisplayDate = (date: Date) => {
       const day = date.getDate().toString().padStart(2, "0")
@@ -344,8 +371,24 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
 
   useEffect(() => {
     if (!userId) return
-    setCurrentWeekStart((prev) => prev ?? currentWeekBaseline)
-  }, [currentWeekBaseline, userId])
+    setCurrentWeekStart((prev) => {
+      if (prev) return prev
+      if (initialWeekStart) {
+        return initialWeekStart
+      }
+      return currentWeekBaseline
+    })
+  }, [currentWeekBaseline, initialWeekStart, userId])
+
+  useEffect(() => {
+    if (!initialWeekStart) return
+    setCurrentWeekStart((prev) => {
+      if (!prev || prev !== initialWeekStart) {
+        return initialWeekStart
+      }
+      return prev
+    })
+  }, [initialWeekStart])
 
   useEffect(() => {
     if (!userId || !currentWeekStart) {
@@ -365,18 +408,135 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
     void run()
   }, [currentWeekStart, userId])
 
+  useEffect(() => {
+    if (!weekDates.startDateStr) return
+    const targetPath = `/weekly-menu/${weekDates.startDateStr}`
+    if (pathname !== targetPath) {
+      router.replace(targetPath)
+    }
+  }, [pathname, router, weekDates.startDateStr])
+
+  useEffect(() => {
+    if (isShareDialogOpen) return
+    setShareEmail("")
+    setShareError(null)
+    setCopiedLink(false)
+  }, [isShareDialogOpen])
+
   const goToCurrentWeek = () => {
     setCurrentWeekStart(currentWeekBaseline)
   }
 
   const goToNextWeek = () => {
     setCurrentWeekStart((prev) => {
-      const base = prev ?? currentWeekBaseline
-      const next = new Date(base)
+      const baseIso = prev ?? currentWeekBaseline
+      if (!baseIso) return prev
+      const next = new Date(`${baseIso}T00:00:00`)
+      if (Number.isNaN(next.getTime())) {
+        return prev
+      }
       next.setDate(next.getDate() + 7)
       next.setHours(0, 0, 0, 0)
-      return next
+      return formatDateToIso(next)
     })
+  }
+
+  const shareUrl = useMemo(() => {
+    if (!weekDates.startDateStr) return ""
+
+    if (typeof window !== "undefined" && window.location?.origin) {
+      return `${window.location.origin}/weekly-menu/${weekDates.startDateStr}`
+    }
+
+    const envBase = process.env.NEXT_PUBLIC_APP_URL ?? ""
+    if (envBase) {
+      const normalizedBase = envBase.endsWith("/") ? envBase.slice(0, -1) : envBase
+      return `${normalizedBase}/weekly-menu/${weekDates.startDateStr}`
+    }
+
+    return `/weekly-menu/${weekDates.startDateStr}`
+  }, [weekDates.startDateStr])
+
+  const isShareEmailValid = useMemo(() => {
+    const value = shareEmail.trim()
+    if (!value) return false
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+  }, [shareEmail])
+
+  const handleCopyShareLink = async () => {
+    if (!shareUrl) return
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      toast({
+        title: "No se pudo copiar",
+        description: "Tu navegador no permite copiar automáticamente. Copia el enlace manualmente.",
+        variant: "destructive",
+      })
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setCopiedLink(true)
+      setTimeout(() => setCopiedLink(false), 2000)
+    } catch (error) {
+      console.error("Error copiando enlace del menú:", error)
+      setCopiedLink(false)
+      toast({
+        title: "No se pudo copiar",
+        description: "Por favor copia el enlace manualmente.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleShareMenu = async () => {
+    if (!weekDates.startDateStr || !isShareEmailValid || isSharing) {
+      return
+    }
+
+    const targetEmail = shareEmail.trim()
+    setIsSharing(true)
+    setShareError(null)
+
+    try {
+      const response = await fetch("/api/weekly-menu/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipientEmail: targetEmail,
+          weekStart: weekDates.startDateStr,
+        }),
+      })
+
+      const payload = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        const message = payload?.error ?? "No se pudo enviar el menú."
+        setShareError(message)
+        toast({
+          title: "No se pudo compartir el menú",
+          description: message,
+          variant: "destructive",
+        })
+        return
+      }
+
+      toast({
+        title: "Menú compartido",
+        description: `Se ha enviado el enlace a ${targetEmail}.`,
+      })
+      setIsShareDialogOpen(false)
+    } catch (error) {
+      console.error("Error sharing weekly menu:", error)
+      const message = error instanceof Error ? error.message : "No se pudo enviar el menú."
+      setShareError(message)
+      toast({
+        title: "No se pudo compartir el menú",
+        description: message,
+        variant: "destructive",
+      })
+    } finally {
+      setIsSharing(false)
+    }
   }
 
   const baselineSummary = useMemo(() => getWeekSummary(currentWeekBaseline), [currentWeekBaseline])
@@ -1127,6 +1287,24 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
                 {isGenerating ? "Generando..." : "Generar aleatorio"}
               </Button>
               <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsShareDialogOpen(true)}
+                disabled={
+                  isLoading ||
+                  isSaving ||
+                  isApplyingTemplate ||
+                  isGenerating ||
+                  menuEntries.length === 0 ||
+                  !weekDates.startDateStr
+                }
+                className="shrink-0"
+              >
+                <Share2 className="h-4 w-4 mr-2" />
+                Compartir
+              </Button>
+              <Button
                 onClick={saveWeeklyMenu}
                 disabled={menuEntries.length === 0 || isSaving || isApplyingTemplate}
                 size="sm"
@@ -1294,6 +1472,60 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({ initialRecipe
           />
         </div>
       )}
+      <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Compartir menú</DialogTitle>
+            <DialogDescription className="text-sm">
+              Envía un enlace del menú seleccionado. Quien lo reciba tendrá que iniciar sesión para verlo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="share-email">Email del destinatario</Label>
+              <Input
+                id="share-email"
+                type="email"
+                autoComplete="email"
+                value={shareEmail}
+                onChange={(event) => setShareEmail(event.target.value)}
+                placeholder="persona@email.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="share-link">Enlace del menú</Label>
+              <div className="flex gap-2">
+                <Input id="share-link" value={shareUrl} readOnly />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={handleCopyShareLink}
+                  disabled={!shareUrl}
+                  aria-label={copiedLink ? "Enlace copiado" : "Copiar enlace"}
+                >
+                  {copiedLink ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Solo usuarios registrados podrán acceder al menú con este enlace.
+              </p>
+            </div>
+            {shareError && <p className="text-sm text-red-600">{shareError}</p>}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsShareDialogOpen(false)} disabled={isSharing}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleShareMenu}
+              disabled={!isShareEmailValid || !weekDates.startDateStr || isSharing}
+            >
+              {isSharing ? "Enviando..." : "Enviar menú"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={showGenerationDialog}
         onOpenChange={(open) => {

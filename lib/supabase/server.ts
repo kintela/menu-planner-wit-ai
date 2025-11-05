@@ -23,10 +23,33 @@ export function createServerClient(cookieStore?: CookieStore) {
   if (!cookieStore) {
     if (cookiesFn) {
       try {
-        const ck = cookiesFn()
-        cookieStore = {
-          getAll: () => ck.getAll(),
-          set: (name, value, options) => ck.set(name, value, options),
+        const ckResult = cookiesFn()
+        if (ckResult && typeof (ckResult as Promise<any>).then === "function") {
+          const ckPromise = Promise.resolve(ckResult)
+          cookieStore = {
+            getAll: () => ckPromise.then((ck) => ck.getAll()),
+            set: (name, value, options) => {
+              void ckPromise.then((ck) => {
+                try {
+                  ck.set(name, value, options)
+                } catch {
+                  // Ignorar fallos de escritura de cookies
+                }
+              })
+            },
+          }
+        } else {
+          const ck = ckResult
+          cookieStore = {
+            getAll: () => ck?.getAll?.() ?? [],
+            set: (name, value, options) => {
+              try {
+                ck?.set?.(name, value, options)
+              } catch {
+                // Ignorar fallos de escritura de cookies
+              }
+            },
+          }
         }
       } catch {
         cookieStore = { getAll: () => [], set: () => {} }
