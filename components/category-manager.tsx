@@ -510,13 +510,13 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
                           {category.recipe_count > 0 ? (
                             <>
                               Esta categoría tiene {category.recipe_count} recetas asociadas. No se puede eliminar
-                              directamente. Usa la función "Fusionar Categorías" para mover las recetas a otra categoría
-                              primero.
+                              directamente. Usa la función &ldquo;Fusionar Categorías&rdquo; para mover las recetas a otra
+                              categoría primero.
                             </>
                           ) : (
                             <>
-                              Esta acción no se puede deshacer. Se eliminará permanentemente la categoría "
-                              {category.name}".
+                              Esta acción no se puede deshacer. Se eliminará permanentemente la categoría &ldquo;
+                              {category.name}&rdquo;.
                             </>
                           )}
                         </AlertDialogDescription>

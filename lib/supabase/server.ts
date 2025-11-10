@@ -4,8 +4,7 @@ import { createServerClient as supabaseCreateServerClient } from "@supabase/ssr"
 // Importar cookies solo si está disponible (entorno App Router). En build de Vercel puede marcar error si se interpreta fuera de RSC.
 let cookiesFn: (() => any) | null = null
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const mod = require('next/headers') as typeof import('next/headers')
+  const mod = require("next/headers") as typeof import("next/headers")
   cookiesFn = mod.cookies
 } catch {
   cookiesFn = null

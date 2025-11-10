@@ -115,9 +115,9 @@ Para completar el redeploy:
               <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
                 <li>Ve al dashboard de Vercel</li>
                 <li>Selecciona tu proyecto</li>
-                <li>Ve a la pestaña "Deployments"</li>
+                <li>Ve a la pestaña &ldquo;Deployments&rdquo;</li>
                 <li>Haz clic en los tres puntos del último deployment</li>
-                <li>Selecciona "Redeploy"</li>
+                <li>Selecciona &ldquo;Redeploy&rdquo;</li>
                 <li>Confirma la acción</li>
               </ol>
             </div>
@@ -136,7 +136,7 @@ Para completar el redeploy:
               <h3 className="font-semibold">Método 3: Webhook</h3>
               <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
                 <li>Ve a la configuración del proyecto en Vercel</li>
-                <li>Busca "Deploy Hooks"</li>
+                <li>Busca &ldquo;Deploy Hooks&rdquo;</li>
                 <li>Crea un nuevo hook</li>
                 <li>Usa la URL del webhook para triggear deployments</li>
               </ol>

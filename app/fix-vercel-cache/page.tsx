@@ -79,9 +79,9 @@ export default function FixVercelCachePage() {
           <ol className="list-decimal list-inside space-y-2">
             <li>Ve al dashboard de Vercel</li>
             <li>Selecciona tu proyecto</li>
-            <li>Ve a la pestaña "Deployments"</li>
-            <li>Haz clic en "Redeploy" en el último deployment</li>
-            <li>Selecciona "Use existing Build Cache" = NO</li>
+            <li>Ve a la pestaña &ldquo;Deployments&rdquo;</li>
+            <li>Haz clic en &ldquo;Redeploy&rdquo; en el último deployment</li>
+            <li>Selecciona &ldquo;Use existing Build Cache&rdquo; = NO</li>
             <li>Confirma el redeploy</li>
           </ol>
         </CardContent>

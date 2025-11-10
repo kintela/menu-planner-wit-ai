@@ -92,7 +92,7 @@ export default function SetupPage() {
                   </a>
                 </li>
                 <li>
-                  Haz clic en <strong>"Create new secret key"</strong>
+                  Haz clic en <strong>&ldquo;Create new secret key&rdquo;</strong>
                 </li>
                 <li>
                   Copia la clave (empieza por <code>sk-</code>)
@@ -197,10 +197,10 @@ export default function SetupPage() {
                   <strong>Development</strong>
                 </li>
                 <li>
-                  • Haz clic en <strong>"Save"</strong> para cada variable
+                  • Haz clic en <strong>&ldquo;Save&rdquo;</strong> para cada variable
                 </li>
                 <li>
-                  • Después de añadir todas, haz <strong>"Redeploy"</strong> en la pestaña Deployments
+                  • Después de añadir todas, haz <strong>&ldquo;Redeploy&rdquo;</strong> en la pestaña Deployments
                 </li>
               </ul>
             </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useMemo } from "react"
 import { AlertCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
@@ -10,11 +10,13 @@ interface VideoEmbedProps {
 }
 
 export function VideoEmbed({ url, title }: VideoEmbedProps) {
-  const [embedUrl, setEmbedUrl] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { embedUrl, error } = useMemo(() => {
+    if (!url) {
+      return { embedUrl: null, error: "No se proporcionó ninguna URL." }
+    }
 
-  useEffect(() => {
     try {
+      let computedUrl: string | null = null
       // Procesar URL de YouTube
       if (url.includes("youtube.com") || url.includes("youtu.be")) {
         let videoId = ""
@@ -27,25 +29,21 @@ export function VideoEmbed({ url, title }: VideoEmbedProps) {
         }
 
         if (videoId) {
-          setEmbedUrl(`https://www.youtube.com/embed/${videoId}`)
-          return
+          computedUrl = `https://www.youtube.com/embed/${videoId}`
         }
-      }
-
-      // Procesar URL de Vimeo
-      if (url.includes("vimeo.com")) {
+      } else if (url.includes("vimeo.com")) {
+        // Procesar URL de Vimeo
         const vimeoId = url.split("vimeo.com/")[1]?.split("?")[0]
         if (vimeoId) {
-          setEmbedUrl(`https://player.vimeo.com/video/${vimeoId}`)
-          return
+          computedUrl = `https://player.vimeo.com/video/${vimeoId}`
         }
       }
 
       // Si no es una URL reconocida, mostrar la URL original
-      setEmbedUrl(url)
+      return { embedUrl: computedUrl ?? url, error: null }
     } catch (err) {
       console.error("Error al procesar la URL del video:", err)
-      setError("No se pudo procesar la URL del video")
+      return { embedUrl: null, error: "No se pudo procesar la URL del video" }
     }
   }, [url])
 

@@ -102,11 +102,17 @@ async function getCategories() {
 }
 
 export default async function RecipesPage() {
-  try {
-    const [recipes, categories] = await Promise.all([getRecipes(), getCategories()])
+  let recipesData: Awaited<ReturnType<typeof getRecipes>> = []
+  let categoriesData: Awaited<ReturnType<typeof getCategories>> = []
+  let failed = false
 
-    return <RecipesPageClient initialRecipes={recipes} initialCategories={categories} />
-  } catch (error) {
+  try {
+    ;[recipesData, categoriesData] = await Promise.all([getRecipes(), getCategories()])
+  } catch {
+    failed = true
+  }
+
+  if (failed) {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="container mx-auto px-4 py-8">
@@ -116,4 +122,6 @@ export default async function RecipesPage() {
       </div>
     )
   }
+
+  return <RecipesPageClient initialRecipes={recipesData} initialCategories={categoriesData} />
 }

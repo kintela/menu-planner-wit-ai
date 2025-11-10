@@ -133,7 +133,7 @@ export default function FixProfilesPage() {
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <p>• Esta herramienta solo puede ser ejecutada por administradores</p>
             <p>• Se verifica automáticamente si el email es de administrador</p>
-            <p>• Los perfiles se crean con rol 'user_full' por defecto</p>
+            <p>• Los perfiles se crean con rol &lsquo;user_full&rsquo; por defecto</p>
             <p>• Si hay errores, se registran en los logs pero no fallan la operación</p>
           </CardContent>
         </Card>

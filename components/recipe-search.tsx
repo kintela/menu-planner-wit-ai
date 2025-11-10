@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 
 // Declaración global para la función de limpieza expuesta
 declare global {
@@ -43,7 +43,7 @@ export function RecipeSearch({
     if (searchTerm !== localSearch) {
       setLocalSearch(searchTerm)
     }
-  }, [searchTerm])
+  }, [searchTerm, localSearch])
 
   const handleCategoryChange = (categoryId: number, checked: boolean) => {
     const newCategories = checked
@@ -63,11 +63,11 @@ export function RecipeSearch({
   }
 
   // Función para limpiar filtros (solo estado local)
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     console.log("🧹 Limpiando filtros desde RecipeSearch...")
 
     // Limpiar input de búsqueda físicamente
-  setLocalSearch("")
+    setLocalSearch("")
 
     // Limpiar todos los inputs de búsqueda
     const searchInputs = document.querySelectorAll('input[type="search"]')
@@ -93,12 +93,20 @@ export function RecipeSearch({
     onClearFilters()
 
     console.log("✅ Filtros limpiados desde RecipeSearch")
-  }
+  }, [onClearFilters, onFiltersChange])
 
   // Exponer la función de limpieza globalmente
-  if (typeof window !== "undefined") {
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
     window.clearRecipeFilters = clearFilters
-  }
+    return () => {
+      if (window.clearRecipeFilters === clearFilters) {
+        delete window.clearRecipeFilters
+      }
+    }
+  }, [clearFilters])
 
   const hasActiveFilters = searchTerm || selectedCategories.length > 0
 
@@ -160,7 +168,9 @@ export function RecipeSearch({
         <div className="flex flex-wrap gap-2 items-center" data-testid="active-filters">
           <span className="text-sm text-muted-foreground">Filtros activos:</span>
           {searchTerm && (
-            <span className="bg-primary/10 text-primary px-2 py-1 rounded-md text-sm">Búsqueda: "{searchTerm}"</span>
+            <span className="bg-primary/10 text-primary px-2 py-1 rounded-md text-sm">
+              Búsqueda: &ldquo;{searchTerm}&rdquo;
+            </span>
           )}
           {selectedCategories.map((categoryId) => {
             const category = categories.find((cat) => cat.id === categoryId)

@@ -119,7 +119,9 @@ export function RecipesClientFilter({
           <h3 className="font-medium mb-2">Filtros aplicados:</h3>
           <div className="flex flex-wrap gap-2">
 
-            {searchTerm && <Badge variant="secondary">Búsqueda: "{searchTerm}"</Badge>}
+            {searchTerm && (
+              <Badge variant="secondary">Búsqueda: &ldquo;{searchTerm}&rdquo;</Badge>
+            )}
             {selectedCategories.length > 0 && (
               <Badge variant="secondary">Categorías: {selectedCategories.length} seleccionada(s)</Badge>
 

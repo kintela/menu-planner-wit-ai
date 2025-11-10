@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { getSupabaseClient } from "@/lib/supabase/client"
-import { Loader2, Plus, Boxes, Snowflake, Trash2, Search } from "lucide-react"
+import { Loader2, Plus, Boxes, Snowflake, Trash2, Search, Pencil } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
 
@@ -92,14 +92,16 @@ type ItemPayload = {
   cajon_id: string
   nombre: string
   estado: ItemState
-  cantidad?: number
-  unidad?: string
-  notas?: string
-  categoria?: string
-  fecha_compra?: string
-  fecha_congelacion?: string
-  fecha_caducidad?: string
+  cantidad?: number | null
+  unidad?: string | null
+  notas?: string | null
+  categoria?: string | null
+  fecha_compra?: string | null
+  fecha_congelacion?: string | null
+  fecha_caducidad?: string | null
 }
+
+type ItemUpdatePayload = Omit<ItemPayload, "cajon_id">
 
 const normalizeItem = (rawItem: any): FreezerItem => ({
   id: rawItem?.id ? String(rawItem.id) : maybeRandomId(),
@@ -161,6 +163,18 @@ const itemMatchesSearch = (item: FreezerItem, search: string) => {
   return haystack.some((value) => value.toLowerCase().includes(search))
 }
 
+const buildItemFormState = (item: FreezerItem): ItemFormState => ({
+  nombre: item.nombre ?? "",
+  cantidad: item.cantidad === null || item.cantidad === undefined ? "" : String(item.cantidad),
+  unidad: item.unidad ?? "",
+  notas: item.notas ?? "",
+  categoria: item.categoria ?? "",
+  estado: item.estado ?? "fresco",
+  fecha_compra: item.fecha_compra ?? "",
+  fecha_congelacion: item.fecha_congelacion ?? "",
+  fecha_caducidad: item.fecha_caducidad ?? "",
+})
+
 export function FreezerManager() {
   const { user, loading: authLoading } = useAuth()
   const { toast } = useToast()
@@ -174,6 +188,9 @@ export function FreezerManager() {
   const [creatingDrawers, setCreatingDrawers] = useState(false)
   const [itemForms, setItemForms] = useState<Record<string, ItemFormState>>({})
   const [addingItems, setAddingItems] = useState<Record<string, boolean>>({})
+  const [editingItems, setEditingItems] = useState<Record<string, boolean>>({})
+  const [editForms, setEditForms] = useState<Record<string, ItemFormState>>({})
+  const [savingEdits, setSavingEdits] = useState<Record<string, boolean>>({})
   const [deletingItems, setDeletingItems] = useState<Record<string, boolean>>({})
   const [clearingDrawers, setClearingDrawers] = useState<Record<string, boolean>>({})
   const [pendingDeletion, setPendingDeletion] = useState<{ drawerId: string; itemId: string; itemName: string } | null>(null)
@@ -199,6 +216,9 @@ export function FreezerManager() {
       setDrawerCountValue("")
       setSearchTerm("")
       setItemForms({})
+      setEditingItems({})
+      setEditForms({})
+      setSavingEdits({})
       setLoading(false)
       return
     }
@@ -244,7 +264,7 @@ export function FreezerManager() {
           .order("posicion", { ascending: true, foreignTable: "cajones_congelador" })
           .order("creado_en", { ascending: true, foreignTable: "cajones_congelador.elementos_cajon" })
           .maybeSingle()
-        console.log("[FreezerManager] Supabase data: ", JSON.stringify(data))
+        //console.log("[FreezerManager] Supabase data: ", JSON.stringify(data))
         console.log("[FreezerManager] Supabase error: ", error)
 
         if (!isActive) return
@@ -273,6 +293,9 @@ export function FreezerManager() {
           })
           return next
         })
+        setEditingItems({})
+        setEditForms({})
+        setSavingEdits({})
         if (isActive) {
           setLoading(false)
         }
@@ -501,6 +524,144 @@ export function FreezerManager() {
     }
   }
 
+  const handleEditInputChange = (itemId: string, changes: Partial<ItemFormState>) => {
+    setEditForms((prev) => ({
+      ...prev,
+      [itemId]: {
+        ...(prev[itemId] ?? { ...EMPTY_ITEM_FORM }),
+        ...changes,
+      },
+    }))
+  }
+
+  const handleToggleEditItem = (item: FreezerItem) => {
+    setEditingItems((prev) => {
+      const isEditing = Boolean(prev[item.id])
+      if (isEditing) {
+        const { [item.id]: _, ...rest } = prev
+        setEditForms((forms) => {
+          const { [item.id]: __, ...remaining } = forms
+          return remaining
+        })
+        setSavingEdits((prevSaving) => {
+          const { [item.id]: __, ...remaining } = prevSaving
+          return remaining
+        })
+        return rest
+      }
+      setEditForms((forms) => ({
+        ...forms,
+        [item.id]: buildItemFormState(item),
+      }))
+      return { ...prev, [item.id]: true }
+    })
+  }
+
+  const handleCancelEdit = (itemId: string) => {
+    setEditingItems((prev) => {
+      const { [itemId]: _, ...rest } = prev
+      return rest
+    })
+    setEditForms((prev) => {
+      const { [itemId]: _, ...rest } = prev
+      return rest
+    })
+    setSavingEdits((prev) => {
+      const { [itemId]: _, ...rest } = prev
+      return rest
+    })
+  }
+
+  const handleUpdateItem = async (drawerId: string, itemId: string) => {
+    if (!user) {
+      toast({ variant: "destructive", description: "Debes iniciar sesión para editar elementos." })
+      return
+    }
+
+    const formState = editForms[itemId]
+
+    if (!formState) {
+      return
+    }
+
+    if (!formState.nombre.trim()) {
+      toast({ variant: "destructive", description: "El nombre del elemento es obligatorio." })
+      return
+    }
+
+    const rawQuantity = formState.cantidad.trim()
+    let quantityValue: number | null = null
+    if (rawQuantity) {
+      const parsed = Number(rawQuantity.replace(",", "."))
+      if (Number.isNaN(parsed)) {
+        toast({ variant: "destructive", description: "Introduce un número válido en la cantidad." })
+        return
+      }
+      quantityValue = parsed
+    }
+
+    const updates: ItemUpdatePayload = {
+      nombre: formState.nombre.trim(),
+      estado: formState.estado,
+      cantidad: rawQuantity ? quantityValue : null,
+      unidad: formState.unidad.trim() || null,
+      notas: formState.notas.trim() || null,
+      categoria: formState.categoria.trim() || null,
+      fecha_compra: formState.fecha_compra || null,
+      fecha_congelacion: formState.fecha_congelacion || null,
+      fecha_caducidad: formState.fecha_caducidad || null,
+    }
+
+    setSavingEdits((prev) => ({ ...prev, [itemId]: true }))
+
+    try {
+      const response = await fetch(`/api/freezer/items/${itemId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ drawerId, updates }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+
+      if (!response.ok || !payload?.item) {
+        throw new Error(payload?.error || "No se pudo actualizar el elemento.")
+      }
+
+      const normalizedItem = normalizeItem(payload.item)
+
+      setDrawers((prev) =>
+        prev.map((drawer) =>
+          drawer.id === drawerId
+            ? {
+                ...drawer,
+                items: drawer.items.map((item) => (item.id === itemId ? normalizedItem : item)),
+              }
+            : drawer,
+        ),
+      )
+
+      setEditForms((prev) => ({ ...prev, [itemId]: buildItemFormState(normalizedItem) }))
+      setEditingItems((prev) => {
+        const { [itemId]: _, ...rest } = prev
+        return rest
+      })
+      toast({ title: "Elemento actualizado", description: `${normalizedItem.nombre} se actualizó correctamente.` })
+    } catch (error: any) {
+      console.error("[FreezerManager] Error updating item", error)
+      toast({
+        variant: "destructive",
+        title: "No se pudo actualizar el elemento",
+        description: error?.message ?? "Inténtalo más tarde.",
+      })
+    } finally {
+      setSavingEdits((prev) => {
+        const { [itemId]: _, ...rest } = prev
+        return rest
+      })
+    }
+  }
+
   const promptDeleteItem = (drawerId: string, itemId: string, itemName: string) => {
     setPendingDeletion({ drawerId, itemId, itemName })
   }
@@ -533,6 +694,18 @@ export function FreezerManager() {
             : drawer,
         ),
       )
+      setEditingItems((prev) => {
+        const { [itemId]: _, ...rest } = prev
+        return rest
+      })
+      setEditForms((prev) => {
+        const { [itemId]: _, ...rest } = prev
+        return rest
+      })
+      setSavingEdits((prev) => {
+        const { [itemId]: _, ...rest } = prev
+        return rest
+      })
       toast({ description: `${itemName} eliminado` })
     } catch (error: any) {
       console.error("[FreezerManager] Error deleting item", error)
@@ -582,6 +755,27 @@ export function FreezerManager() {
 
       if (drawerItemIds.length > 0) {
         setDeletingItems((prev) => {
+          const next = { ...prev }
+          for (const itemId of drawerItemIds) {
+            delete next[itemId]
+          }
+          return next
+        })
+        setEditingItems((prev) => {
+          const next = { ...prev }
+          for (const itemId of drawerItemIds) {
+            delete next[itemId]
+          }
+          return next
+        })
+        setEditForms((prev) => {
+          const next = { ...prev }
+          for (const itemId of drawerItemIds) {
+            delete next[itemId]
+          }
+          return next
+        })
+        setSavingEdits((prev) => {
           const next = { ...prev }
           for (const itemId of drawerItemIds) {
             delete next[itemId]
@@ -793,40 +987,195 @@ export function FreezerManager() {
                         </p>
                       ) : (
                         <ul className="space-y-3">
-                          {visibleItems.map((item) => (
-                            <li key={item.id} className="flex items-start justify-between rounded-md border p-3">
-                              <div>
-                                <p className="font-medium text-gray-900">{item.nombre}</p>
-                                <div className="mt-1 space-y-1 text-sm text-gray-600">
-                                  {item.estado && <p>Estado: {item.estado}</p>}
-                                  {item.cantidad != null && item.cantidad !== undefined && (
-                                    <p>
-                                      Cantidad: {item.cantidad}
-                                      {item.unidad ? ` ${item.unidad}` : ""}
-                                    </p>
-                                  )}
-                                  {item.categoria && <p>Categoría: {item.categoria}</p>}
-                                  {item.fecha_compra && <p>Comprado: {formatDate(item.fecha_compra)}</p>}
-                                  {item.fecha_congelacion && <p>Congelado: {formatDate(item.fecha_congelacion)}</p>}
-                                  {item.fecha_caducidad && <p>Caduca: {formatDate(item.fecha_caducidad)}</p>}
-                                  {item.notas && <p>Notas: {item.notas}</p>}
+                          {visibleItems.map((item) => {
+                            const isEditing = Boolean(editingItems[item.id])
+                            const editFormState = editForms[item.id] ?? buildItemFormState(item)
+                            const isSavingEdit = Boolean(savingEdits[item.id])
+                            const isDeletingItem = Boolean(deletingItems[item.id])
+                            const baseEditId = `item-edit-${item.id}`
+                            const fieldId = (suffix: string) => `${baseEditId}-${suffix}`
+
+                            return (
+                              <li key={item.id} className="rounded-md border p-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <p className="font-medium text-gray-900">{item.nombre}</p>
+                                    <div className="mt-1 space-y-1 text-sm text-gray-600">
+                                      {item.estado && <p>Estado: {item.estado}</p>}
+                                      {item.cantidad != null && item.cantidad !== undefined && (
+                                        <p>
+                                          Cantidad: {item.cantidad}
+                                          {item.unidad ? ` ${item.unidad}` : ""}
+                                        </p>
+                                      )}
+                                      {item.categoria && <p>Categoría: {item.categoria}</p>}
+                                      {item.fecha_compra && <p>Comprado: {formatDate(item.fecha_compra)}</p>}
+                                      {item.fecha_congelacion && <p>Congelado: {formatDate(item.fecha_congelacion)}</p>}
+                                      {item.fecha_caducidad && <p>Caduca: {formatDate(item.fecha_caducidad)}</p>}
+                                      {item.notas && <p>Notas: {item.notas}</p>}
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleToggleEditItem(item)}
+                                      disabled={isDeletingItem || isSavingEdit}
+                                      aria-label={`${isEditing ? "Cerrar formulario de" : "Editar"} ${item.nombre}`}
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => promptDeleteItem(drawer.id, item.id, item.nombre)}
+                                      disabled={isDeletingItem}
+                                      aria-label={`Eliminar ${item.nombre}`}
+                                    >
+                                      {isDeletingItem ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Trash2 className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </div>
                                 </div>
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => promptDeleteItem(drawer.id, item.id, item.nombre)}
-                                disabled={Boolean(deletingItems[item.id])}
-                                aria-label={`Eliminar ${item.nombre}`}
-                              >
-                                {deletingItems[item.id] ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-4 w-4" />
+
+                                {isEditing && (
+                                  <div className="mt-3 space-y-3 rounded-md border border-dashed border-gray-200 bg-gray-50 p-3">
+                                    <div>
+                                      <Label htmlFor={fieldId("nombre")}>Nombre</Label>
+                                      <Input
+                                        id={fieldId("nombre")}
+                                        value={editFormState.nombre}
+                                        onChange={(event) =>
+                                          handleEditInputChange(item.id, { nombre: event.target.value })
+                                        }
+                                      />
+                                    </div>
+                                    <div className="flex flex-col gap-3 sm:flex-row">
+                                      <div className="sm:flex-1">
+                                        <Label htmlFor={fieldId("cantidad")}>Cantidad</Label>
+                                        <Input
+                                          id={fieldId("cantidad")}
+                                          value={editFormState.cantidad}
+                                          onChange={(event) =>
+                                            handleEditInputChange(item.id, { cantidad: event.target.value })
+                                          }
+                                        />
+                                      </div>
+                                      <div className="sm:w-32">
+                                        <Label htmlFor={fieldId("unidad")}>Unidad</Label>
+                                        <Input
+                                          id={fieldId("unidad")}
+                                          value={editFormState.unidad}
+                                          onChange={(event) =>
+                                            handleEditInputChange(item.id, { unidad: event.target.value })
+                                          }
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-col gap-3 sm:flex-row">
+                                      <div className="sm:flex-1">
+                                        <Label htmlFor={fieldId("categoria")}>Categoría</Label>
+                                        <Input
+                                          id={fieldId("categoria")}
+                                          value={editFormState.categoria}
+                                          onChange={(event) =>
+                                            handleEditInputChange(item.id, { categoria: event.target.value })
+                                          }
+                                        />
+                                      </div>
+                                      <div className="sm:w-40">
+                                        <Label htmlFor={fieldId("estado")}>Estado</Label>
+                                        <select
+                                          id={fieldId("estado")}
+                                          value={editFormState.estado}
+                                          onChange={(event) =>
+                                            handleEditInputChange(item.id, { estado: event.target.value as ItemState })
+                                          }
+                                          className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                          {ITEM_STATES.map((state) => (
+                                            <option key={state} value={state}>
+                                              {state}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    </div>
+                                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                      <div className="min-w-0">
+                                        <Label htmlFor={fieldId("fecha-compra")}>Fª compra</Label>
+                                        <Input
+                                          id={fieldId("fecha-compra")}
+                                          type="date"
+                                          value={editFormState.fecha_compra}
+                                          onChange={(event) =>
+                                            handleEditInputChange(item.id, { fecha_compra: event.target.value })
+                                          }
+                                        />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <Label htmlFor={fieldId("fecha-congelacion")}>Fª congelación</Label>
+                                        <Input
+                                          id={fieldId("fecha-congelacion")}
+                                          type="date"
+                                          value={editFormState.fecha_congelacion}
+                                          onChange={(event) =>
+                                            handleEditInputChange(item.id, { fecha_congelacion: event.target.value })
+                                          }
+                                        />
+                                      </div>
+                                      <div className="min-w-0">
+                                        <Label htmlFor={fieldId("fecha-caducidad")}>Fª caducidad</Label>
+                                        <Input
+                                          id={fieldId("fecha-caducidad")}
+                                          type="date"
+                                          value={editFormState.fecha_caducidad}
+                                          onChange={(event) =>
+                                            handleEditInputChange(item.id, { fecha_caducidad: event.target.value })
+                                          }
+                                        />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <Label htmlFor={fieldId("notas")}>Notas</Label>
+                                      <Textarea
+                                        id={fieldId("notas")}
+                                        value={editFormState.notas}
+                                        onChange={(event) => handleEditInputChange(item.id, { notas: event.target.value })}
+                                      />
+                                    </div>
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() => handleCancelEdit(item.id)}
+                                        disabled={isSavingEdit}
+                                      >
+                                        Cancelar
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        onClick={() => handleUpdateItem(drawer.id, item.id)}
+                                        disabled={isSavingEdit}
+                                      >
+                                        {isSavingEdit ? (
+                                          <>
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                            Guardando...
+                                          </>
+                                        ) : (
+                                          "Guardar cambios"
+                                        )}
+                                      </Button>
+                                    </div>
+                                  </div>
                                 )}
-                              </Button>
-                            </li>
-                          ))}
+                              </li>
+                            )
+                          })}
                         </ul>
                       )}
                     </div>

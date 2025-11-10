@@ -124,8 +124,9 @@ export function SimpleNavigation() {
   ]
 
   useEffect(() => {
+    if (!isMobileMenuOpen) return
     setIsMobileMenuOpen(false)
-  }, [pathname])
+  }, [pathname, isMobileMenuOpen])
 
   return (
     <nav className="sticky top-0 z-50 bg-white border-b shadow-sm">
