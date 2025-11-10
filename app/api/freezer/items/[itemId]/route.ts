@@ -1,6 +1,4 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { createClient } from "@supabase/supabase-js"
-import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 
 const ITEM_STATES = ["fresco", "abierto", "bajo", "agotado"] as const
@@ -17,7 +15,8 @@ const ITEM_SELECT_FIELDS = `
   fecha_caducidad,
   notas,
   imagen_url,
-  creado_en
+  creado_en,
+  actualizado_en
 `
 
 const normalizeOwnerId = (drawer: any): string | null => {
@@ -56,22 +55,29 @@ export async function PATCH(request: Request, context: { params: { itemId: strin
     return NextResponse.json({ error: "Datos de actualización inválidos." }, { status: 400 })
   }
 
-  const cookieStore = await cookies()
-  const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore })
-  const {
-    data: { user },
-    error: userError,
-  } = await supabaseAuth.auth.getUser()
+  const authHeader = request.headers.get("authorization") ?? request.headers.get("Authorization")
+  const accessToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null
 
-  if (userError || !user) {
+  if (!accessToken) {
     return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 })
   }
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  if (!serviceRoleKey || !url) {
+  if (!serviceRoleKey || !url || !anonKey) {
     return NextResponse.json({ error: "Configuración de Supabase incompleta." }, { status: 500 })
+  }
+
+  const authClient = createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+
+  const { data: userData, error: userError } = await authClient.auth.getUser(accessToken)
+
+  if (userError || !userData?.user) {
+    return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 })
   }
 
   const supabase = createClient(url, serviceRoleKey, {
@@ -112,7 +118,7 @@ export async function PATCH(request: Request, context: { params: { itemId: strin
 
   const ownerId = normalizeOwnerId(itemRecord.cajones_congelador)
 
-  if (ownerId !== user.id) {
+  if (ownerId !== userData.user.id) {
     return NextResponse.json({ error: "No tienes permisos para editar este elemento." }, { status: 403 })
   }
 

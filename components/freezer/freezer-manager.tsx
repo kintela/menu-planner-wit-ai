@@ -38,6 +38,7 @@ interface FreezerItem {
   notas?: string | null
   imagen_url?: string | null
   creado_en?: string | null
+  actualizado_en?: string | null
 }
 
 interface FreezerDrawer {
@@ -120,6 +121,7 @@ const normalizeItem = (rawItem: any): FreezerItem => ({
   notas: rawItem?.notas ?? null,
   imagen_url: rawItem?.imagen_url ?? null,
   creado_en: rawItem?.creado_en ?? null,
+  actualizado_en: rawItem?.actualizado_en ?? null,
 })
 
 const normalizeDrawer = (rawDrawer: any): FreezerDrawer => ({
@@ -486,7 +488,8 @@ export function FreezerManager() {
           fecha_caducidad,
           notas,
           imagen_url,
-          creado_en
+          creado_en,
+          actualizado_en
         `)
         .single()
 
@@ -615,10 +618,21 @@ export function FreezerManager() {
     setSavingEdits((prev) => ({ ...prev, [itemId]: true }))
 
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      const accessToken = session?.access_token
+
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`
+      }
+
       const response = await fetch(`/api/freezer/items/${itemId}`, {
         method: "PATCH",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ drawerId, updates }),
       })
 
