@@ -1,12 +1,23 @@
 "use client"
 
 import { Suspense, useEffect, useState, use } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth/auth-provider"
 import { SimpleNavigation } from "@/components/simple-navigation"
 import { WeeklyMenuView } from "@/components/weekly-menu-view"
 import { LoginForm } from "@/components/auth/login-form"
 import { supabase } from "@/lib/supabase/client"
 import type { Recipe as RecipeType } from "@/lib/types"
+
+function getCurrentWeekStartIso() {
+  const today = new Date()
+  const monday = new Date(today)
+  const day = monday.getDay()
+  const diff = monday.getDate() - day + (day === 0 ? -6 : 1)
+  monday.setDate(diff)
+  monday.setHours(0, 0, 0, 0)
+  return monday.toISOString().split("T")[0]
+}
 
 async function getRecipes(): Promise<RecipeType[]> {
   try {
@@ -42,30 +53,36 @@ async function getRecipes(): Promise<RecipeType[]> {
 }
 
 function normalizeWeekParam(weekParam?: string) {
-  if (!weekParam) return undefined
+  if (!weekParam) return { value: getCurrentWeekStartIso(), isValid: false }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(weekParam)) {
     console.warn("[WeeklyMenu] Parámetro de semana inválido:", weekParam)
-    return undefined
+    return { value: getCurrentWeekStartIso(), isValid: false }
   }
   const parsed = new Date(`${weekParam}T00:00:00`)
   if (Number.isNaN(parsed.getTime())) {
     console.warn("[WeeklyMenu] Parámetro de semana inválido:", weekParam)
-    return undefined
+    return { value: getCurrentWeekStartIso(), isValid: false }
   }
-  return weekParam
+  return { value: weekParam, isValid: true }
 }
 
 export default function WeeklyMenuPage({ params }: { params: Promise<{ week: string }> }) {
   const resolvedParams = use(params)
+  const router = useRouter()
   const [recipes, setRecipes] = useState<RecipeType[]>([])
   const { user, loading: authLoading } = useAuth()
   const [mounted, setMounted] = useState(false)
 
-  const initialWeekStart = normalizeWeekParam(resolvedParams?.week)
+  const { value: initialWeekStart, isValid: isWeekParamValid } = normalizeWeekParam(resolvedParams?.week)
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (!mounted || isWeekParamValid) return
+    router.replace(`/weekly-menu/${initialWeekStart}`)
+  }, [initialWeekStart, isWeekParamValid, mounted, router])
 
   useEffect(() => {
     const fetchRecipes = async () => {

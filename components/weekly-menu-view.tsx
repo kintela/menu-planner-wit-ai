@@ -561,6 +561,12 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({
   const isViewingCurrentWeek = weekDates.startDateStr
     ? weekDates.startDateStr === baselineSummary.startDateStr
     : true
+  const todayIndex = useMemo(() => {
+    const today = new Date()
+    const jsDay = today.getDay()
+    return (jsDay + 6) % 7 // Convert Sunday=0 to Monday=0
+  }, [])
+  const highlightedDayIndex = isViewingCurrentWeek ? todayIndex : null
 
   const openGenerationDialog = () => {
     if (isGenerating || recipes.length === 0) {
@@ -1350,127 +1356,145 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
-            {DAYS.map((day) => (
-              <div key={day} className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-center text-sm flex-1">{day}</h3>
-                  <button
-                    type="button"
-                    onClick={() => regenerateDay(day)}
-                    className="text-gray-500 hover:text-gray-800 p-1"
-                    title="Regenerar solo este día"
+            {DAYS.map((day, index) => {
+              const isToday = highlightedDayIndex === index
+              return (
+                <div key={day} className="space-y-3">
+                  <div
+                    className={`flex items-center justify-between px-1 py-1 ${
+                      isToday ? "rounded-md border border-primary/30 bg-primary/10" : ""
+                    }`}
                   >
-                    <RefreshCcw className="h-4 w-4" />
-                  </button>
-                </div>
-                {MEAL_TYPES.map((mealType) => {
-                  const entry = menuEntries.find(entry => 
-                    entry.day === day && 
-                    entry.meal_type === mealType.key && 
-                    entry.dish_order === mealType.order
-                  );
-                  return (
-                    <div
-                      key={`${day}-${mealType.key}-${mealType.order}`}
-                      className={`border-2 rounded-lg p-3 h-[180px] ${mealType.color}`}
+                    <h3
+                      className={`font-semibold text-center text-sm flex-1 flex items-center justify-center gap-2 ${
+                        isToday ? "text-primary" : ""
+                      }`}
                     >
-                      <p className="text-xs font-medium mb-2">{mealType.label}</p>
-                      {entry?.recipe ? (
-                        <div className="h-full flex flex-col relative">
-                          <div className="flex items-start gap-2 flex-1">
-                            <div className="flex-shrink-0">
-                              {entry.recipe.image_url ? (
-                                <img
-                                  src={entry.recipe.image_url}
-                                  alt={entry.recipe.name}
-                                  className="w-10 h-10 object-cover rounded-md"
-                                  title={entry.recipe.name}
-                                />
-                              ) : (
-                                <div className="w-10 h-10 bg-gray-200 rounded-md flex items-center justify-center flex-shrink-0">
-                                  <ChefHat className="h-5 w-5 text-gray-400" />
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0 overflow-hidden">
-                              <p className="text-sm font-medium line-clamp-2 mb-1 leading-tight">{entry.recipe.name}</p>
-                              
-                              {entry.recipe.calories && (
-                                <div className="flex items-center gap-1">
-                                  <Flame className="h-3 w-3 text-orange-500 flex-shrink-0" />
-                                  <span className="text-xs text-gray-600">{entry.recipe.calories} cal</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="absolute left-2 bottom-2 right-2 flex items-center justify-between">
-                            {entry.recipe.user_profiles ? (
-                              <div className="flex items-center gap-1 text-xs bg-black/60 text-white backdrop-blur-sm rounded px-2 py-1 w-fit">
-                                {entry.recipe.user_profiles.avatar_url ? (
-                                  <Image
-                                    src={entry.recipe.user_profiles.avatar_url}
-                                    alt="Avatar"
-                                    width={12}
-                                    height={12}
-                                    className="h-3 w-3 rounded-full object-cover flex-shrink-0"
-                                  />
-                                ) : (
-                                  <User className="h-3 w-3 flex-shrink-0" />
-                                )}
-                                <span className="truncate">
-                                  {entry.recipe.user_profiles.alias || 
-                                   entry.recipe.user_profiles.full_name || 
-                                   (entry.recipe.user_profiles.first_name && entry.recipe.user_profiles.last_name 
-                                     ? `${entry.recipe.user_profiles.first_name} ${entry.recipe.user_profiles.last_name}` 
-                                     : entry.recipe.user_profiles.first_name) ||
-                                   'Usuario'}
-                                </span>
-                              </div>
-                            ) : <span />}
-                            <div className="flex items-center gap-2">
-                              <Button
-                                asChild
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 w-7 p-0 flex-shrink-0 rounded-full bg-white/80 hover:bg-white"
-                                title="Ver receta"
-                              >
-                                <Link
-                                  href={`/recipes/${entry.recipe.id}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  <Eye className="h-4 w-4 text-gray-700" />
-                                </Link>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => entry.id && removeRecipeFromMenu(entry.id)}
-                                className="h-7 w-7 p-0 flex-shrink-0 rounded-full bg-white/80 hover:bg-white"
-                                title="Eliminar receta"
-                              >
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <span
-                          onClick={() => setShowRecipeSelector({ day, mealType: `${mealType.key}-${mealType.order}` })}
-                          className="w-full h-full flex flex-col items-center justify-center text-blue-600 hover:text-blue-800 cursor-pointer select-none rounded-lg text-xs font-medium transition-colors"
-                          style={{ minHeight: 60 }}
-                        >
-                          <Plus className="h-4 w-4 mb-1" />
-                          Añadir
+                      {day}
+                      {isToday && (
+                        <span className="rounded-full border border-primary/30 bg-white px-2 py-[2px] text-[11px] font-semibold text-primary">
+                          Hoy
                         </span>
                       )}
-                    </div>
-                  )
-                })}
-              </div>
-            ))}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => regenerateDay(day)}
+                      className="text-gray-500 hover:text-gray-800 p-1"
+                      title="Regenerar solo este día"
+                    >
+                      <RefreshCcw className="h-4 w-4" />
+                    </button>
+                  </div>
+                  {MEAL_TYPES.map((mealType) => {
+                    const entry = menuEntries.find(entry =>
+                      entry.day === day &&
+                      entry.meal_type === mealType.key &&
+                      entry.dish_order === mealType.order
+                    )
+                    return (
+                      <div
+                        key={`${day}-${mealType.key}-${mealType.order}`}
+                        className={`border-2 rounded-lg p-3 h-[180px] ${mealType.color}`}
+                      >
+                        <p className="text-xs font-medium mb-2">{mealType.label}</p>
+                        {entry?.recipe ? (
+                          <div className="h-full flex flex-col relative">
+                            <div className="flex items-start gap-2 flex-1">
+                              <div className="flex-shrink-0">
+                                {entry.recipe.image_url ? (
+                                  <img
+                                    src={entry.recipe.image_url}
+                                    alt={entry.recipe.name}
+                                    className="w-10 h-10 object-cover rounded-md"
+                                    title={entry.recipe.name}
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 bg-gray-200 rounded-md flex items-center justify-center flex-shrink-0">
+                                    <ChefHat className="h-5 w-5 text-gray-400" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0 overflow-hidden">
+                                <p className="text-sm font-medium line-clamp-2 mb-1 leading-tight">{entry.recipe.name}</p>
+
+                                {entry.recipe.calories && (
+                                  <div className="flex items-center gap-1">
+                                    <Flame className="h-3 w-3 text-orange-500 flex-shrink-0" />
+                                    <span className="text-xs text-gray-600">{entry.recipe.calories} cal</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="absolute left-2 bottom-2 right-2 flex items-center justify-between">
+                              {entry.recipe.user_profiles ? (
+                                <div className="flex items-center gap-1 text-xs bg-black/60 text-white backdrop-blur-sm rounded px-2 py-1 w-fit">
+                                  {entry.recipe.user_profiles.avatar_url ? (
+                                    <Image
+                                      src={entry.recipe.user_profiles.avatar_url}
+                                      alt="Avatar"
+                                      width={12}
+                                      height={12}
+                                      className="h-3 w-3 rounded-full object-cover flex-shrink-0"
+                                    />
+                                  ) : (
+                                    <User className="h-3 w-3 flex-shrink-0" />
+                                  )}
+                                  <span className="truncate">
+                                    {entry.recipe.user_profiles.alias ||
+                                      entry.recipe.user_profiles.full_name ||
+                                      (entry.recipe.user_profiles.first_name && entry.recipe.user_profiles.last_name
+                                        ? `${entry.recipe.user_profiles.first_name} ${entry.recipe.user_profiles.last_name}`
+                                        : entry.recipe.user_profiles.first_name) ||
+                                      "Usuario"}
+                                  </span>
+                                </div>
+                              ) : <span />}
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  asChild
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 flex-shrink-0 rounded-full bg-white/80 hover:bg-white"
+                                  title="Ver receta"
+                                >
+                                  <Link
+                                    href={`/recipes/${entry.recipe.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <Eye className="h-4 w-4 text-gray-700" />
+                                  </Link>
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => entry.id && removeRecipeFromMenu(entry.id)}
+                                  className="h-7 w-7 p-0 flex-shrink-0 rounded-full bg-white/80 hover:bg-white"
+                                  title="Eliminar receta"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <span
+                            onClick={() => setShowRecipeSelector({ day, mealType: `${mealType.key}-${mealType.order}` })}
+                            className="w-full h-full flex flex-col items-center justify-center text-blue-600 hover:text-blue-800 cursor-pointer select-none rounded-lg text-xs font-medium transition-colors"
+                            style={{ minHeight: 60 }}
+                          >
+                            <Plus className="h-4 w-4 mb-1" />
+                            Añadir
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })}
           </div>
         </CardContent>
       </Card>
