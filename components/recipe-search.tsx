@@ -20,16 +20,16 @@ interface CategoryWithCount {
 
 interface RecipeSearchProps {
   categories: CategoryWithCount[]
-  searchTerm: string
-  selectedCategories: number[]
-  onFiltersChange: (searchTerm: string, selectedCategories: number[]) => void
-  onClearFilters: () => void
+  searchTerm?: string
+  selectedCategories?: number[]
+  onFiltersChange?: (searchTerm: string, selectedCategories: number[]) => void
+  onClearFilters?: () => void
 }
 
 export function RecipeSearch({
   categories,
-  searchTerm,
-  selectedCategories,
+  searchTerm = "",
+  selectedCategories = [],
   onFiltersChange,
   onClearFilters,
 }: RecipeSearchProps) {
@@ -50,7 +50,7 @@ export function RecipeSearch({
       ? [...selectedCategories, categoryId]
       : selectedCategories.filter((id) => id !== categoryId)
 
-    onFiltersChange(searchTerm, newCategories)
+    onFiltersChange?.(searchTerm, newCategories)
   }
 
   const handleSearchChange = (value: string) => {
@@ -59,7 +59,7 @@ export function RecipeSearch({
   }
 
   const executeSearch = () => {
-    onFiltersChange(localSearch, selectedCategories)
+    onFiltersChange?.(localSearch, selectedCategories)
   }
 
   // Función para limpiar filtros (solo estado local)
@@ -89,8 +89,8 @@ export function RecipeSearch({
     setKey((prev) => prev + 1)
 
     // Notificar al componente padre
-    onFiltersChange("", [])
-    onClearFilters()
+    onFiltersChange?.("", [])
+    onClearFilters?.()
 
     console.log("✅ Filtros limpiados desde RecipeSearch")
   }, [onClearFilters, onFiltersChange])
