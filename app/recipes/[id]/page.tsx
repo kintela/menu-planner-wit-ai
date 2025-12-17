@@ -23,19 +23,36 @@ interface UserProfile {
   avatar_url: string | null
 }
 
-async function getRecipeWithUser(id: string): Promise<{ recipe: Recipe | null; user: UserProfile | null }> {
+function parseRecipeId(rawId: unknown): number | null {
+  const parsed =
+    typeof rawId === "string"
+      ? Number.parseInt(rawId, 10)
+      : typeof rawId === "number"
+        ? Math.floor(rawId)
+        : NaN
+
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+async function getRecipeWithUser(id: string | number | undefined): Promise<{ recipe: Recipe | null; user: UserProfile | null }> {
   try {
-    console.log("🔍 DEBUG - getRecipeWithUser iniciado para ID:", id)
+    const parsedId = parseRecipeId(id)
+    if (!parsedId) {
+      console.error("❌ ID inválido recibido en getRecipeWithUser:", id)
+      return { recipe: null, user: null }
+    }
+
+    console.log("🔍 DEBUG - getRecipeWithUser iniciado para ID:", parsedId)
 
     const { createClient } = await import("@/lib/supabase/server")
     const cookieStore = await cookies(); // Inicializar cookieStore
     const supabase = createClient(cookieStore);
 
     // Obtener la receta
-    const { data: recipe, error: recipeError } = await supabase.from("recipes").select("*").eq("id", id).single()
+    const { data: recipe, error: recipeError } = await supabase.from("recipes").select("*").eq("id", parsedId).single()
 
     if (recipeError || !recipe) {
-      console.error("❌ Error o receta no encontrada:", recipeError?.message || "Sin datos", "ID:", id)
+      console.error("❌ Error o receta no encontrada:", recipeError?.message || "Sin datos", "ID:", parsedId)
       return { recipe: null, user: null }
     }
 
@@ -65,22 +82,23 @@ async function getRecipeWithUser(id: string): Promise<{ recipe: Recipe | null; u
   }
 }
 
-export default async function RecipePage({ params }: { params: { id: string } }) {
-  console.log("🔍 DEBUG - RecipePage iniciado con ID:", params.id)
+export default async function RecipePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  console.log("🔍 DEBUG - RecipePage iniciado con ID:", id)
 
   // Validación básica del ID en el servidor
-  const numericId = Number.parseInt(params.id, 10)
-  if (isNaN(numericId) || numericId <= 0) {
-    console.log("❌ ID inválido:", params.id)
-    return <RecipeClientPage params={params} recipe={null} user={null} error="invalid_id" />
+  const numericId = parseRecipeId(id)
+  if (!numericId) {
+    console.log("❌ ID inválido:", id)
+    return <RecipeClientPage params={{ id }} recipe={null} user={null} error="invalid_id" />
   }
 
   // Obtener la receta y usuario en el servidor
-  const { recipe, user } = await getRecipeWithUser(params.id)
+  const { recipe, user } = await getRecipeWithUser(numericId)
 
   if (!recipe) {
-    console.log("❌ Receta no encontrada para ID:", params.id)
-    return <RecipeClientPage params={params} recipe={null} user={null} error="not_found" />
+    console.log("❌ Receta no encontrada para ID:", id)
+    return <RecipeClientPage params={{ id }} recipe={null} user={null} error="not_found" />
   }
 
   console.log(
@@ -90,20 +108,26 @@ export default async function RecipePage({ params }: { params: { id: string } })
     user || "Sin usuario"
   )
 
-  return <RecipeClientPage params={params} recipe={recipe} user={user} error={null} />
+  return <RecipeClientPage params={{ id }} recipe={recipe} user={user} error={null} />
 }
 
-export async function generateMetadata({ params }: { params: { id: string } }) {
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const fallbackMetadata = {
+    title: "Receta",
+    description: "Ver detalles de la receta",
+  }
+
   try {
-    const { recipe } = await getRecipeWithUser(params.id)
+    const { id } = await params
+    const numericId = parseRecipeId(id)
+    if (!numericId) return fallbackMetadata
+
+    const { recipe } = await getRecipeWithUser(numericId)
     return {
       title: recipe?.name || "Receta",
       description: `Receta: ${recipe?.name || "Ver detalles de la receta"}`,
     }
   } catch (error) {
-    return {
-      title: "Receta",
-      description: "Ver detalles de la receta",
-    }
+    return fallbackMetadata
   }
 }
