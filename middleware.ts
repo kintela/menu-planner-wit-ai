@@ -28,7 +28,6 @@ export async function middleware(request: NextRequest) {
     // Forzar una lectura ligera de sesión para que se sincronicen cookies si hay refresh
     await supabase.auth.getSession()
   } catch (e) {
-    // eslint-disable-next-line no-console
     console.warn('[middleware] Error sincronizando sesión supabase:', e)
   }
 

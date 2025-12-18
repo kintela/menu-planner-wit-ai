@@ -1,5 +1,6 @@
 import "@testing-library/jest-dom"
 import jest from "jest"
+import React from "react"
 import { beforeAll, afterAll } from "@jest/globals"
 
 // Mock Next.js router
@@ -22,8 +23,7 @@ jest.mock("next/navigation", () => ({
 jest.mock("next/image", () => ({
   __esModule: true,
   default: (props: any) => {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img {...props} />
+    return React.createElement("img", props)
   },
 }))
 
