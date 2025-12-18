@@ -125,9 +125,9 @@ export function SimpleNavigation() {
   ]
 
   useEffect(() => {
-    if (!isMobileMenuOpen) return
+    // Cerrar el menú móvil al cambiar de ruta
     setIsMobileMenuOpen(false)
-  }, [pathname, isMobileMenuOpen])
+  }, [pathname])
 
   return (
     <nav className="sticky top-0 z-50 bg-white border-b shadow-sm">
