@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { getSupabaseClient } from "@/lib/supabase/client"
-import { Loader2, Plus, Boxes, Snowflake, Trash2, Search, Pencil, Sprout } from "lucide-react"
+import { Loader2, Plus, Boxes, Snowflake, Trash2, Search, Pencil, Printer } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
 
@@ -931,9 +931,9 @@ export function FreezerManager() {
                 </div>
               </div>
               <Button type="button" variant="outline" className="w-full sm:w-auto" asChild>
-                <Link href="/seasonal-products" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                  <Sprout className="h-4 w-4" />
-                  <span className="text-sm font-medium">Productos de temporada</span>
+                <Link href="/freezer/print" className="flex items-center gap-2">
+                  <Printer className="h-4 w-4" />
+                  <span className="text-sm font-medium">Imprimir</span>
                 </Link>
               </Button>
             </form>
