@@ -29,10 +29,11 @@ const normalizeOwnerId = (drawer: any): string | null => {
   return ownerData.usuario_id ?? null
 }
 
-export async function PATCH(request: Request, context: { params: { itemId: string } }) {
-  const {
-    params: { itemId },
-  } = context
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ itemId: string }> },
+) {
+  const { itemId } = await context.params
 
   if (!itemId) {
     return NextResponse.json({ error: "Falta el identificador del elemento." }, { status: 400 })

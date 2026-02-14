@@ -15,6 +15,7 @@ import { ConfirmationDialog } from "@/components/confirmation-dialog"
 
 const ITEM_STATES = ["fresco", "abierto", "bajo", "agotado"] as const
 const DRAWER_OPTIONS = [1, 2, 3, 4, 5] as const
+const QUANTITY_OPTIONS = [1, 2, 3, 4, 5] as const
 
 type ItemState = (typeof ITEM_STATES)[number]
 
@@ -1075,17 +1076,25 @@ export function FreezerManager() {
                                       />
                                     </div>
                                     <div className="flex flex-col gap-3 sm:flex-row">
-                                      <div className="sm:flex-1">
+                                      <div className="sm:w-24">
                                         <Label htmlFor={fieldId("cantidad")}>Cantidad</Label>
-                                        <Input
+                                        <select
                                           id={fieldId("cantidad")}
                                           value={editFormState.cantidad}
                                           onChange={(event) =>
                                             handleEditInputChange(item.id, { cantidad: event.target.value })
                                           }
-                                        />
+                                          className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                          <option value="">Sin cantidad</option>
+                                          {QUANTITY_OPTIONS.map((quantity) => (
+                                            <option key={quantity} value={quantity}>
+                                              {quantity}
+                                            </option>
+                                          ))}
+                                        </select>
                                       </div>
-                                      <div className="sm:w-32">
+                                      <div className="sm:flex-1">
                                         <Label htmlFor={fieldId("unidad")}>Unidad</Label>
                                         <Input
                                           id={fieldId("unidad")}
@@ -1214,16 +1223,23 @@ export function FreezerManager() {
                           />
                         </div>
                         <div className="flex flex-col gap-3 sm:flex-row">
-                          <div className="sm:flex-1">
+                          <div className="sm:w-24">
                             <Label htmlFor={`item-cantidad-${drawer.id}`}>Cantidad</Label>
-                            <Input
+                            <select
                               id={`item-cantidad-${drawer.id}`}
                               value={formState.cantidad}
                               onChange={(event) => handleItemInputChange(drawer.id, { cantidad: event.target.value })}
-                              placeholder="Ej. 2"
-                            />
+                              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="">Selecciona</option>
+                              {QUANTITY_OPTIONS.map((quantity) => (
+                                <option key={quantity} value={quantity}>
+                                  {quantity}
+                                </option>
+                              ))}
+                            </select>
                           </div>
-                          <div className="sm:w-32">
+                          <div className="sm:flex-1">
                             <Label htmlFor={`item-unidad-${drawer.id}`}>Unidad</Label>
                             <Input
                               id={`item-unidad-${drawer.id}`}
