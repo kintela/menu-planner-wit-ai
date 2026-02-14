@@ -92,6 +92,7 @@ export async function GET(request: Request) {
               fecha_congelacion,
               fecha_caducidad,
               notas,
+              reservado,
               imagen_url,
               creado_en
             )

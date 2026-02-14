@@ -14,6 +14,7 @@ const ITEM_SELECT_FIELDS = `
   fecha_congelacion,
   fecha_caducidad,
   notas,
+  reservado,
   imagen_url,
   creado_en,
   actualizado_en
@@ -125,15 +126,19 @@ export async function PATCH(
 
   const sanitizedUpdates: Record<string, any> = {}
 
-  if (typeof updates.nombre !== "string" || !updates.nombre.trim()) {
-    return NextResponse.json({ error: "El nombre es obligatorio." }, { status: 400 })
+  if ("nombre" in updates) {
+    if (typeof updates.nombre !== "string" || !updates.nombre.trim()) {
+      return NextResponse.json({ error: "El nombre es obligatorio." }, { status: 400 })
+    }
+    sanitizedUpdates.nombre = updates.nombre.trim()
   }
-  sanitizedUpdates.nombre = updates.nombre.trim()
 
-  if (typeof updates.estado !== "string" || !ITEM_STATES.includes(updates.estado)) {
-    return NextResponse.json({ error: "Estado inválido." }, { status: 400 })
+  if ("estado" in updates) {
+    if (typeof updates.estado !== "string" || !ITEM_STATES.includes(updates.estado)) {
+      return NextResponse.json({ error: "Estado inválido." }, { status: 400 })
+    }
+    sanitizedUpdates.estado = updates.estado as (typeof ITEM_STATES)[number]
   }
-  sanitizedUpdates.estado = updates.estado as (typeof ITEM_STATES)[number]
 
   if ("cantidad" in updates) {
     const value = updates.cantidad
@@ -164,6 +169,18 @@ export async function PATCH(
         return NextResponse.json({ error: `Valor inválido para ${field}.` }, { status: 400 })
       }
     }
+  }
+
+  if ("reservado" in updates) {
+    if (typeof updates.reservado === "boolean") {
+      sanitizedUpdates.reservado = updates.reservado
+    } else {
+      return NextResponse.json({ error: "Valor inválido para reservado." }, { status: 400 })
+    }
+  }
+
+  if (Object.keys(sanitizedUpdates).length === 0) {
+    return NextResponse.json({ error: "No hay cambios válidos para aplicar." }, { status: 400 })
   }
 
   const { data: updatedItem, error: updateError } = await supabase

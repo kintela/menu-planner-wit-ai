@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { getSupabaseClient } from "@/lib/supabase/client"
-import { Loader2, Plus, Boxes, Snowflake, Trash2, Search, Pencil, Printer } from "lucide-react"
+import { Loader2, Plus, Boxes, Snowflake, Trash2, Search, Pencil, Printer, Bookmark } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
 
@@ -37,6 +37,7 @@ interface FreezerItem {
   fecha_congelacion?: string | null
   fecha_caducidad?: string | null
   notas?: string | null
+  reservado?: boolean | null
   imagen_url?: string | null
   creado_en?: string | null
   actualizado_en?: string | null
@@ -101,6 +102,7 @@ type ItemPayload = {
   fecha_compra?: string | null
   fecha_congelacion?: string | null
   fecha_caducidad?: string | null
+  reservado?: boolean | null
 }
 
 type ItemUpdatePayload = Omit<ItemPayload, "cajon_id">
@@ -120,6 +122,7 @@ const normalizeItem = (rawItem: any): FreezerItem => ({
   fecha_congelacion: rawItem?.fecha_congelacion ?? null,
   fecha_caducidad: rawItem?.fecha_caducidad ?? null,
   notas: rawItem?.notas ?? null,
+  reservado: Boolean(rawItem?.reservado),
   imagen_url: rawItem?.imagen_url ?? null,
   creado_en: rawItem?.creado_en ?? null,
   actualizado_en: rawItem?.actualizado_en ?? null,
@@ -195,6 +198,7 @@ export function FreezerManager() {
   const [editForms, setEditForms] = useState<Record<string, ItemFormState>>({})
   const [savingEdits, setSavingEdits] = useState<Record<string, boolean>>({})
   const [deletingItems, setDeletingItems] = useState<Record<string, boolean>>({})
+  const [reservingItems, setReservingItems] = useState<Record<string, boolean>>({})
   const [clearingDrawers, setClearingDrawers] = useState<Record<string, boolean>>({})
   const [pendingDeletion, setPendingDeletion] = useState<{ drawerId: string; itemId: string; itemName: string } | null>(null)
   const [pendingDrawerClear, setPendingDrawerClear] = useState<{
@@ -222,6 +226,7 @@ export function FreezerManager() {
       setEditingItems({})
       setEditForms({})
       setSavingEdits({})
+      setReservingItems({})
       setLoading(false)
       return
     }
@@ -257,6 +262,7 @@ export function FreezerManager() {
                   fecha_congelacion,
                   fecha_caducidad,
                   notas,
+                  reservado,
                   imagen_url,
                   creado_en
                 )
@@ -299,6 +305,7 @@ export function FreezerManager() {
         setEditingItems({})
         setEditForms({})
         setSavingEdits({})
+        setReservingItems({})
         if (isActive) {
           setLoading(false)
         }
@@ -488,6 +495,7 @@ export function FreezerManager() {
           fecha_congelacion,
           fecha_caducidad,
           notas,
+          reservado,
           imagen_url,
           creado_en,
           actualizado_en
@@ -677,6 +685,71 @@ export function FreezerManager() {
     }
   }
 
+  const handleToggleReserved = async (drawerId: string, item: FreezerItem) => {
+    if (!user) {
+      toast({ variant: "destructive", description: "Debes iniciar sesión para actualizar elementos." })
+      return
+    }
+
+    setReservingItems((prev) => ({ ...prev, [item.id]: true }))
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      const accessToken = session?.access_token
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`
+      }
+
+      const response = await fetch(`/api/freezer/items/${item.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers,
+        body: JSON.stringify({ drawerId, updates: { reservado: !item.reservado } }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+
+      if (!response.ok || !payload?.item) {
+        throw new Error(payload?.error || "No se pudo actualizar el estado del elemento.")
+      }
+
+      const normalizedItem = normalizeItem(payload.item)
+
+      setDrawers((prev) =>
+        prev.map((drawer) =>
+          drawer.id === drawerId
+            ? {
+                ...drawer,
+                items: drawer.items.map((current) => (current.id === item.id ? normalizedItem : current)),
+              }
+            : drawer,
+        ),
+      )
+
+      toast({
+        description: normalizedItem.reservado
+          ? `${normalizedItem.nombre} marcado como reservado.`
+          : `${normalizedItem.nombre} liberado.`,
+      })
+    } catch (error: any) {
+      console.error("[FreezerManager] Error updating reserved status", error)
+      toast({
+        variant: "destructive",
+        title: "No se pudo actualizar",
+        description: error?.message ?? "Inténtalo más tarde.",
+      })
+    } finally {
+      setReservingItems((prev) => {
+        const { [item.id]: _, ...rest } = prev
+        return rest
+      })
+    }
+  }
+
   const promptDeleteItem = (drawerId: string, itemId: string, itemName: string) => {
     setPendingDeletion({ drawerId, itemId, itemName })
   }
@@ -718,6 +791,10 @@ export function FreezerManager() {
         return rest
       })
       setSavingEdits((prev) => {
+        const { [itemId]: _, ...rest } = prev
+        return rest
+      })
+      setReservingItems((prev) => {
         const { [itemId]: _, ...rest } = prev
         return rest
       })
@@ -791,6 +868,13 @@ export function FreezerManager() {
           return next
         })
         setSavingEdits((prev) => {
+          const next = { ...prev }
+          for (const itemId of drawerItemIds) {
+            delete next[itemId]
+          }
+          return next
+        })
+        setReservingItems((prev) => {
           const next = { ...prev }
           for (const itemId of drawerItemIds) {
             delete next[itemId]
@@ -1014,11 +1098,18 @@ export function FreezerManager() {
                             const editFormState = editForms[item.id] ?? buildItemFormState(item)
                             const isSavingEdit = Boolean(savingEdits[item.id])
                             const isDeletingItem = Boolean(deletingItems[item.id])
+                            const isReservingItem = Boolean(reservingItems[item.id])
+                            const isReserved = Boolean(item.reservado)
                             const baseEditId = `item-edit-${item.id}`
                             const fieldId = (suffix: string) => `${baseEditId}-${suffix}`
 
                             return (
-                              <li key={item.id} className="rounded-md border p-3">
+                              <li
+                                key={item.id}
+                                className={`rounded-md border p-3 ${
+                                  isReserved ? "border-gray-200 bg-gray-100" : "bg-white"
+                                }`}
+                              >
                                 <div className="flex items-start justify-between gap-3">
                                   <div>
                                     <p className="font-medium text-gray-900">{item.nombre}</p>
@@ -1038,6 +1129,24 @@ export function FreezerManager() {
                                     </div>
                                   </div>
                                   <div className="flex gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleToggleReserved(drawer.id, item)}
+                                      disabled={isDeletingItem || isSavingEdit || isReservingItem}
+                                      aria-pressed={isReserved}
+                                      aria-label={
+                                        isReserved
+                                          ? `Quitar reserva de ${item.nombre}`
+                                          : `Marcar ${item.nombre} como reservado`
+                                      }
+                                    >
+                                      {isReservingItem ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Bookmark className={`h-4 w-4 ${isReserved ? "text-gray-900" : "text-gray-400"}`} />
+                                      )}
+                                    </Button>
                                     <Button
                                       variant="ghost"
                                       size="icon"
