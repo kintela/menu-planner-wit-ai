@@ -12,7 +12,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Calendar, ChefHat, Flame, Users, Trash2, Plus, User, Eye, Share2, RefreshCcw, Copy, Check } from "lucide-react"
+import {
+  Calendar,
+  ChefHat,
+  Flame,
+  Users,
+  Trash2,
+  Plus,
+  User,
+  Eye,
+  Share2,
+  RefreshCcw,
+  Copy,
+  Check,
+  Snowflake,
+} from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { RecipeSelector } from "./recipe-selector"
 import { useToast } from "@/hooks/use-toast"
@@ -77,6 +91,7 @@ interface MenuEntry {
   dish_order: number
   recipe_id: number
   recipe?: Recipe
+  sacado_del_congelador?: boolean
 }
 
 interface SavedMenuOption {
@@ -230,6 +245,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({
         meal_type: entry.meal_type,
         dish_order: entry.dish_order,
         recipe_id: entry.recipe_id,
+        sacado_del_congelador: Boolean(entry.sacado_del_congelador),
         recipe: entry.recipes
           ? {
               id: (entry.recipes as any).id,
@@ -287,6 +303,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({
           meal_type,
           dish_order,
           recipe_id,
+          sacado_del_congelador,
           recipes (
             id,
             name,
@@ -667,6 +684,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({
             meal_type,
             dish_order,
             recipe_id,
+            sacado_del_congelador,
             recipes (
               id,
               name,
@@ -723,7 +741,8 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({
       meal_type,
       dish_order,
       recipe_id: recipeId,
-      recipe
+      recipe,
+      sacado_del_congelador: false,
     }
     
     setMenuEntries(prev => {
@@ -736,6 +755,19 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({
 
   const removeRecipeFromMenu = (entryId: number) => {
     setMenuEntries(prev => prev.filter(entry => entry.id !== entryId))
+  }
+
+  const toggleFromFreezer = (entry: MenuEntry) => {
+    setMenuEntries((prev) =>
+      prev.map((current) => {
+        const matches =
+          current.day === entry.day &&
+          current.meal_type === entry.meal_type &&
+          current.dish_order === entry.dish_order
+        if (!matches) return current
+        return { ...current, sacado_del_congelador: !current.sacado_del_congelador }
+      }),
+    )
   }
 
   const saveWeeklyMenu = async () => {
@@ -797,7 +829,8 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({
           recipe_id: entry.recipe_id,
           day_of_week: DAYS.indexOf(entry.day),
           meal_type: entry.meal_type,
-          dish_order: entry.dish_order
+          dish_order: entry.dish_order,
+          sacado_del_congelador: Boolean(entry.sacado_del_congelador),
         }))
 
       if (menuItemsToInsert.length > 0) {
@@ -1090,6 +1123,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({
         dish_order: mealMeta.dish_order,
         recipe_id: candidate.r.id,
         recipe: candidate.r,
+        sacado_del_congelador: false,
       })
 
       usedRecipeIds.add(candidate.r.id)
@@ -1397,9 +1431,24 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({
                         key={`${day}-${mealType.key}-${mealType.order}`}
                         className={`border-2 rounded-lg p-3 h-[180px] ${mealType.color}`}
                       >
-                        <p className="text-xs font-medium mb-2">{mealType.label}</p>
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-xs font-medium">{mealType.label}</p>
+                          {entry?.recipe && (
+                            <button
+                              type="button"
+                              onClick={() => toggleFromFreezer(entry)}
+                              title="lo saco del congelador"
+                              aria-pressed={Boolean(entry.sacado_del_congelador)}
+                              className={`rounded-full bg-white/80 p-1 transition-colors hover:bg-white ${
+                                entry.sacado_del_congelador ? "text-blue-700" : "text-gray-400"
+                              }`}
+                            >
+                              <Snowflake className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                         {entry?.recipe ? (
-                          <div className="h-full flex flex-col relative">
+                          <div className="h-full flex flex-col">
                             <div className="flex items-start gap-2 flex-1">
                               <div className="flex-shrink-0">
                                 {entry.recipe.image_url ? (
