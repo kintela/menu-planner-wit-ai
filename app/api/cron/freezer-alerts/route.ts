@@ -7,6 +7,7 @@ import { isAdmin } from "@/lib/auth"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
+const APP_NAME = "MenuPlanner"
 const DEFAULT_RECIPIENTS = ["roberto.quintela@protonmail.com", "soniamuga@yahoo.es"]
 
 type RawDrawer = {
@@ -126,9 +127,16 @@ const formatQuantity = (cantidad?: number | null, unidad?: string | null) => {
   return `${qty}${unit}`.trim()
 }
 
-const buildEmailContent = (items: AlertItem[], thresholdDate: string, months: number) => {
+const resolveBaseUrl = (req: NextRequest) => {
+  const requestUrl = new URL(req.url)
+  const envBase = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")
+  return envBase && envBase.length > 0 ? envBase : `${requestUrl.protocol}//${requestUrl.host}`
+}
+
+const buildEmailContent = (items: AlertItem[], thresholdDate: string, months: number, baseUrl: string) => {
   const title = `Elementos congelados ${months} meses o mas`
   const intro = `Se encontraron ${items.length} elementos que llevan ${months} meses o mas congelados.`
+  const safeBaseUrl = baseUrl?.trim() ? baseUrl.trim().replace(/\/$/, "") : ""
 
   const lines = items.map((item) => {
     const drawerLabel = item.cajon?.nombre
@@ -140,7 +148,8 @@ const buildEmailContent = (items: AlertItem[], thresholdDate: string, months: nu
     return `- ${item.nombre} | ${dateLabel} | ${drawerLabel} | ${qtyLabel} | ${categoryLabel}`
   })
 
-  const text = `${title}\n${intro}\n\n${lines.join("\n")}`
+  const footerText = safeBaseUrl ? `\n\n${APP_NAME}: ${safeBaseUrl}` : ""
+  const text = `${APP_NAME}\n${title}\n${intro}\n\n${lines.join("\n")}${footerText}`
 
   const rows = items
     .map((item) => {
@@ -157,22 +166,33 @@ const buildEmailContent = (items: AlertItem[], thresholdDate: string, months: nu
     })
     .join("")
 
+  const headerLink = safeBaseUrl || "#"
   const html = `
-    <div style="font-family:Arial, sans-serif; color:#111827;">
-      <h2 style="margin:0 0 8px;">${escapeHtml(title)}</h2>
-      <p style="margin:0 0 16px;">${escapeHtml(intro)}</p>
-      <table style="width:100%; border-collapse:collapse; font-size:14px;">
-        <thead>
-          <tr style="background:#f3f4f6; text-align:left;">
-            <th style="padding:8px 10px;">Producto</th>
-            <th style="padding:8px 10px;">Fecha congelacion</th>
-            <th style="padding:8px 10px;">Cajon</th>
-            <th style="padding:8px 10px;">Cantidad</th>
-            <th style="padding:8px 10px;">Categoria</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
+    <div style="font-family:Arial, sans-serif; background:#f3f4f6; padding:24px;">
+      <div style="max-width:720px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; border:1px solid #e5e7eb;">
+        <div style="background:#111827; padding:16px 24px;">
+          <a href="${escapeHtml(headerLink)}" style="color:#ffffff; font-size:20px; font-weight:700; text-decoration:none;">${escapeHtml(APP_NAME)}</a>
+        </div>
+        <div style="padding:20px 24px; color:#111827;">
+          <h2 style="margin:0 0 8px;">${escapeHtml(title)}</h2>
+          <p style="margin:0 0 16px;">${escapeHtml(intro)}</p>
+          <table style="width:100%; border-collapse:collapse; font-size:14px;">
+            <thead>
+              <tr style="background:#f3f4f6; text-align:left;">
+                <th style="padding:8px 10px;">Producto</th>
+                <th style="padding:8px 10px;">Fecha congelacion</th>
+                <th style="padding:8px 10px;">Cajon</th>
+                <th style="padding:8px 10px;">Cantidad</th>
+                <th style="padding:8px 10px;">Categoria</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div style="padding:12px 24px; border-top:1px solid #e5e7eb; text-align:center; font-size:12px; color:#6b7280;">
+          <a href="${escapeHtml(headerLink)}" style="color:#2563eb; text-decoration:none;">${escapeHtml(APP_NAME)}</a>
+        </div>
+      </div>
     </div>
   `
 
@@ -183,15 +203,27 @@ const buildEmailContent = (items: AlertItem[], thresholdDate: string, months: nu
   }
 }
 
-const buildTestEmailContent = () => {
+const buildTestEmailContent = (baseUrl: string) => {
   const checkedAt = new Date().toISOString()
   const subject = "[Congelador] Email de prueba"
-  const text = `Email de prueba enviado correctamente.\nHora: ${checkedAt}`
+  const safeBaseUrl = baseUrl?.trim() ? baseUrl.trim().replace(/\/$/, "") : ""
+  const footerText = safeBaseUrl ? `\n\n${APP_NAME}: ${safeBaseUrl}` : ""
+  const text = `${APP_NAME}\nEmail de prueba enviado correctamente.\nHora: ${checkedAt}${footerText}`
   const html = `
-    <div style="font-family:Arial, sans-serif; color:#111827;">
-      <h2 style="margin:0 0 8px;">Email de prueba</h2>
-      <p style="margin:0;">Si ves este mensaje, la configuracion SMTP funciona.</p>
-      <p style="margin:12px 0 0; color:#6b7280; font-size:12px;">Hora: ${escapeHtml(checkedAt)}</p>
+    <div style="font-family:Arial, sans-serif; background:#f3f4f6; padding:24px;">
+      <div style="max-width:640px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; border:1px solid #e5e7eb;">
+        <div style="background:#111827; padding:16px 24px;">
+          <a href="${escapeHtml(safeBaseUrl || "#")}" style="color:#ffffff; font-size:20px; font-weight:700; text-decoration:none;">${escapeHtml(APP_NAME)}</a>
+        </div>
+        <div style="padding:20px 24px; color:#111827;">
+          <h2 style="margin:0 0 8px;">Email de prueba</h2>
+          <p style="margin:0;">Si ves este mensaje, la configuracion SMTP funciona.</p>
+          <p style="margin:12px 0 0; color:#6b7280; font-size:12px;">Hora: ${escapeHtml(checkedAt)}</p>
+        </div>
+        <div style="padding:12px 24px; border-top:1px solid #e5e7eb; text-align:center; font-size:12px; color:#6b7280;">
+          <a href="${escapeHtml(safeBaseUrl || "#")}" style="color:#2563eb; text-decoration:none;">${escapeHtml(APP_NAME)}</a>
+        </div>
+      </div>
     </div>
   `
   return { subject, text, html }
@@ -214,6 +246,7 @@ async function handleRequest(
   const monthsEnv = Number(process.env.FREEZER_ALERT_MONTHS ?? 2)
   const alertMonths = Number.isFinite(monthsEnv) && monthsEnv > 0 ? monthsEnv : 2
   const thresholdDate = format(subMonths(new Date(), alertMonths), "yyyy-MM-dd")
+  const baseUrl = resolveBaseUrl(req)
 
   const recipients = parseRecipients()
 
@@ -260,7 +293,7 @@ async function handleRequest(
       auth: { user: smtpUser, pass: smtpPassword },
     })
 
-    const { subject, text, html } = buildTestEmailContent()
+    const { subject, text, html } = buildTestEmailContent(baseUrl)
 
     await transporter.sendMail({
       from: smtpFrom,
@@ -348,7 +381,7 @@ async function handleRequest(
     auth: { user: smtpUser, pass: smtpPassword },
   })
 
-  const { subject, text, html } = buildEmailContent(items, thresholdDate, alertMonths)
+  const { subject, text, html } = buildEmailContent(items, thresholdDate, alertMonths, baseUrl)
 
   await transporter.sendMail({
     from: smtpFrom,
