@@ -64,6 +64,12 @@ interface ItemFormState {
   fecha_caducidad: string
 }
 
+const getTodayISO = () => {
+  const now = new Date()
+  const offsetMs = now.getTimezoneOffset() * 60 * 1000
+  return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10)
+}
+
 const EMPTY_ITEM_FORM: ItemFormState = {
   nombre: "",
   cantidad: "",
@@ -74,6 +80,15 @@ const EMPTY_ITEM_FORM: ItemFormState = {
   fecha_compra: "",
   fecha_congelacion: "",
   fecha_caducidad: "",
+}
+
+const buildNewItemForm = (): ItemFormState => {
+  const today = getTodayISO()
+  return {
+    ...EMPTY_ITEM_FORM,
+    fecha_compra: today,
+    fecha_congelacion: today,
+  }
 }
 
 const maybeRandomId = () => {
@@ -298,7 +313,7 @@ export function FreezerManager() {
         setItemForms((prev) => {
           const next: Record<string, ItemFormState> = {}
           normalizedDrawers.forEach((drawer) => {
-            next[drawer.id] = prev[drawer.id] ?? { ...EMPTY_ITEM_FORM }
+            next[drawer.id] = prev[drawer.id] ?? buildNewItemForm()
           })
           return next
         })
@@ -413,7 +428,7 @@ export function FreezerManager() {
         setItemForms((forms) => {
           const updated = { ...forms }
           normalized.forEach((drawer) => {
-            updated[drawer.id] = { ...EMPTY_ITEM_FORM }
+            updated[drawer.id] = buildNewItemForm()
           })
           return updated
         })
@@ -438,7 +453,7 @@ export function FreezerManager() {
     setItemForms((prev) => ({
       ...prev,
       [drawerId]: {
-        ...(prev[drawerId] ?? { ...EMPTY_ITEM_FORM }),
+        ...(prev[drawerId] ?? buildNewItemForm()),
         ...changes,
       },
     }))
@@ -450,7 +465,7 @@ export function FreezerManager() {
       return
     }
 
-    const formState = itemForms[drawerId] ?? EMPTY_ITEM_FORM
+    const formState = itemForms[drawerId] ?? buildNewItemForm()
 
     if (!formState.nombre.trim()) {
       toast({ variant: "destructive", description: "El nombre del elemento es obligatorio." })
@@ -522,7 +537,7 @@ export function FreezerManager() {
             : drawer,
         ),
       )
-      setItemForms((prev) => ({ ...prev, [drawerId]: { ...EMPTY_ITEM_FORM } }))
+      setItemForms((prev) => ({ ...prev, [drawerId]: buildNewItemForm() }))
       toast({ title: "Elemento añadido", description: `${normalizedItem.nombre} se guardó en el cajón.` })
     } catch (error: any) {
       console.error("[FreezerManager] Error adding item", error)
@@ -1045,7 +1060,7 @@ export function FreezerManager() {
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
             {drawers.map((drawer) => {
-              const formState = itemForms[drawer.id] ?? EMPTY_ITEM_FORM
+              const formState = itemForms[drawer.id] ?? buildNewItemForm()
               const visibleItems = isSearching
                 ? drawer.items.filter((item) => itemMatchesSearch(item, normalizedSearchTerm))
                 : drawer.items
