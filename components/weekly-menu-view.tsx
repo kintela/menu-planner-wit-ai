@@ -1448,7 +1448,7 @@ export const WeeklyMenuView = React.memo(function WeeklyMenuView({
                           )}
                         </div>
                         {entry?.recipe ? (
-                          <div className="h-full flex flex-col">
+                          <div className="h-full flex flex-col relative">
                             <div className="flex items-start gap-2 flex-1">
                               <div className="flex-shrink-0">
                                 {entry.recipe.image_url ? (
