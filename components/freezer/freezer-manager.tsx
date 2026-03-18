@@ -53,6 +53,7 @@ interface FreezerDrawer {
 }
 
 interface ItemFormState {
+  cajon_id: string
   nombre: string
   cantidad: string
   unidad: string
@@ -71,6 +72,7 @@ const getTodayISO = () => {
 }
 
 const EMPTY_ITEM_FORM: ItemFormState = {
+  cajon_id: "",
   nombre: "",
   cantidad: "",
   unidad: "",
@@ -120,7 +122,7 @@ type ItemPayload = {
   reservado?: boolean | null
 }
 
-type ItemUpdatePayload = Omit<ItemPayload, "cajon_id">
+type ItemUpdatePayload = Partial<ItemPayload>
 
 const normalizeItem = (rawItem: any): FreezerItem => ({
   id: rawItem?.id ? String(rawItem.id) : maybeRandomId(),
@@ -167,6 +169,13 @@ const formatDate = (dateString?: string | null) => {
   }
 }
 
+const sortItemsByName = (items: FreezerItem[]) =>
+  [...items].sort((a, b) => {
+    const nameA = a.nombre.toLocaleLowerCase("es")
+    const nameB = b.nombre.toLocaleLowerCase("es")
+    return nameA.localeCompare(nameB, "es")
+  })
+
 const itemMatchesSearch = (item: FreezerItem, search: string) => {
   if (!search) return true
   const haystack: string[] = []
@@ -185,6 +194,7 @@ const itemMatchesSearch = (item: FreezerItem, search: string) => {
 }
 
 const buildItemFormState = (item: FreezerItem): ItemFormState => ({
+  cajon_id: item.cajon_id ?? "",
   nombre: item.nombre ?? "",
   cantidad: item.cantidad === null || item.cantidad === undefined ? "" : String(item.cantidad),
   unidad: item.unidad ?? "",
@@ -528,11 +538,7 @@ export function FreezerManager() {
           drawer.id === drawerId
             ? {
                 ...drawer,
-                items: [...drawer.items, normalizedItem].sort((a, b) => {
-                  const nameA = a.nombre.toLocaleLowerCase("es")
-                  const nameB = b.nombre.toLocaleLowerCase("es")
-                  return nameA.localeCompare(nameB)
-                }),
+                items: sortItemsByName([...drawer.items, normalizedItem]),
               }
             : drawer,
         ),
@@ -616,6 +622,14 @@ export function FreezerManager() {
       return
     }
 
+    const targetDrawerId = formState.cajon_id || drawerId
+    const targetDrawer = drawers.find((drawer) => drawer.id === targetDrawerId)
+
+    if (!targetDrawer) {
+      toast({ variant: "destructive", description: "Selecciona un cajón válido." })
+      return
+    }
+
     const rawQuantity = formState.cantidad.trim()
     let quantityValue: number | null = null
     if (rawQuantity) {
@@ -628,6 +642,7 @@ export function FreezerManager() {
     }
 
     const updates: ItemUpdatePayload = {
+      cajon_id: targetDrawerId,
       nombre: formState.nombre.trim(),
       estado: formState.estado,
       cantidad: rawQuantity ? quantityValue : null,
@@ -669,14 +684,16 @@ export function FreezerManager() {
       const normalizedItem = normalizeItem(payload.item)
 
       setDrawers((prev) =>
-        prev.map((drawer) =>
-          drawer.id === drawerId
-            ? {
-                ...drawer,
-                items: drawer.items.map((item) => (item.id === itemId ? normalizedItem : item)),
-              }
-            : drawer,
-        ),
+        prev.map((drawer) => {
+          const filteredItems = drawer.items.filter((item) => item.id !== itemId)
+          if (drawer.id !== normalizedItem.cajon_id) {
+            return filteredItems.length === drawer.items.length ? drawer : { ...drawer, items: filteredItems }
+          }
+          return {
+            ...drawer,
+            items: sortItemsByName([...filteredItems, normalizedItem]),
+          }
+        }),
       )
 
       setEditForms((prev) => ({ ...prev, [itemId]: buildItemFormState(normalizedItem) }))
@@ -684,7 +701,13 @@ export function FreezerManager() {
         const { [itemId]: _, ...rest } = prev
         return rest
       })
-      toast({ title: "Elemento actualizado", description: `${normalizedItem.nombre} se actualizó correctamente.` })
+      toast({
+        title: "Elemento actualizado",
+        description:
+          normalizedItem.cajon_id !== drawerId
+            ? `${normalizedItem.nombre} se movió a ${targetDrawer.nombre}.`
+            : `${normalizedItem.nombre} se actualizó correctamente.`,
+      })
     } catch (error: any) {
       console.error("[FreezerManager] Error updating item", error)
       toast({
@@ -1229,8 +1252,8 @@ export function FreezerManager() {
                                         />
                                       </div>
                                     </div>
-                                    <div className="flex flex-col gap-3 sm:flex-row">
-                                      <div className="sm:flex-1">
+                                    <div className="grid gap-3 sm:grid-cols-3">
+                                      <div className="min-w-0">
                                         <Label htmlFor={fieldId("categoria")}>Categoría</Label>
                                         <Input
                                           id={fieldId("categoria")}
@@ -1240,7 +1263,7 @@ export function FreezerManager() {
                                           }
                                         />
                                       </div>
-                                      <div className="sm:w-40">
+                                      <div className="min-w-0">
                                         <Label htmlFor={fieldId("estado")}>Estado</Label>
                                         <select
                                           id={fieldId("estado")}
@@ -1253,6 +1276,23 @@ export function FreezerManager() {
                                           {ITEM_STATES.map((state) => (
                                             <option key={state} value={state}>
                                               {state}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      <div className="min-w-0">
+                                        <Label htmlFor={fieldId("cajon")}>Cajón</Label>
+                                        <select
+                                          id={fieldId("cajon")}
+                                          value={editFormState.cajon_id || drawer.id}
+                                          onChange={(event) =>
+                                            handleEditInputChange(item.id, { cajon_id: event.target.value })
+                                          }
+                                          className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                          {drawers.map((drawerOption) => (
+                                            <option key={drawerOption.id} value={drawerOption.id}>
+                                              {drawerOption.nombre}
                                             </option>
                                           ))}
                                         </select>

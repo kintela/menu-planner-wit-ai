@@ -118,7 +118,11 @@ export async function PATCH(
     return NextResponse.json({ error: "El cajón indicado no coincide." }, { status: 400 })
   }
 
-  const ownerId = normalizeOwnerId(itemRecord.cajones_congelador)
+  const currentDrawerRecord = Array.isArray(itemRecord.cajones_congelador)
+    ? itemRecord.cajones_congelador[0]
+    : itemRecord.cajones_congelador
+  const ownerId = normalizeOwnerId(currentDrawerRecord)
+  const currentFreezerId = currentDrawerRecord?.congelador_id ?? null
 
   if (ownerId !== userData.user.id) {
     return NextResponse.json({ error: "No tienes permisos para editar este elemento." }, { status: 403 })
@@ -147,6 +151,54 @@ export async function PATCH(
     } else {
       return NextResponse.json({ error: "Cantidad inválida." }, { status: 400 })
     }
+  }
+
+  if ("cajon_id" in updates) {
+    const value = updates.cajon_id
+
+    if (typeof value !== "string" || !value.trim()) {
+      return NextResponse.json({ error: "Cajón inválido." }, { status: 400 })
+    }
+
+    const nextDrawerId = value.trim()
+
+    if (nextDrawerId !== itemRecord.cajon_id) {
+      const { data: targetDrawer, error: targetDrawerError } = await supabase
+        .from("cajones_congelador")
+        .select(
+          `
+            id,
+            congelador_id,
+            congeladores (
+              id,
+              usuario_id
+            )
+          `,
+        )
+        .eq("id", nextDrawerId)
+        .maybeSingle()
+
+      if (targetDrawerError) {
+        console.error("[api/freezer/items/[itemId]] Error fetching target drawer", targetDrawerError)
+        return NextResponse.json({ error: "No se pudo validar el cajón de destino." }, { status: 500 })
+      }
+
+      if (!targetDrawer) {
+        return NextResponse.json({ error: "El cajón de destino no existe." }, { status: 404 })
+      }
+
+      const targetOwnerId = normalizeOwnerId(targetDrawer)
+
+      if (targetOwnerId !== userData.user.id) {
+        return NextResponse.json({ error: "No tienes permisos para mover este elemento a ese cajón." }, { status: 403 })
+      }
+
+      if (currentFreezerId && targetDrawer.congelador_id !== currentFreezerId) {
+        return NextResponse.json({ error: "El cajón de destino no pertenece al mismo congelador." }, { status: 400 })
+      }
+    }
+
+    sanitizedUpdates.cajon_id = nextDrawerId
   }
 
   const optionalStringFields = [
