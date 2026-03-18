@@ -219,6 +219,7 @@ export function FreezerManager() {
   const [creatingDrawers, setCreatingDrawers] = useState(false)
   const [itemForms, setItemForms] = useState<Record<string, ItemFormState>>({})
   const [addingItems, setAddingItems] = useState<Record<string, boolean>>({})
+  const [expandedAddForms, setExpandedAddForms] = useState<Record<string, boolean>>({})
   const [editingItems, setEditingItems] = useState<Record<string, boolean>>({})
   const [editForms, setEditForms] = useState<Record<string, ItemFormState>>({})
   const [savingEdits, setSavingEdits] = useState<Record<string, boolean>>({})
@@ -248,6 +249,7 @@ export function FreezerManager() {
       setDrawerCountValue("")
       setSearchTerm("")
       setItemForms({})
+      setExpandedAddForms({})
       setEditingItems({})
       setEditForms({})
       setSavingEdits({})
@@ -324,6 +326,13 @@ export function FreezerManager() {
           const next: Record<string, ItemFormState> = {}
           normalizedDrawers.forEach((drawer) => {
             next[drawer.id] = prev[drawer.id] ?? buildNewItemForm()
+          })
+          return next
+        })
+        setExpandedAddForms((prev) => {
+          const next: Record<string, boolean> = {}
+          normalizedDrawers.forEach((drawer) => {
+            next[drawer.id] = prev[drawer.id] ?? false
           })
           return next
         })
@@ -442,6 +451,13 @@ export function FreezerManager() {
           })
           return updated
         })
+        setExpandedAddForms((prevForms) => {
+          const updated = { ...prevForms }
+          normalized.forEach((drawer) => {
+            updated[drawer.id] = false
+          })
+          return updated
+        })
         return next
       })
 
@@ -466,6 +482,13 @@ export function FreezerManager() {
         ...(prev[drawerId] ?? buildNewItemForm()),
         ...changes,
       },
+    }))
+  }
+
+  const handleToggleAddItemForm = (drawerId: string) => {
+    setExpandedAddForms((prev) => ({
+      ...prev,
+      [drawerId]: !prev[drawerId],
     }))
   }
 
@@ -544,6 +567,7 @@ export function FreezerManager() {
         ),
       )
       setItemForms((prev) => ({ ...prev, [drawerId]: buildNewItemForm() }))
+      setExpandedAddForms((prev) => ({ ...prev, [drawerId]: false }))
       toast({ title: "Elemento añadido", description: `${normalizedItem.nombre} se guardó en el cajón.` })
     } catch (error: any) {
       console.error("[FreezerManager] Error adding item", error)
@@ -1084,6 +1108,7 @@ export function FreezerManager() {
           <div className="grid gap-6 md:grid-cols-2">
             {drawers.map((drawer) => {
               const formState = itemForms[drawer.id] ?? buildNewItemForm()
+              const isAddFormOpen = Boolean(expandedAddForms[drawer.id])
               const visibleItems = isSearching
                 ? drawer.items.filter((item) => itemMatchesSearch(item, normalizedSearchTerm))
                 : drawer.items
@@ -1092,26 +1117,43 @@ export function FreezerManager() {
               return (
                 <Card key={drawer.id} className="flex flex-col">
                   <CardHeader className="relative">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-4 top-4"
-                      onClick={() => promptClearDrawer(drawer.id, drawer.nombre, drawer.items.length)}
-                      disabled={!hasItems || Boolean(clearingDrawers[drawer.id])}
-                      aria-label={`Vaciar ${drawer.nombre}`}
-                    >
-                      {clearingDrawers[drawer.id] ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <CardTitle className="flex items-center gap-2 pr-12">
+                    <div className="absolute right-4 top-4 flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant={isAddFormOpen ? "secondary" : "ghost"}
+                        size="icon"
+                        onClick={() => handleToggleAddItemForm(drawer.id)}
+                        disabled={Boolean(addingItems[drawer.id])}
+                        aria-pressed={isAddFormOpen}
+                        aria-label={
+                          isAddFormOpen
+                            ? `Ocultar formulario para añadir en ${drawer.nombre}`
+                            : `Añadir elemento a ${drawer.nombre}`
+                        }
+                        title={isAddFormOpen ? "Ocultar formulario" : "Añadir elemento"}
+                      >
+                        <Plus className={`h-4 w-4 transition-transform ${isAddFormOpen ? "rotate-45" : ""}`} />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => promptClearDrawer(drawer.id, drawer.nombre, drawer.items.length)}
+                        disabled={!hasItems || Boolean(clearingDrawers[drawer.id])}
+                        aria-label={`Vaciar ${drawer.nombre}`}
+                      >
+                        {clearingDrawers[drawer.id] ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                    <CardTitle className="flex items-center gap-2 pr-24">
                       <Snowflake className="h-5 w-5 text-blue-500" />
                       {drawer.nombre}
                     </CardTitle>
-                    <CardDescription className="pr-12">
+                    <CardDescription className="pr-24">
                       {!hasItems
                         ? "Este cajón está vacío. Añade tu primer elemento."
                         : isSearching
@@ -1374,135 +1416,137 @@ export function FreezerManager() {
                       )}
                     </div>
 
-                    <div className="rounded-md bg-gray-50 p-4">
-                      <h3 className="mb-3 text-sm font-semibold text-gray-800">Añadir elemento</h3>
-                      <div className="space-y-3">
-                        <div>
-                          <Label htmlFor={`item-nombre-${drawer.id}`}>Nombre</Label>
-                          <Input
-                            id={`item-nombre-${drawer.id}`}
-                            value={formState.nombre}
-                            onChange={(event) => handleItemInputChange(drawer.id, { nombre: event.target.value })}
-                            placeholder="Ej. Pechugas de pollo"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-3 sm:flex-row">
-                          <div className="sm:w-24">
-                            <Label htmlFor={`item-cantidad-${drawer.id}`}>Cantidad</Label>
-                            <select
-                              id={`item-cantidad-${drawer.id}`}
-                              value={formState.cantidad}
-                              onChange={(event) => handleItemInputChange(drawer.id, { cantidad: event.target.value })}
-                              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                              <option value="">Selecciona</option>
-                              {QUANTITY_OPTIONS.map((quantity) => (
-                                <option key={quantity} value={quantity}>
-                                  {quantity}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="sm:flex-1">
-                            <Label htmlFor={`item-unidad-${drawer.id}`}>Unidad</Label>
+                    {isAddFormOpen && (
+                      <div className="rounded-md bg-gray-50 p-4">
+                        <h3 className="mb-3 text-sm font-semibold text-gray-800">Añadir elemento</h3>
+                        <div className="space-y-3">
+                          <div>
+                            <Label htmlFor={`item-nombre-${drawer.id}`}>Nombre</Label>
                             <Input
-                              id={`item-unidad-${drawer.id}`}
-                              value={formState.unidad}
-                              onChange={(event) => handleItemInputChange(drawer.id, { unidad: event.target.value })}
-                              placeholder="kg, ud..."
+                              id={`item-nombre-${drawer.id}`}
+                              value={formState.nombre}
+                              onChange={(event) => handleItemInputChange(drawer.id, { nombre: event.target.value })}
+                              placeholder="Ej. Pechugas de pollo"
                             />
                           </div>
-                        </div>
-                        <div className="flex flex-col gap-3 sm:flex-row">
-                          <div className="sm:flex-1">
-                            <Label htmlFor={`item-categoria-${drawer.id}`}>Categoría</Label>
-                            <Input
-                              id={`item-categoria-${drawer.id}`}
-                              value={formState.categoria}
-                              onChange={(event) => handleItemInputChange(drawer.id, { categoria: event.target.value })}
-                              placeholder="Ej. Carnes, Postres..."
+                          <div className="flex flex-col gap-3 sm:flex-row">
+                            <div className="sm:w-24">
+                              <Label htmlFor={`item-cantidad-${drawer.id}`}>Cantidad</Label>
+                              <select
+                                id={`item-cantidad-${drawer.id}`}
+                                value={formState.cantidad}
+                                onChange={(event) => handleItemInputChange(drawer.id, { cantidad: event.target.value })}
+                                className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value="">Selecciona</option>
+                                {QUANTITY_OPTIONS.map((quantity) => (
+                                  <option key={quantity} value={quantity}>
+                                    {quantity}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="sm:flex-1">
+                              <Label htmlFor={`item-unidad-${drawer.id}`}>Unidad</Label>
+                              <Input
+                                id={`item-unidad-${drawer.id}`}
+                                value={formState.unidad}
+                                onChange={(event) => handleItemInputChange(drawer.id, { unidad: event.target.value })}
+                                placeholder="kg, ud..."
+                              />
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-3 sm:flex-row">
+                            <div className="sm:flex-1">
+                              <Label htmlFor={`item-categoria-${drawer.id}`}>Categoría</Label>
+                              <Input
+                                id={`item-categoria-${drawer.id}`}
+                                value={formState.categoria}
+                                onChange={(event) => handleItemInputChange(drawer.id, { categoria: event.target.value })}
+                                placeholder="Ej. Carnes, Postres..."
+                              />
+                            </div>
+                            <div className="sm:w-40">
+                              <Label htmlFor={`item-estado-${drawer.id}`}>Estado</Label>
+                              <select
+                                id={`item-estado-${drawer.id}`}
+                                value={formState.estado}
+                                onChange={(event) =>
+                                  handleItemInputChange(drawer.id, { estado: event.target.value as ItemState })
+                                }
+                                className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                {ITEM_STATES.map((state) => (
+                                  <option key={state} value={state}>
+                                    {state}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            <div className="min-w-0">
+                              <Label htmlFor={`item-fecha-compra-${drawer.id}`}>Fª compra</Label>
+                              <Input
+                                id={`item-fecha-compra-${drawer.id}`}
+                                type="date"
+                                value={formState.fecha_compra}
+                                onChange={(event) => handleItemInputChange(drawer.id, { fecha_compra: event.target.value })}
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <Label htmlFor={`item-fecha-congelacion-${drawer.id}`}>Fª congelación</Label>
+                              <Input
+                                id={`item-fecha-congelacion-${drawer.id}`}
+                                type="date"
+                                value={formState.fecha_congelacion}
+                                onChange={(event) =>
+                                  handleItemInputChange(drawer.id, { fecha_congelacion: event.target.value })
+                                }
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <Label htmlFor={`item-fecha-caducidad-${drawer.id}`}>Fª caducidad</Label>
+                              <Input
+                                id={`item-fecha-caducidad-${drawer.id}`}
+                                type="date"
+                                value={formState.fecha_caducidad}
+                                onChange={(event) =>
+                                  handleItemInputChange(drawer.id, { fecha_caducidad: event.target.value })
+                                }
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <Label htmlFor={`item-notas-${drawer.id}`}>Notas</Label>
+                            <Textarea
+                              id={`item-notas-${drawer.id}`}
+                              value={formState.notas}
+                              onChange={(event) => handleItemInputChange(drawer.id, { notas: event.target.value })}
+                              placeholder="Detalles relevantes: marca, preparado, etc."
                             />
                           </div>
-                          <div className="sm:w-40">
-                            <Label htmlFor={`item-estado-${drawer.id}`}>Estado</Label>
-                            <select
-                              id={`item-estado-${drawer.id}`}
-                              value={formState.estado}
-                              onChange={(event) =>
-                                handleItemInputChange(drawer.id, { estado: event.target.value as ItemState })
-                              }
-                              className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                              {ITEM_STATES.map((state) => (
-                                <option key={state} value={state}>
-                                  {state}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+                          <Button
+                            type="button"
+                            onClick={() => handleAddItem(drawer.id)}
+                            disabled={Boolean(addingItems[drawer.id])}
+                            className="w-full"
+                          >
+                            {addingItems[drawer.id] ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Guardando...
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="mr-2 h-4 w-4" />
+                                Añadir al cajón
+                              </>
+                            )}
+                          </Button>
                         </div>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                          <div className="min-w-0">
-                            <Label htmlFor={`item-fecha-compra-${drawer.id}`}>Fª compra</Label>
-                            <Input
-                              id={`item-fecha-compra-${drawer.id}`}
-                              type="date"
-                              value={formState.fecha_compra}
-                              onChange={(event) => handleItemInputChange(drawer.id, { fecha_compra: event.target.value })}
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <Label htmlFor={`item-fecha-congelacion-${drawer.id}`}>Fª congelación</Label>
-                            <Input
-                              id={`item-fecha-congelacion-${drawer.id}`}
-                              type="date"
-                              value={formState.fecha_congelacion}
-                              onChange={(event) =>
-                                handleItemInputChange(drawer.id, { fecha_congelacion: event.target.value })
-                              }
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <Label htmlFor={`item-fecha-caducidad-${drawer.id}`}>Fª caducidad</Label>
-                            <Input
-                              id={`item-fecha-caducidad-${drawer.id}`}
-                              type="date"
-                              value={formState.fecha_caducidad}
-                              onChange={(event) =>
-                                handleItemInputChange(drawer.id, { fecha_caducidad: event.target.value })
-                              }
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <Label htmlFor={`item-notas-${drawer.id}`}>Notas</Label>
-                          <Textarea
-                            id={`item-notas-${drawer.id}`}
-                            value={formState.notas}
-                            onChange={(event) => handleItemInputChange(drawer.id, { notas: event.target.value })}
-                            placeholder="Detalles relevantes: marca, preparado, etc."
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          onClick={() => handleAddItem(drawer.id)}
-                          disabled={Boolean(addingItems[drawer.id])}
-                          className="w-full"
-                        >
-                          {addingItems[drawer.id] ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Guardando...
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="mr-2 h-4 w-4" />
-                              Añadir al cajón
-                            </>
-                          )}
-                        </Button>
                       </div>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
               )
