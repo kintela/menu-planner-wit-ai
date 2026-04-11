@@ -77,6 +77,24 @@ const formatDate = (dateString?: string | null) => {
   }
 }
 
+const getApiHeaders = async (supabase: ReturnType<typeof getSupabaseClient>) => {
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`
+    }
+  } catch {
+    /* fallback to cookie auth */
+  }
+
+  return headers
+}
+
 export function FreezerPrintView() {
   const { user, loading: authLoading } = useAuth()
   const { toast } = useToast()
@@ -118,6 +136,7 @@ export function FreezerPrintView() {
     }
 
     if (!user) {
+      setFreezerName("")
       setDrawers([])
       setLoading(false)
       return
@@ -130,45 +149,21 @@ export function FreezerPrintView() {
       setLoading(true)
       setErrorMessage(null)
       try {
-        const { data, error } = await supabase
-          .from("congeladores")
-          .select(
-            `
-              id,
-              nombre,
-              cajones_congelador (
-                id,
-                nombre,
-                posicion,
-                elementos_cajon (
-                  id,
-                  nombre,
-                  cantidad,
-                  unidad,
-                  estado,
-                  categoria,
-                  fecha_compra,
-                  fecha_congelacion,
-                  fecha_caducidad,
-                  notas,
-                  reservado,
-                  creado_en
-                )
-              )
-            `,
-          )
-          .eq("usuario_id", user.id)
-          .order("posicion", { ascending: true, foreignTable: "cajones_congelador" })
-          .order("creado_en", { ascending: true, foreignTable: "cajones_congelador.elementos_cajon" })
-          .maybeSingle()
+        const response = await fetch("/api/freezer", {
+          method: "GET",
+          credentials: "include",
+          headers: await getApiHeaders(supabase),
+          cache: "no-store",
+        })
+        const payload = await response.json().catch(() => ({}))
 
         if (!isActive) return
 
-        if (error && error.code !== "PGRST116") {
-          throw error
+        if (!response.ok) {
+          throw new Error(payload?.error || `Error ${response.status}`)
         }
 
-        const freezerData = data ?? { id: null, nombre: "", cajones_congelador: [] }
+        const freezerData = payload?.freezer ?? { id: null, nombre: "", cajones_congelador: [] }
         const normalizedDrawers = Array.isArray(freezerData.cajones_congelador)
           ? freezerData.cajones_congelador.map(normalizeDrawer).sort((a, b) => a.posicion - b.posicion)
           : []

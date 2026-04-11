@@ -1,34 +1,12 @@
-import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
+import {
+  FREEZER_ITEM_SELECT_FIELDS,
+  createFreezerAdminClient,
+  resolveAuthenticatedFreezerUserId,
+  resolveFreezerAccess,
+} from "@/lib/freezer-access"
 
 const ITEM_STATES = ["fresco", "abierto", "bajo", "agotado"] as const
-const ITEM_SELECT_FIELDS = `
-  id,
-  cajon_id,
-  nombre,
-  cantidad,
-  unidad,
-  estado,
-  categoria,
-  fecha_compra,
-  fecha_congelacion,
-  fecha_caducidad,
-  notas,
-  reservado,
-  imagen_url,
-  creado_en,
-  actualizado_en
-`
-
-const normalizeOwnerId = (drawer: any): string | null => {
-  if (!drawer) return null
-  const ownerData = drawer.congeladores
-  if (!ownerData) return null
-  if (Array.isArray(ownerData)) {
-    return ownerData[0]?.usuario_id ?? null
-  }
-  return ownerData.usuario_id ?? null
-}
 
 export async function PATCH(
   request: Request,
@@ -57,34 +35,12 @@ export async function PATCH(
     return NextResponse.json({ error: "Datos de actualización inválidos." }, { status: 400 })
   }
 
-  const authHeader = request.headers.get("authorization") ?? request.headers.get("Authorization")
-  const accessToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : null
-
-  if (!accessToken) {
+  const userId = await resolveAuthenticatedFreezerUserId(request)
+  if (!userId) {
     return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 })
   }
 
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!serviceRoleKey || !url || !anonKey) {
-    return NextResponse.json({ error: "Configuración de Supabase incompleta." }, { status: 500 })
-  }
-
-  const authClient = createClient(url, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-
-  const { data: userData, error: userError } = await authClient.auth.getUser(accessToken)
-
-  if (userError || !userData?.user) {
-    return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 })
-  }
-
-  const supabase = createClient(url, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
+  const supabase = createFreezerAdminClient()
 
   const { data: itemRecord, error: itemError } = await supabase
     .from("elementos_cajon")
@@ -94,11 +50,7 @@ export async function PATCH(
         cajon_id,
         cajones_congelador (
           id,
-          congelador_id,
-          congeladores (
-            id,
-            usuario_id
-          )
+          congelador_id
         )
       `,
     )
@@ -121,11 +73,19 @@ export async function PATCH(
   const currentDrawerRecord = Array.isArray(itemRecord.cajones_congelador)
     ? itemRecord.cajones_congelador[0]
     : itemRecord.cajones_congelador
-  const ownerId = normalizeOwnerId(currentDrawerRecord)
   const currentFreezerId = currentDrawerRecord?.congelador_id ?? null
 
-  if (ownerId !== userData.user.id) {
+  if (!currentFreezerId) {
+    return NextResponse.json({ error: "No se pudo resolver el congelador del elemento." }, { status: 400 })
+  }
+
+  const access = await resolveFreezerAccess(supabase, currentFreezerId, userId)
+  if (!access.hasAccess) {
     return NextResponse.json({ error: "No tienes permisos para editar este elemento." }, { status: 403 })
+  }
+
+  if (access.accessRole === "viewer") {
+    return NextResponse.json({ error: "Tu acceso a este congelador es de solo lectura." }, { status: 403 })
   }
 
   const sanitizedUpdates: Record<string, any> = {}
@@ -165,16 +125,7 @@ export async function PATCH(
     if (nextDrawerId !== itemRecord.cajon_id) {
       const { data: targetDrawer, error: targetDrawerError } = await supabase
         .from("cajones_congelador")
-        .select(
-          `
-            id,
-            congelador_id,
-            congeladores (
-              id,
-              usuario_id
-            )
-          `,
-        )
+        .select("id, congelador_id")
         .eq("id", nextDrawerId)
         .maybeSingle()
 
@@ -183,17 +134,21 @@ export async function PATCH(
         return NextResponse.json({ error: "No se pudo validar el cajón de destino." }, { status: 500 })
       }
 
-      if (!targetDrawer) {
+      if (!targetDrawer?.congelador_id) {
         return NextResponse.json({ error: "El cajón de destino no existe." }, { status: 404 })
       }
 
-      const targetOwnerId = normalizeOwnerId(targetDrawer)
+      const targetAccess = await resolveFreezerAccess(supabase, targetDrawer.congelador_id, userId)
 
-      if (targetOwnerId !== userData.user.id) {
+      if (!targetAccess.hasAccess) {
         return NextResponse.json({ error: "No tienes permisos para mover este elemento a ese cajón." }, { status: 403 })
       }
 
-      if (currentFreezerId && targetDrawer.congelador_id !== currentFreezerId) {
+      if (targetAccess.accessRole === "viewer") {
+        return NextResponse.json({ error: "Tu acceso al cajón de destino es de solo lectura." }, { status: 403 })
+      }
+
+      if (targetDrawer.congelador_id !== currentFreezerId) {
         return NextResponse.json({ error: "El cajón de destino no pertenece al mismo congelador." }, { status: 400 })
       }
     }
@@ -240,7 +195,7 @@ export async function PATCH(
     .update(sanitizedUpdates)
     .eq("id", itemId)
     .eq("cajon_id", drawerId)
-    .select(ITEM_SELECT_FIELDS)
+    .select(FREEZER_ITEM_SELECT_FIELDS)
     .maybeSingle()
 
   if (updateError) {
@@ -253,4 +208,72 @@ export async function PATCH(
   }
 
   return NextResponse.json({ item: updatedItem })
+}
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ itemId: string }> },
+) {
+  const { itemId } = await context.params
+
+  if (!itemId) {
+    return NextResponse.json({ error: "Falta el identificador del elemento." }, { status: 400 })
+  }
+
+  const userId = await resolveAuthenticatedFreezerUserId(request)
+  if (!userId) {
+    return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 })
+  }
+
+  const supabase = createFreezerAdminClient()
+  const { data: itemRecord, error: itemError } = await supabase
+    .from("elementos_cajon")
+    .select(
+      `
+        id,
+        cajon_id,
+        cajones_congelador (
+          id,
+          congelador_id
+        )
+      `,
+    )
+    .eq("id", itemId)
+    .maybeSingle()
+
+  if (itemError) {
+    console.error("[api/freezer/items/[itemId]] Error fetching item for delete", itemError)
+    return NextResponse.json({ error: "No se pudo validar el elemento." }, { status: 500 })
+  }
+
+  if (!itemRecord) {
+    return NextResponse.json({ error: "Elemento no encontrado." }, { status: 404 })
+  }
+
+  const currentDrawerRecord = Array.isArray(itemRecord.cajones_congelador)
+    ? itemRecord.cajones_congelador[0]
+    : itemRecord.cajones_congelador
+  const freezerId = currentDrawerRecord?.congelador_id ?? null
+
+  if (!freezerId) {
+    return NextResponse.json({ error: "No se pudo resolver el congelador del elemento." }, { status: 400 })
+  }
+
+  const access = await resolveFreezerAccess(supabase, freezerId, userId)
+  if (!access.hasAccess) {
+    return NextResponse.json({ error: "No tienes permisos para eliminar este elemento." }, { status: 403 })
+  }
+
+  if (access.accessRole === "viewer") {
+    return NextResponse.json({ error: "Tu acceso a este congelador es de solo lectura." }, { status: 403 })
+  }
+
+  const { error: deleteError } = await supabase.from("elementos_cajon").delete().eq("id", itemId)
+
+  if (deleteError) {
+    console.error("[api/freezer/items/[itemId]] Error deleting item", deleteError)
+    return NextResponse.json({ error: deleteError.message ?? "No se pudo eliminar el elemento." }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
 }

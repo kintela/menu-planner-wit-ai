@@ -1,7 +1,9 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { createClient } from "@supabase/supabase-js"
-import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
+import {
+  createFreezerAdminClient,
+  resolveAuthenticatedFreezerUserId,
+  resolveFreezerAccess,
+} from "@/lib/freezer-access"
 
 export async function POST(request: Request) {
   try {
@@ -11,31 +13,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Payload inválido" }, { status: 400 })
     }
 
-    const cookieStore = await cookies()
-    const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore })
+    const userId = await resolveAuthenticatedFreezerUserId(request)
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseAuth.auth.getUser()
-
-    if (userError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
 
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabase = createFreezerAdminClient()
+    const access = await resolveFreezerAccess(supabase, freezerId, userId)
 
-    if (!serviceRoleKey || !url) {
-      return NextResponse.json({ error: "Supabase configuration missing" }, { status: 500 })
+    if (!access.hasAccess) {
+      return NextResponse.json({ error: "No tienes permisos sobre ese congelador." }, { status: 403 })
     }
 
-    const supabase = createClient(url, serviceRoleKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    })
+    if (access.accessRole === "viewer") {
+      return NextResponse.json({ error: "Tu acceso a este congelador es de solo lectura." }, { status: 403 })
+    }
 
     const payload = drawers.map((drawer: any, index: number) => ({
       nombre: drawer.nombre ?? `Cajón ${index + 1}`,

@@ -1,6 +1,6 @@
 "use client"
 
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react"
+import { type FormEvent, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -206,12 +206,31 @@ const buildItemFormState = (item: FreezerItem): ItemFormState => ({
   fecha_caducidad: item.fecha_caducidad ?? "",
 })
 
+const getApiHeaders = async (supabase: ReturnType<typeof getSupabaseClient>) => {
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`
+    }
+  } catch {
+    /* fallback to cookie auth */
+  }
+
+  return headers
+}
+
 export function FreezerManager() {
   const { user, loading: authLoading } = useAuth()
   const { toast } = useToast()
   const supabase = useMemo(() => getSupabaseClient(), [])
 
   const [freezer, setFreezer] = useState<Freezer | null>(null)
+  const [accessRole, setAccessRole] = useState<"owner" | "editor" | "viewer" | null>(null)
   const [drawers, setDrawers] = useState<FreezerDrawer[]>([])
   const [drawerCountValue, setDrawerCountValue] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
@@ -245,6 +264,7 @@ export function FreezerManager() {
 
     if (!user) {
       setFreezer(null)
+      setAccessRole(null)
       setDrawers([])
       setDrawerCountValue("")
       setSearchTerm("")
@@ -264,57 +284,27 @@ export function FreezerManager() {
       }
       setLoading(true)
       try {
-        const { data, error } = await supabase
-          .from("congeladores")
-          .select(
-            `
-              id,
-              nombre,
-              descripcion,
-              cajones_congelador (
-                id,
-                nombre,
-                posicion,
-                descripcion,
-                creado_en,
-                elementos_cajon (
-                  id,
-                  cajon_id,
-                  nombre,
-                  cantidad,
-                  unidad,
-                  estado,
-                  categoria,
-                  fecha_compra,
-                  fecha_congelacion,
-                  fecha_caducidad,
-                  notas,
-                  reservado,
-                  imagen_url,
-                  creado_en
-                )
-              )
-            `,
-          )
-          .eq("usuario_id", user.id)
-          .order("posicion", { ascending: true, foreignTable: "cajones_congelador" })
-          .order("creado_en", { ascending: true, foreignTable: "cajones_congelador.elementos_cajon" })
-          .maybeSingle()
-        //console.log("[FreezerManager] Supabase data: ", JSON.stringify(data))
-        console.log("[FreezerManager] Supabase error: ", error)
+        const response = await fetch("/api/freezer", {
+          method: "GET",
+          credentials: "include",
+          headers: await getApiHeaders(supabase),
+          cache: "no-store",
+        })
+        const payload = await response.json().catch(() => ({}))
 
         if (!isActive) return
 
-        if (error && error.code !== "PGRST116") {
-          throw error
+        if (!response.ok) {
+          throw new Error(payload?.error || `Error ${response.status}`)
         }
 
-        const freezerData = data ?? { id: null, nombre: "", descripcion: null, cajones_congelador: [] }
+        const freezerData = payload?.freezer ?? { id: null, nombre: "", descripcion: null, cajones_congelador: [] }
 
         const normalizedDrawers = Array.isArray(freezerData.cajones_congelador)
           ? freezerData.cajones_congelador.map(normalizeDrawer).sort((a, b) => a.posicion - b.posicion)
           : []
 
+        setAccessRole(payload?.accessRole ?? null)
         setFreezer(
           freezerData?.id
             ? { id: String(freezerData.id), nombre: freezerData.nombre, descripcion: freezerData.descripcion }
@@ -347,6 +337,7 @@ export function FreezerManager() {
       } catch (error: any) {
         if (!isActive) return
         console.error("[FreezerManager] Error loading freezer", error)
+        setAccessRole(null)
         toast({
           variant: "destructive",
           title: "No se pudo cargar el congelador",
@@ -425,7 +416,7 @@ export function FreezerManager() {
       const response = await fetch("/api/freezer/drawers", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: await getApiHeaders(supabase),
         body: JSON.stringify({ freezerId: freezer.id, drawers: payload }),
       })
 
@@ -528,33 +519,20 @@ export function FreezerManager() {
       if (formState.fecha_congelacion) payload.fecha_congelacion = formState.fecha_congelacion
       if (formState.fecha_caducidad) payload.fecha_caducidad = formState.fecha_caducidad
 
-      const { data, error } = await supabase
-        .from("elementos_cajon")
-        .insert(payload)
-        .select(`
-          id,
-          cajon_id,
-          nombre,
-          cantidad,
-          unidad,
-          estado,
-          categoria,
-          fecha_compra,
-          fecha_congelacion,
-          fecha_caducidad,
-          notas,
-          reservado,
-          imagen_url,
-          creado_en,
-          actualizado_en
-        `)
-        .single()
+      const response = await fetch("/api/freezer/items", {
+        method: "POST",
+        credentials: "include",
+        headers: await getApiHeaders(supabase),
+        body: JSON.stringify(payload),
+      })
 
-      if (error) {
-        throw error
+      const responsePayload = await response.json().catch(() => ({}))
+
+      if (!response.ok || !responsePayload?.item) {
+        throw new Error(responsePayload?.error || "No se pudo guardar el elemento.")
       }
 
-      const normalizedItem = normalizeItem(data)
+      const normalizedItem = normalizeItem(responsePayload.item)
 
       setDrawers((prev) =>
         prev.map((drawer) =>
@@ -681,21 +659,10 @@ export function FreezerManager() {
     setSavingEdits((prev) => ({ ...prev, [itemId]: true }))
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      const accessToken = session?.access_token
-
-      const headers: Record<string, string> = { "Content-Type": "application/json" }
-      if (accessToken) {
-        headers.Authorization = `Bearer ${accessToken}`
-      }
-
       const response = await fetch(`/api/freezer/items/${itemId}`, {
         method: "PATCH",
         credentials: "include",
-        headers,
+        headers: await getApiHeaders(supabase),
         body: JSON.stringify({ drawerId, updates }),
       })
 
@@ -756,20 +723,10 @@ export function FreezerManager() {
     setReservingItems((prev) => ({ ...prev, [item.id]: true }))
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
-      const accessToken = session?.access_token
-      const headers: Record<string, string> = { "Content-Type": "application/json" }
-      if (accessToken) {
-        headers.Authorization = `Bearer ${accessToken}`
-      }
-
       const response = await fetch(`/api/freezer/items/${item.id}`, {
         method: "PATCH",
         credentials: "include",
-        headers,
+        headers: await getApiHeaders(supabase),
         body: JSON.stringify({ drawerId, updates: { reservado: !item.reservado } }),
       })
 
@@ -827,14 +784,17 @@ export function FreezerManager() {
     setDeletingItems((prev) => ({ ...prev, [itemId]: true }))
 
     try {
-      const { error } = await supabase
-        .from("elementos_cajon")
-        .delete()
-        .eq("id", itemId)
-        .eq("cajon_id", drawerId)
+      const response = await fetch(`/api/freezer/items/${itemId}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: await getApiHeaders(supabase),
+        body: JSON.stringify({ drawerId }),
+      })
 
-      if (error) {
-        throw error
+      const payload = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo eliminar el elemento.")
       }
 
       setDrawers((prev) =>
@@ -897,10 +857,16 @@ export function FreezerManager() {
     const drawerItemIds = drawerToClear?.items.map((item) => item.id) ?? []
 
     try {
-      const { error } = await supabase.from("elementos_cajon").delete().eq("cajon_id", drawerId)
+      const response = await fetch(`/api/freezer/drawers/${drawerId}/items`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: await getApiHeaders(supabase),
+      })
 
-      if (error) {
-        throw error
+      const payload = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo vaciar el cajón.")
       }
 
       setDrawers((prev) =>
@@ -1004,6 +970,7 @@ export function FreezerManager() {
 
   const freezerName = freezer?.nombre ?? "Tu congelador"
   const freezerDescription = freezer?.descripcion
+  const isSharedAccess = accessRole !== null && accessRole !== "owner"
 
   return (
     <div className="space-y-8">
@@ -1017,6 +984,9 @@ export function FreezerManager() {
             <p className="text-gray-600">
               {freezerDescription || "Define tus cajones y controla el contenido de cada uno."}
             </p>
+            {isSharedAccess ? (
+              <p className="mt-1 text-sm text-blue-700">Este congelador está compartido contigo.</p>
+            ) : null}
           </div>
         </div>
 
