@@ -47,7 +47,7 @@ interface RecipeCardProps {
 }
 
 export function RecipeCard({ recipe }: RecipeCardProps) {
-  const { user, profile } = useAuth()
+  const { user } = useAuth()
   const [showVideoModal, setShowVideoModal] = useState(false)
   const [showSourceModal, setShowSourceModal] = useState(false)
   const [imageError, setImageError] = useState(false)
@@ -79,8 +79,6 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
 
   // Solo el propietario puede editar (requisito actualizado)
   const canEdit = !!(user && recipe.user_id === user.id)
-  // Mantener delete con misma regla (puede ajustarse si se requiere distinto)
-  const canDelete = !!(user && recipe.user_id === user.id)
 
   const editTooltip = !user
     ? "Inicia sesión para poder editar. Solo puedes editar tus propias recetas"
@@ -162,17 +160,6 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
             />
           </div>
 
-          {/* Mostrar ID de receta y menús solo para admin */}
-          {profile && profile.role === 'admin' && (
-            <div className="absolute bottom-2 left-2 z-20 bg-black/70 text-white text-xs rounded px-2 py-1 flex flex-col gap-0.5">
-              <span>ID: {recipe.id}</span>
-              {Array.isArray(recipe.menu_ids) && recipe.menu_ids.length > 0 ? (
-                <span>Menús: {recipe.menu_ids.join(", ")}</span>
-              ) : (
-                <span>Menús: -</span>
-              )}
-            </div>
-          )}
         </div>
 
         <CardHeader className="pb-2">
