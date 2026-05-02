@@ -2,10 +2,11 @@
 import { useAuth } from '@/components/auth/auth-provider'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, User, Edit, ExternalLink } from "lucide-react"
+import { ArrowLeft, User, Edit, ExternalLink, Share2 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { RecipeImage } from "@/components/recipe-image"
 import { VideoEmbed } from "@/components/video-embed"
+import { useToast } from "@/hooks/use-toast"
 
 interface Recipe {
   id: number
@@ -74,6 +75,7 @@ function UserInfo({ user }: { user: UserProfile | null }) {
 
 export default function RecipeClientPage({ params, recipe, user, error }: RecipeClientPageProps) {
   const { user: sessionUser } = useAuth()
+  const { toast } = useToast()
 
   console.log("🔍 DEBUG - RecipeClientPage iniciado con:", {
     id: params.id,
@@ -117,6 +119,33 @@ export default function RecipeClientPage({ params, recipe, user, error }: Recipe
 
   const hasVideo = Boolean(recipe.video_url)
   const hasImage = Boolean(recipe.image_url)
+
+  const handleShareRecipe = async () => {
+    const recipeUrl = typeof window !== "undefined" ? window.location.href : ""
+
+    if (!recipeUrl) {
+      toast({
+        title: "No se pudo copiar",
+        description: "No se ha podido obtener la URL de la receta.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(recipeUrl)
+      toast({
+        title: "Enlace copiado",
+        description: "La URL de la receta ya está en el portapapeles.",
+      })
+    } catch {
+      toast({
+        title: "No se pudo copiar",
+        description: "Tu navegador no permitió copiar el enlace automáticamente.",
+        variant: "destructive",
+      })
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -177,6 +206,11 @@ export default function RecipeClientPage({ params, recipe, user, error }: Recipe
       <div className="mx-auto max-w-6xl p-4 space-y-6">
         {/* Título */}
         <div className="rounded-2xl bg-white px-6 py-6 shadow-sm ring-1 ring-slate-200">
+          <div className="mb-4 flex justify-start md:justify-end">
+            <Button type="button" variant="outline" size="icon" onClick={handleShareRecipe} title="Copiar enlace de la receta">
+              <Share2 className="h-4 w-4" />
+            </Button>
+          </div>
           <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_260px] md:items-center">
             <div className="text-center md:text-left">
               <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">{recipe.name}</h1>
