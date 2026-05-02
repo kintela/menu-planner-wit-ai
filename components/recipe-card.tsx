@@ -4,13 +4,14 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ChefHat, Flame, User, Video, Eye, X, ArrowRight, Edit } from "lucide-react"
+import { ChefHat, Flame, User, Video, Eye, X, ArrowRight, Edit, Share2 } from "lucide-react"
 import Link from "next/link"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import Image from "next/image"
 import { useAuth } from "@/components/auth/auth-provider"
 import { DeleteRecipeButton } from "./delete-recipe-button"
 import { StarRating } from "./star-rating"
+import { useToast } from "@/hooks/use-toast"
 
 interface Recipe {
   id: number
@@ -48,6 +49,7 @@ interface RecipeCardProps {
 
 export function RecipeCard({ recipe }: RecipeCardProps) {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [showVideoModal, setShowVideoModal] = useState(false)
   const [showSourceModal, setShowSourceModal] = useState(false)
   const [imageError, setImageError] = useState(false)
@@ -88,6 +90,33 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
 
   // DEBUG opcional: se eliminó logging admin
 
+  const handleShareRecipe = async () => {
+    const recipeUrl = typeof window !== "undefined" ? `${window.location.origin}/recipes/${recipe.id}` : ""
+
+    if (!recipeUrl) {
+      toast({
+        title: "No se pudo copiar",
+        description: "No se ha podido generar el enlace de la receta.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(recipeUrl)
+      toast({
+        title: "Enlace copiado",
+        description: "La URL de la receta ya está en el portapapeles.",
+      })
+    } catch {
+      toast({
+        title: "No se pudo copiar",
+        description: "Tu navegador no permitió copiar el enlace automáticamente.",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
     <>
       <Card className="overflow-hidden hover:shadow-lg transition-shadow duration-200 h-full flex flex-col">
@@ -106,13 +135,25 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
             </div>
           )}
 
-          {/* Video button - left corner with camera icon */}
+          {/* Share button - upper left corner */}
+          <Button
+            size="sm"
+            variant="secondary"
+            className="absolute top-2 left-2 h-8 w-8 p-0 bg-black/70 text-white hover:bg-black/80"
+            onClick={handleShareRecipe}
+            title="Copiar enlace de la receta"
+          >
+            <Share2 className="h-4 w-4" />
+          </Button>
+
+          {/* Video button - upper left area, next to share */}
           {recipe.video_url && (
             <Button
               size="sm"
               variant="secondary"
-              className="absolute top-2 left-2 h-8 w-8 p-0 bg-black/70 text-white hover:bg-black/80"
+              className="absolute top-2 left-12 h-8 w-8 p-0 bg-black/70 text-white hover:bg-black/80"
               onClick={() => setShowVideoModal(true)}
+              title="Ver vídeo"
             >
               <Video className="h-4 w-4" />
             </Button>
