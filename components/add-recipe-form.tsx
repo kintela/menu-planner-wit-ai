@@ -38,6 +38,7 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
   const [estimatedCalories, setEstimatedCalories] = useState<number | null>(null)
   const [manualCalories, setManualCalories] = useState<string>("")
   const [useManualCalories, setUseManualCalories] = useState(false)
+  const [sendEmailNotification, setSendEmailNotification] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -52,6 +53,7 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
     setEstimatedCalories(null)
     setManualCalories("")
     setUseManualCalories(false)
+    setSendEmailNotification(true)
 
     if (formRef.current) {
       formRef.current.reset()
@@ -226,7 +228,12 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
       const resp = await fetch('/api/recipes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...recipeData, categories: selectedCategories, user_id: user.id }),
+        body: JSON.stringify({
+          ...recipeData,
+          categories: selectedCategories,
+          user_id: user.id,
+          send_email_notification: sendEmailNotification,
+        }),
       })
       const elapsed = performance.now() - t0
       console.log('Respuesta /api/recipes en', elapsed.toFixed(0), 'ms status', resp.status)
@@ -463,6 +470,19 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
           selectedCategories={selectedCategories}
           onCategoriesChange={setSelectedCategories}
         />
+
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="send-email-notification"
+            checked={sendEmailNotification}
+            onChange={(e) => setSendEmailNotification(e.target.checked)}
+            className="rounded"
+          />
+          <Label htmlFor="send-email-notification" className="cursor-pointer">
+            Aviso por mail
+          </Label>
+        </div>
 
         <div className="text-sm text-muted-foreground mb-4">* Solo el nombre es obligatorio</div>
 

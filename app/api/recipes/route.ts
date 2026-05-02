@@ -197,7 +197,19 @@ export async function POST(request: NextRequest) {
     let body: any
     try { body = await request.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
 
-    const { name, ingredients = '', preparation = '', image_url = null, video_url = null, source_url = null, calories = null, is_ai_generated = false, user_id, categories = [] } = body || {}
+    const {
+      name,
+      ingredients = '',
+      preparation = '',
+      image_url = null,
+      video_url = null,
+      source_url = null,
+      calories = null,
+      is_ai_generated = false,
+      user_id,
+      categories = [],
+      send_email_notification = true,
+    } = body || {}
 
     if (!user_id) return NextResponse.json({ error: 'user_id requerido' }, { status: 400 })
     if (!name || !name.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })
@@ -259,84 +271,86 @@ export async function POST(request: NextRequest) {
     let notificationEmailError: string | null = null
 
     try {
-      const { data: profiles } = await supabase
-        .from('user_profiles')
-        .select('email')
-
-      const recipientEmails = Array.from(
-        new Set(
-          (profiles ?? [])
-            .map((profile: any) => (typeof profile?.email === 'string' ? profile.email.trim().toLowerCase() : ''))
-            .filter((email: string) => EMAIL_REGEX.test(email))
-        )
-      )
-
-      const smtpHost = process.env.SMTP_HOST
-      const smtpPort = process.env.SMTP_PORT ? Number.parseInt(process.env.SMTP_PORT, 10) : undefined
-      const smtpUser = process.env.SMTP_USER
-      const smtpPassword = process.env.SMTP_PASSWORD
-      const smtpSecure = process.env.SMTP_SECURE === 'true'
-      const smtpFrom = process.env.SMTP_FROM_EMAIL || smtpUser
-
-      if (recipientEmails.length > 0 && smtpHost && smtpPort && smtpUser && smtpPassword && smtpFrom) {
-        const { data: creatorProfile } = await supabase
+      if (send_email_notification) {
+        const { data: profiles } = await supabase
           .from('user_profiles')
-          .select('alias, full_name, email')
-          .eq('id', user_id)
-          .maybeSingle()
+          .select('email')
 
-        const creatorName =
-          creatorProfile?.alias ||
-          creatorProfile?.full_name ||
-          creatorProfile?.email ||
-          'Un usuario'
+        const recipientEmails = Array.from(
+          new Set(
+            (profiles ?? [])
+              .map((profile: any) => (typeof profile?.email === 'string' ? profile.email.trim().toLowerCase() : ''))
+              .filter((email: string) => EMAIL_REGEX.test(email))
+          )
+        )
 
-        const origin = request.headers.get('origin')
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || origin || new URL(request.url).origin
-        const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl
-        const recipeUrl = `${normalizedBaseUrl}/recipes/${recipeId}`
+        const smtpHost = process.env.SMTP_HOST
+        const smtpPort = process.env.SMTP_PORT ? Number.parseInt(process.env.SMTP_PORT, 10) : undefined
+        const smtpUser = process.env.SMTP_USER
+        const smtpPassword = process.env.SMTP_PASSWORD
+        const smtpSecure = process.env.SMTP_SECURE === 'true'
+        const smtpFrom = process.env.SMTP_FROM_EMAIL || smtpUser
 
-        const transporter = nodemailer.createTransport({
-          host: smtpHost,
-          port: smtpPort,
-          secure: smtpSecure,
-          auth: {
-            user: smtpUser,
-            pass: smtpPassword,
-          },
-        })
+        if (recipientEmails.length > 0 && smtpHost && smtpPort && smtpUser && smtpPassword && smtpFrom) {
+          const { data: creatorProfile } = await supabase
+            .from('user_profiles')
+            .select('alias, full_name, email')
+            .eq('id', user_id)
+            .maybeSingle()
 
-        const { subject, text, html } = buildRecipeEmail({
-          recipeId,
-          recipeName: recipeInsert.name,
-          ingredients: recipeInsert.ingredients,
-          preparation: recipeInsert.preparation,
-          calories: recipeInsert.calories,
-          imageUrl: recipeInsert.image_url,
-          sourceUrl: recipeInsert.source_url,
-          videoUrl: recipeInsert.video_url,
-          categoryNames,
-          recipeUrl,
-          creatorName,
-        })
+          const creatorName =
+            creatorProfile?.alias ||
+            creatorProfile?.full_name ||
+            creatorProfile?.email ||
+            'Un usuario'
 
-        await transporter.sendMail({
-          from: {
-            name: 'MenuPlanner',
-            address: smtpFrom,
-          },
-          to: smtpFrom,
-          bcc: recipientEmails.join(', '),
-          subject,
-          text,
-          html,
-        })
+          const origin = request.headers.get('origin')
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || origin || new URL(request.url).origin
+          const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl
+          const recipeUrl = `${normalizedBaseUrl}/recipes/${recipeId}`
 
-        notificationEmailSent = true
-      } else if (recipientEmails.length === 0) {
-        notificationEmailError = 'No hay destinatarios válidos en user_profiles.'
-      } else {
-        notificationEmailError = 'SMTP no configurado para notificaciones de recetas.'
+          const transporter = nodemailer.createTransport({
+            host: smtpHost,
+            port: smtpPort,
+            secure: smtpSecure,
+            auth: {
+              user: smtpUser,
+              pass: smtpPassword,
+            },
+          })
+
+          const { subject, text, html } = buildRecipeEmail({
+            recipeId,
+            recipeName: recipeInsert.name,
+            ingredients: recipeInsert.ingredients,
+            preparation: recipeInsert.preparation,
+            calories: recipeInsert.calories,
+            imageUrl: recipeInsert.image_url,
+            sourceUrl: recipeInsert.source_url,
+            videoUrl: recipeInsert.video_url,
+            categoryNames,
+            recipeUrl,
+            creatorName,
+          })
+
+          await transporter.sendMail({
+            from: {
+              name: 'MenuPlanner',
+              address: smtpFrom,
+            },
+            to: smtpFrom,
+            bcc: recipientEmails.join(', '),
+            subject,
+            text,
+            html,
+          })
+
+          notificationEmailSent = true
+        } else if (recipientEmails.length === 0) {
+          notificationEmailError = 'No hay destinatarios válidos en user_profiles.'
+        } else {
+          notificationEmailError = 'SMTP no configurado para notificaciones de recetas.'
+        }
       }
     } catch (emailError: any) {
       console.error('[recipes][POST] Error enviando notificación por email:', emailError)
