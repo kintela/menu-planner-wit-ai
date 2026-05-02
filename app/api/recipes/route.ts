@@ -73,6 +73,10 @@ function buildRecipeEmail({
     sourceUrl ? `Fuente original: ${sourceUrl}` : null,
     videoUrl ? `Vídeo: ${videoUrl}` : null,
     `ID receta: ${recipeId}`,
+    ``,
+    `---`,
+    `Recibes este aviso porque estás registrado en MenuPlanner.`,
+    `Guarda esta receta para el próximo menú o compártela con quien quieras cocinar.`,
   ]
     .filter(Boolean)
     .join("\n")
@@ -155,6 +159,15 @@ function buildRecipeEmail({
                   <h2 style="margin:0 0 12px;font-size:18px;color:#111827;">Preparación</h2>
                   ${preparationHtml}
                 </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="background-color:#f8fafc;padding:20px 32px;border-top:1px solid #e5e7eb;font-family:Arial,sans-serif;">
+                <p style="margin:0 0 8px;color:#0f172a;font-size:13px;font-weight:600;">MenuPlanner · Tu recetario compartido</p>
+                <p style="margin:0;color:#64748b;font-size:13px;line-height:1.5;">
+                  Recibes este aviso porque estás registrado en la app.
+                  Guarda esta receta para el próximo menú o compártela con quien quieras cocinar.
+                </p>
               </td>
             </tr>
           </table>

@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const isProduction = process.env.NODE_ENV === "production"
+
 const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
@@ -30,7 +32,7 @@ const nextConfig = {
               "base-uri 'self'",
               "form-action 'self'",
               "frame-ancestors 'none'",
-              "upgrade-insecure-requests"
+              ...(isProduction ? ["upgrade-insecure-requests"] : [])
             ].join('; ')
           }
         ]
