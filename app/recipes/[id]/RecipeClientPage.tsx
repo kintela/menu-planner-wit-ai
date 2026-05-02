@@ -1,9 +1,8 @@
 "use client"
-import { useState } from "react"
 import { useAuth } from '@/components/auth/auth-provider'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, User, Edit } from "lucide-react"
+import { ArrowLeft, User, Edit, ExternalLink } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { RecipeImage } from "@/components/recipe-image"
 import { VideoEmbed } from "@/components/video-embed"
@@ -56,7 +55,7 @@ function UserInfo({ user }: { user: UserProfile | null }) {
   const displayName = user.alias || user.full_name || user.email
 
   return (
-    <div className="flex items-center gap-2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+    <div className="flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-sm text-gray-700 shadow-sm">
       {user.avatar_url ? (
         <img
           src={user.avatar_url || "/placeholder.svg"}
@@ -74,7 +73,6 @@ function UserInfo({ user }: { user: UserProfile | null }) {
 }
 
 export default function RecipeClientPage({ params, recipe, user, error }: RecipeClientPageProps) {
-  const [showVideo, setShowVideo] = useState(false)
   const { user: sessionUser } = useAuth()
 
   console.log("🔍 DEBUG - RecipeClientPage iniciado con:", {
@@ -117,8 +115,11 @@ export default function RecipeClientPage({ params, recipe, user, error }: Recipe
   const ingredients = processText(recipe.ingredients)
   const preparation = processText(recipe.preparation)
 
+  const hasVideo = Boolean(recipe.video_url)
+  const hasImage = Boolean(recipe.image_url)
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-slate-50">
       {/* Header fijo para móvil */}
       <div className="sticky top-0 bg-white border-b p-4 z-10">
         <div className="flex items-center justify-between">
@@ -173,108 +174,87 @@ export default function RecipeClientPage({ params, recipe, user, error }: Recipe
       </div>
 
       {/* Contenido principal */}
-      <div className="p-4 space-y-6">
+      <div className="mx-auto max-w-6xl p-4 space-y-6">
         {/* Título */}
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900">{recipe.name}</h1>
-          {recipe.calories && <p className="text-sm text-gray-600 mt-2">🔥 {recipe.calories} calorías</p>}
-        </div>
+        <div className="rounded-2xl bg-white px-6 py-6 shadow-sm ring-1 ring-slate-200">
+          <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_260px] md:items-center">
+            <div className="text-center md:text-left">
+              <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">{recipe.name}</h1>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-3 md:justify-start">
+                {recipe.calories && (
+                  <p className="rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-amber-700">
+                    🔥 {recipe.calories} calorías
+                  </p>
+                )}
+                <UserInfo user={user} />
+                {recipe.source_url && (
+                  <Button asChild variant="outline" size="sm" className="rounded-full">
+                    <a href={recipe.source_url} target="_blank" rel="noreferrer noopener">
+                      <ExternalLink className="h-4 w-4" />
+                      Fuente original
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </div>
 
-        {/* Imagen con overlays */}
-        <div className="relative w-full h-64 md:h-80 bg-gray-100 rounded-lg overflow-hidden">
-          <RecipeImage src={recipe.image_url} alt={recipe.name} className="w-full h-full object-cover" />
-
-          {/* Video button - esquina superior izquierda */}
-          {recipe.video_url && (
-            <button
-              onClick={() => setShowVideo(!showVideo)}
-              className="absolute top-2 left-2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 z-10 transition-colors"
-              title="Ver video de la receta"
-            >
-              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </button>
-          )}
-
-          {/* Source link - esquina superior derecha */}
-      {recipe.source_url && (
-            <button
-        onClick={() => { if (recipe.source_url) window.open(recipe.source_url, "_blank", "noopener,noreferrer") }}
-              className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 z-10 transition-colors"
-              title="Ver fuente original"
-            >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+            {hasImage && (
+              <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
+                <RecipeImage
+                  src={recipe.image_url}
+                  alt={recipe.name}
+                  className="aspect-[4/3] w-full bg-slate-100 object-cover"
                 />
-              </svg>
-            </button>
-          )}
-
-          {/* User info - esquina inferior derecha */}
-          <div className="absolute bottom-2 right-2">
-            <UserInfo user={user} />
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Video embed */}
-        {showVideo && recipe.video_url && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Video de la receta</h2>
-              <button
-                onClick={() => setShowVideo(false)}
-                className="text-gray-500 hover:text-gray-700"
-                title="Cerrar video"
-              >
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <VideoEmbed url={recipe.video_url} title={recipe.name} />
+        <div className="grid gap-6 lg:grid-cols-[minmax(260px,0.7fr)_minmax(0,1.5fr)]">
+          {/* Ingredientes */}
+          <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">Ingredientes</h2>
+            {ingredients.length > 0 ? (
+              <ul className="space-y-3">
+                {ingredients.map((ingredient, index) => (
+                  <li key={index} className="flex items-start">
+                    <span className="mr-3 mt-1 h-2 w-2 rounded-full bg-emerald-500"></span>
+                    <span className="text-sm leading-6 text-gray-800">{ingredient}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-gray-500 italic">No hay ingredientes disponibles</p>
+            )}
+          </div>
+
+          {/* Preparación */}
+          <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">Preparación</h2>
+            {preparation.length > 0 ? (
+              <ol className="space-y-4">
+                {preparation.map((step, index) => (
+                  <li key={index} className="flex items-start">
+                    <span className="mr-3 mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white">
+                      {index + 1}
+                    </span>
+                    <span className="text-sm leading-6 text-gray-800">{step}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-gray-500 italic">No hay pasos de preparación disponibles</p>
+            )}
+          </div>
+        </div>
+
+        {/* Video debajo del contenido principal */}
+        {hasVideo && recipe.video_url && (
+          <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 md:p-6">
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">Video de preparación</h2>
+            <VideoEmbed url={recipe.video_url} title={`Video de ${recipe.name}`} />
           </div>
         )}
-
-        {/* Ingredientes */}
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Ingredientes</h2>
-          {ingredients.length > 0 ? (
-            <ul className="space-y-2">
-              {ingredients.map((ingredient, index) => (
-                <li key={index} className="flex items-start">
-                  <span className="text-green-600 mr-2">•</span>
-                  <span className="text-gray-800 text-sm">{ingredient}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-gray-500 italic">No hay ingredientes disponibles</p>
-          )}
-        </div>
-
-        {/* Preparación */}
-        <div className="bg-blue-50 p-4 rounded-lg">
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Preparación</h2>
-          {preparation.length > 0 ? (
-            <ol className="space-y-3">
-              {preparation.map((step, index) => (
-                <li key={index} className="flex items-start">
-                  <span className="bg-blue-600 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center mr-3 mt-0.5 flex-shrink-0">
-                    {index + 1}
-                  </span>
-                  <span className="text-gray-800 text-sm">{step}</span>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="text-gray-500 italic">No hay pasos de preparación disponibles</p>
-          )}
-        </div>
 
         {/* Espaciado inferior para móvil */}
         <div className="h-8"></div>
