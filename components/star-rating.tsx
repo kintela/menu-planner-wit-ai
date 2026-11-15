@@ -1,219 +1,108 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { Star, AlertCircle } from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { Star } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth/auth-provider"
-import { createClient } from "@/lib/supabase/client"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { useToast } from "@/hooks/use-toast"
+import { buildJsonRequest, ratingResultMessage } from "@/lib/recipes/recipe-ui"
+
+interface RatingPayload {
+  rating_average?: number | null
+  rating_count?: number
+  my_rating?: number | null
+  average?: number | null
+  count?: number
+  own_rating?: number | null
+  rating?: number
+  removed?: boolean
+  error?: string
+}
 
 interface StarRatingProps {
   recipeId: number
-  creatorId?: string // ID del creador de la receta
+  average?: number | null
+  count?: number
+  myRating?: number | null
+  canRate?: boolean
 }
 
-// Utility function to add delay
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-export function StarRating({ recipeId, creatorId }: StarRatingProps) {
-  const [userRating, setUserRating] = useState<number>(0)
-  const [averageRating, setAverageRating] = useState<number>(0)
-  const [totalRatings, setTotalRatings] = useState<number>(0)
-  const [hoveredStar, setHoveredStar] = useState<number>(0)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const [hasError, setHasError] = useState(false)
-
-  const [retryCount, setRetryCount] = useState(0)
-
+export function StarRating({ recipeId, average = null, count = 0, myRating = null, canRate = false }: StarRatingProps) {
   const { user } = useAuth()
-  const supabase = createClient()
+  const { toast } = useToast()
+  const [aggregate, setAggregate] = useState({ average, count })
+  const [ownRating, setOwnRating] = useState(myRating)
+  const [submitting, setSubmitting] = useState(false)
 
-  // Determinar si el usuario es el creador de la receta
-  const isCreator = user?.id === creatorId
+  const applyPayload = (payload: RatingPayload) => {
+    setAggregate({ average: payload.average ?? payload.rating_average ?? null, count: payload.count ?? payload.rating_count ?? 0 })
+    if (Object.hasOwn(payload, "own_rating")) setOwnRating(payload.own_rating ?? null)
+    else if (Object.hasOwn(payload, "my_rating")) setOwnRating(payload.my_rating ?? null)
+  }
 
-  // Load existing ratings with rate limiting protection
-  const loadRatings = useCallback(async () => {
-    if (!recipeId) return
-
-    setIsLoading(true)
-    setHasError(false)
-
+  const load = useCallback(async () => {
     try {
-      // Obtener todos los ratings para esta receta para calcular la media
-      try {
-        const { data, error } = await supabase.from("recipe_ratings").select("rating").eq("recipe_id", recipeId)
-        if (error) throw error
-        if (data && data.length > 0) {
-          const total = data.length
-          const sum = data.reduce((acc, curr) => acc + curr.rating, 0)
-          const average = sum / total
-          setAverageRating(Math.round(average * 10) / 10)
-          setTotalRatings(total)
-        } else {
-          setAverageRating(0)
-          setTotalRatings(0)
-        }
-      } catch (error) {
-        console.warn("Error loading ratings:", error)
-        setAverageRating(0)
-        setTotalRatings(0)
-      }
-
-      // Obtener el rating del usuario si está logueado y no es el creador
-      if (user && !isCreator) {
-        try {
-          const { data, error } = await supabase
-            .from("recipe_ratings")
-            .select("rating")
-            .eq("recipe_id", recipeId)
-            .eq("user_id", user.id)
-            .maybeSingle()
-          if (error) throw error
-          if (data) {
-            setUserRating(data.rating)
-          } else {
-            setUserRating(0)
-          }
-        } catch (userError) {
-          console.warn("Could not load user rating:", userError)
-        }
-      }
-    } catch (error) {
-      console.error("Error loading ratings for recipe", recipeId, ":", error)
-      setHasError(true)
-      setAverageRating(0)
-      setTotalRatings(0)
-      setUserRating(0)
-    } finally {
-      setIsLoading(false)
+      const response = await fetch(`/api/recipes/${recipeId}/rating`, { method: "GET" })
+      const payload = await response.json()
+      if (response.ok) applyPayload(payload)
+    } catch {
+      // The server-rendered aggregate remains visible if refreshing it fails.
     }
-  }, [recipeId, user, supabase, isCreator, retryCount])
+  }, [recipeId])
 
+  useEffect(() => { void load() }, [load])
 
-  useEffect(() => {
-    loadRatings()
-  }, [loadRatings])
-
-  const handleStarClick = async (starValue: number) => {
-    if (!user || isSubmitting || isCreator) return
-
-    setIsSubmitting(true)
-
+  const rate = async (rating: number) => {
+    setSubmitting(true)
     try {
-      // Check if user already has a rating for this recipe
-      const existingRating = await supabase
-        .from("recipe_ratings")
-        .select("id, rating")
-        .eq("recipe_id", recipeId)
-        .eq("user_id", user.id)
-        .maybeSingle()
-
-      if (existingRating.data) {
-        // Update existing rating
-        await supabase
-          .from("recipe_ratings")
-          .update({
-            rating: starValue,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("recipe_id", recipeId)
-          .eq("user_id", user.id)
-      } else {
-        // Insert new rating
-        await supabase.from("recipe_ratings").insert({
-          recipe_id: recipeId,
-          user_id: user.id,
-          rating: starValue,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+      const response = await fetch(`/api/recipes/${recipeId}/rating`, buildJsonRequest("PUT", { rating }))
+      const payload = await response.json().catch(() => ({}))
+      if (response.ok) {
+        setOwnRating(payload.rating ?? rating)
+        await load()
       }
-
-      // Update local state immediately for better UX
-      setUserRating(starValue)
-
-      // Reload ratings in background
-      setTimeout(() => {
-        loadRatings()
-      }, 1000)
-    } catch (error) {
-      console.error("Error submitting rating:", error)
+      toast({ title: response.ok ? "Valoración guardada" : "No se pudo valorar", description: ratingResultMessage(response.ok, payload), variant: response.ok ? undefined : "destructive" })
+    } catch {
+      toast({ title: "No se pudo valorar", description: "No se pudo contactar con el servidor.", variant: "destructive" })
     } finally {
-      setIsSubmitting(false)
+      setSubmitting(false)
     }
   }
 
-  const handleRetry = () => {
-    setRetryCount((prev) => prev + 1)
-    loadRatings()
+  const remove = async () => {
+    setSubmitting(true)
+    try {
+      const response = await fetch(`/api/recipes/${recipeId}/rating`, buildJsonRequest("DELETE"))
+      const payload = await response.json().catch(() => ({}))
+      if (response.ok) {
+        setOwnRating(null)
+        await load()
+      }
+      toast({ title: response.ok ? "Valoración retirada" : "No se pudo retirar", description: ratingResultMessage(response.ok, { ...payload, removed: response.ok }), variant: response.ok ? undefined : "destructive" })
+    } catch {
+      toast({ title: "No se pudo retirar", description: "No se pudo contactar con el servidor.", variant: "destructive" })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const displayRating = hoveredStar || userRating || 0
-
-  // Show loading state
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center space-y-1">
-        <div className="flex items-center gap-1">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <Star key={star} className="h-4 w-4 text-gray-300 animate-pulse" />
-          ))}
-        </div>
-        <div className="text-xs text-muted-foreground">Cargando...</div>
-      </div>
-    )
-  }
-
+  const controlsVisible = Boolean(user && canRate)
   return (
-    <div className="flex flex-col items-center space-y-1">
-      <div className="flex items-center gap-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <button
-            key={star}
-            type="button"
-            disabled={!user || isSubmitting || isCreator || hasError}
-            onClick={() => handleStarClick(star)}
-            onMouseEnter={() => user && !isCreator && !hasError && setHoveredStar(star)}
-            onMouseLeave={() => user && !isCreator && !hasError && setHoveredStar(0)}
-            className={`transition-all duration-150 ${
-              !user || isCreator || hasError ? "cursor-not-allowed opacity-50" : "hover:scale-110 cursor-pointer"
-            }`}
-          >
-            <Star
-              className={`h-4 w-4 transition-colors ${
-                star <= displayRating
-                  ? "fill-yellow-400 text-yellow-400"
-                  : star <= averageRating && !hoveredStar && !userRating
-                    ? "fill-orange-400 text-orange-400"
-                    : "text-gray-300"
-              }`}
-            />
-          </button>
-        ))}
-      </div>
-      {/* Mostrar la puntuación media y número de votos SIEMPRE, incluso para el creador */}
-      {totalRatings > 0 && !hasError && (
-        <div className="mt-1">
-          <span>
-            {averageRating}/5 ({totalRatings} {totalRatings === 1 ? "voto" : "votos"})
-          </span>
+    <div className="space-y-2" aria-label={`${aggregate.count} valoraciones`}>
+      <p className="text-sm text-amber-700">
+        {aggregate.count > 0 ? `★ ${aggregate.average?.toFixed(1)} (${aggregate.count})` : "Sin valoraciones (0)"}
+      </p>
+      {controlsVisible && (
+        <div className="flex flex-wrap items-center gap-1">
+          {[1, 2, 3, 4, 5].map((value) => (
+            <button key={value} type="button" disabled={submitting} onClick={() => rate(value)} aria-label={`Valorar con ${value}`}>
+              <Star className={`h-5 w-5 ${value <= (ownRating ?? 0) ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
+            </button>
+          ))}
+          {ownRating != null && <Button type="button" variant="ghost" size="sm" disabled={submitting} onClick={remove}>Retirar valoración</Button>}
         </div>
       )}
-      <div className="text-xs text-center text-muted-foreground">
-        {hasError ? (
-          <button onClick={handleRetry} className="text-blue-500 hover:text-blue-700 underline">
-            Error - Reintentar
-          </button>
-        ) : !user ? (
-          <span>Inicia sesión para puntuar</span>
-        ) : isCreator ? (
-          <span>No puedes puntuar tu propia receta</span>
-        ) : userRating > 0 ? (
-          <span>Tu puntuación: {userRating}/5</span>
-        ) : (
-          <span>¡Puntúa esta receta!</span>
-        )}
-      </div>
+      {user && !canRate && <p className="text-xs text-muted-foreground">No puedes valorar tu propia receta.</p>}
     </div>
   )
 }

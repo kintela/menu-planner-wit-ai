@@ -4,12 +4,14 @@ import { LoginForm } from "@/components/auth/login-form";
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 import { useAuth } from '@/components/auth/auth-provider';
+import { getCallbackNotice } from '@/lib/auth-flow/auth-flow';
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, profile, loading } = useAuth();
   const redirect = searchParams.get('redirect');
+  const callbackNotice = getCallbackNotice(searchParams.get('error'));
 
   useEffect(() => {
     if (!loading && user) {
@@ -27,5 +29,5 @@ export default function LoginPage() {
     );
   }
 
-  return <LoginForm />;
+  return <LoginForm notice={callbackNotice} />;
 }

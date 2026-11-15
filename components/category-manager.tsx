@@ -3,8 +3,6 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Trash2, Edit2, Plus, MoveRight, AlertTriangle } from "lucide-react"
-import { getSupabaseClient } from "@/lib/supabase/client"
-import type { Category } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -33,8 +31,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { categoryResultMessage } from "@/lib/recipes/recipe-ui"
 
-interface CategoryWithCount extends Category {
+interface CategoryWithCount {
+  id: number
+  name: string
+  created_at?: string
   recipe_count: number
 }
 
@@ -46,9 +48,11 @@ interface DuplicateCategory {
 interface CategoryManagerProps {
   categories: CategoryWithCount[]
   duplicateCategories: DuplicateCategory[]
+  canCreate: boolean
+  canAdminister: boolean
 }
 
-export function CategoryManager({ categories: initialCategories, duplicateCategories }: CategoryManagerProps) {
+export function CategoryManager({ categories: initialCategories, duplicateCategories, canCreate, canAdminister }: CategoryManagerProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [categories, setCategories] = useState<CategoryWithCount[]>(initialCategories)
@@ -65,8 +69,6 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
   const handleDeleteCategory = async (categoryId: number, categoryName: string, recipeCount: number) => {
     setIsLoading(true)
     try {
-      const supabase = getSupabaseClient()
-
       if (recipeCount > 0) {
         toast({
           title: "No se puede eliminar",
@@ -77,10 +79,9 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
         return
       }
 
-      // Eliminar la categoría
-      const { error } = await supabase.from("categories").delete().eq("id", categoryId)
-
-      if (error) throw error
+      const response = await fetch(`/api/categories/${categoryId}`, { method: "DELETE" })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || "No se pudo eliminar la categoría")
 
       // Actualizar la lista local
       setCategories(categories.filter((cat) => cat.id !== categoryId))
@@ -92,10 +93,9 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
 
       router.refresh()
     } catch (error) {
-      console.error("Error deleting category:", error)
       toast({
         title: "Error",
-        description: "Ha ocurrido un error al eliminar la categoría.",
+        description: error instanceof Error ? error.message : categoryResultMessage(false, {}),
         variant: "destructive",
       })
     } finally {
@@ -108,8 +108,6 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
 
     setIsLoading(true)
     try {
-      const supabase = getSupabaseClient()
-
       // Verificar que no exista otra categoría con el mismo nombre
       const normalizedName = editName.trim().toLowerCase()
       const existingCategory = categories.find(
@@ -126,10 +124,13 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
         return
       }
 
-      // Actualizar la categoría
-      const { error } = await supabase.from("categories").update({ name: editName.trim() }).eq("id", editingCategory.id)
-
-      if (error) throw error
+      const response = await fetch(`/api/categories/${editingCategory.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editName }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || "No se pudo actualizar la categoría")
 
       // Actualizar la lista local
       setCategories(categories.map((cat) => (cat.id === editingCategory.id ? { ...cat, name: editName.trim() } : cat)))
@@ -144,10 +145,9 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
       setEditName("")
       router.refresh()
     } catch (error) {
-      console.error("Error updating category:", error)
       toast({
         title: "Error",
-        description: "Ha ocurrido un error al actualizar la categoría.",
+        description: error instanceof Error ? error.message : categoryResultMessage(false, {}),
         variant: "destructive",
       })
     } finally {
@@ -160,8 +160,6 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
 
     setIsLoading(true)
     try {
-      const supabase = getSupabaseClient()
-
       // Verificar que no exista una categoría con el mismo nombre
       const normalizedName = newCategoryName.trim().toLowerCase()
       const existingCategory = categories.find((cat) => cat.name.toLowerCase() === normalizedName)
@@ -176,14 +174,14 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
         return
       }
 
-      // Crear la nueva categoría
-      const { data: newCategory, error } = await supabase
-        .from("categories")
-        .insert({ name: newCategoryName.trim() })
-        .select()
-        .single()
-
-      if (error) throw error
+      const response = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newCategoryName }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || "No se pudo crear la categoría")
+      const newCategory = result.category
 
       // Actualizar la lista local
       setCategories([...categories, { ...newCategory, recipe_count: 0 }])
@@ -197,10 +195,9 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
       setNewCategoryName("")
       router.refresh()
     } catch (error) {
-      console.error("Error adding category:", error)
       toast({
         title: "Error",
-        description: "Ha ocurrido un error al añadir la categoría.",
+        description: error instanceof Error ? error.message : categoryResultMessage(false, {}),
         variant: "destructive",
       })
     } finally {
@@ -229,7 +226,6 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
 
     setIsLoading(true)
     try {
-      const supabase = getSupabaseClient()
       const sourceCategory = categories.find((cat) => cat.id === selectedSourceCategory)
       const targetCategory = categories.find((cat) => cat.id === selectedTargetCategory)
 
@@ -237,53 +233,16 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
         throw new Error("Categoría no encontrada")
       }
 
-      // Obtener todas las recetas asociadas a la categoría de origen
-      const { data: recipeCategories, error: fetchError } = await supabase
-        .from("recipe_categories")
-        .select("recipe_id")
-        .eq("category_id", selectedSourceCategory)
-
-      if (fetchError) throw fetchError
-
-      // Si hay recetas asociadas, actualizarlas para usar la categoría de destino
-      if (recipeCategories && recipeCategories.length > 0) {
-        // Primero, verificar si alguna receta ya tiene la categoría de destino para evitar duplicados
-        for (const rc of recipeCategories) {
-          const { data: existingMapping, error: checkError } = await supabase
-            .from("recipe_categories")
-            .select("*")
-            .eq("recipe_id", rc.recipe_id)
-            .eq("category_id", selectedTargetCategory)
-            .maybeSingle()
-
-          if (checkError) throw checkError
-
-          // Si la receta no tiene ya la categoría de destino, actualizar
-          if (!existingMapping) {
-            const { error: updateError } = await supabase
-              .from("recipe_categories")
-              .update({ category_id: selectedTargetCategory })
-              .eq("recipe_id", rc.recipe_id)
-              .eq("category_id", selectedSourceCategory)
-
-            if (updateError) throw updateError
-          } else {
-            // Si ya existe, eliminar la asociación con la categoría de origen
-            const { error: deleteError } = await supabase
-              .from("recipe_categories")
-              .delete()
-              .eq("recipe_id", rc.recipe_id)
-              .eq("category_id", selectedSourceCategory)
-
-            if (deleteError) throw deleteError
-          }
-        }
-      }
-
-      // Ahora la categoría de origen debería estar vacía, así que podemos eliminarla
-      const { error: deleteError } = await supabase.from("categories").delete().eq("id", selectedSourceCategory)
-
-      if (deleteError) throw deleteError
+      const response = await fetch("/api/categories/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source_category_id: selectedSourceCategory,
+          target_category_id: selectedTargetCategory,
+        }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || "No se pudieron fusionar las categorías")
 
       // Actualizar la lista local
       setCategories(
@@ -310,10 +269,9 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
       setSelectedTargetCategory(null)
       router.refresh()
     } catch (error) {
-      console.error("Error merging categories:", error)
       toast({
         title: "Error",
-        description: "Ha ocurrido un error al fusionar las categorías.",
+        description: error instanceof Error ? error.message : categoryResultMessage(false, {}),
         variant: "destructive",
       })
     } finally {
@@ -331,10 +289,10 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <p className="text-muted-foreground">
-          Gestiona las categorías de tus recetas. Puedes añadir, editar o eliminar categorías.
+          {canAdminister ? "Administra el catálogo global de categorías." : canCreate ? "Consulta el catálogo global o añade una categoría." : "Consulta el catálogo global de categorías."}
         </p>
         <div className="flex gap-2">
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          {canCreate && <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
@@ -366,9 +324,9 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
                 </Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
+          </Dialog>}
 
-          <Dialog open={isMergeDialogOpen} onOpenChange={setIsMergeDialogOpen}>
+          {canAdminister && <Dialog open={isMergeDialogOpen} onOpenChange={setIsMergeDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
                 <MoveRight className="h-4 w-4 mr-2" />
@@ -429,11 +387,11 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
                 </Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
+          </Dialog>}
         </div>
       </div>
 
-      {duplicateCategories.length > 0 && (
+      {canAdminister && duplicateCategories.length > 0 && (
         <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -493,7 +451,7 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
             <CardHeader>
               <CardTitle className="flex justify-between items-center">
                 <span>{category.name}</span>
-                <div className="flex gap-2">
+                {canAdminister && <div className="flex gap-2">
                   <Button variant="ghost" size="icon" onClick={() => startEdit(category)}>
                     <Edit2 className="h-4 w-4" />
                   </Button>
@@ -532,7 +490,7 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
-                </div>
+                </div>}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -543,7 +501,7 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
                 </Badge>
               </div>
             </CardContent>
-            {category.recipe_count > 0 && (
+            {canAdminister && category.recipe_count > 0 && (
               <CardFooter>
                 <Button
                   variant="outline"
@@ -564,7 +522,7 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
       </div>
 
       {/* Dialog para editar categoría */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      {canAdminister && <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar categoría</DialogTitle>
@@ -590,7 +548,7 @@ export function CategoryManager({ categories: initialCategories, duplicateCatego
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
     </div>
   )
 }

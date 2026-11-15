@@ -14,34 +14,21 @@ import { Badge } from "@/components/ui/badge"
 import { X, Upload } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useSession } from "@/hooks/use-session"
-import { getSupabaseClient } from "@/lib/supabase/client"
+import { buildJsonRequest, imageResultActiveUrl, imageResultMessage } from "@/lib/recipes/recipe-ui"
+import type { PublicRecipe } from "@/lib/recipes/recipe-domain"
 
 interface Category {
   id: string
   name: string
 }
 
-interface Recipe {
-  id: string
-  name: string
-  ingredients: string
-  preparation: string
-  image_url?: string
-  calories?: number
-  source_url?: string
-  video_url?: string
-  user_id: string
-  recipe_categories?: {
-    categories: Category
-  }[]
-}
-
 interface EditRecipeFormProps {
-  recipe: Recipe
+  recipe: PublicRecipe
   categories: Category[]
+  selectedCategoryIds?: number[]
 }
 
-export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
+export function EditRecipeForm({ recipe, categories, selectedCategoryIds = recipe.categories.map((category) => category.id) }: EditRecipeFormProps) {
   const router = useRouter()
   const { toast } = useToast()
   const { user } = useSession()
@@ -56,18 +43,13 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
     video_url: recipe.video_url || "",
   })
 
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(selectedCategoryIds.map(String))
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    if (recipe.recipe_categories) {
-      const categoryIds = recipe.recipe_categories.map((rc) => rc.categories.id)
-      setSelectedCategories(categoryIds)
-    }
-  }, [recipe])
+  useEffect(() => setSelectedCategories(selectedCategoryIds.map(String)), [selectedCategoryIds])
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({
@@ -90,51 +72,48 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Eliminar imagen anterior del bucket si existe y es del bucket
-    if (formData.image_url && formData.image_url.includes("/storage/v1/object/public/recipe-images/")) {
-      try {
-        const supabase = getSupabaseClient();
-        const urlParts = formData.image_url.split("/recipe-images/");
-        if (urlParts.length === 2) {
-          const oldPath = urlParts[1];
-          await supabase.storage.from("recipe-images").remove([oldPath]);
-        }
-      } catch (removeError) {
-        console.warn("No se pudo eliminar la imagen anterior del bucket:", removeError);
-      }
-    }
-
     setImageFile(file)
     setUploadingImage(true)
     try {
       const uploadFormData = new FormData()
-      uploadFormData.append("file", file)
+      uploadFormData.append("image", file)
 
-      const response = await fetch(`/api/upload-image?recipeId=${recipe.id}`, {
+      const response = await fetch(`/api/recipes/${recipe.id}/image`, {
         method: "POST",
         body: uploadFormData,
       })
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}))
-        const message = payload?.error || response.statusText || "Error desconocido"
-        console.error("[SUBIDA] Error al subir imagen (API):", response.status, message)
-        toast({ title: "Error al subir imagen", description: message, variant: "destructive" })
-        return
-      }
-
       const data = await response.json()
-      if (!data?.url) {
-        toast({ title: "Error", description: "Respuesta inválida al subir la imagen", variant: "destructive" })
-        return
-      }
+      const message = imageResultMessage(data?.image)
+      const activeUrl = imageResultActiveUrl(data?.image)
+      if (typeof activeUrl === "string") setFormData((prev) => ({ ...prev, image_url: activeUrl }))
+      toast({
+        title: data?.image?.state === "complete" ? "Imagen actualizada" : "Estado de la imagen",
+        description: message,
+        variant: data?.image?.state === "complete" ? undefined : "destructive",
+      })
+    } catch {
+      toast({ title: "Error al actualizar imagen", description: "No se pudo contactar con el servidor. La imagen anterior se conserva.", variant: "destructive" })
+    } finally {
+      setUploadingImage(false)
+    }
+  }
 
-      setFormData((prev) => ({ ...prev, image_url: data.url }))
-      toast({ title: "Imagen subida", description: "La imagen se subió correctamente." })
-      console.log("[SUBIDA] Imagen subida y URL pública:", data.url)
-    } catch (err: any) {
-      console.error("[SUBIDA] Excepción inesperada:", err)
-      toast({ title: "Error inesperado al subir imagen", description: err?.message || "Error desconocido", variant: "destructive" })
+  const handleRemoveImage = async () => {
+    setUploadingImage(true)
+    try {
+      const response = await fetch(`/api/recipes/${recipe.id}/image`, buildJsonRequest("DELETE"))
+      const data = await response.json().catch(() => ({ image: { state: "failed" } }))
+      if (data?.image?.url === null || data?.image?.state === "complete" || data?.image?.state === "partial") {
+        setFormData((prev) => ({ ...prev, image_url: "" }))
+      }
+      toast({
+        title: data?.image?.state === "complete" ? "Imagen retirada" : "Estado de la imagen",
+        description: imageResultMessage(data?.image),
+        variant: data?.image?.state === "complete" ? undefined : "destructive",
+      })
+    } catch {
+      toast({ title: "Error al retirar imagen", description: "No se pudo contactar con el servidor; no se afirma ningún cambio.", variant: "destructive" })
     } finally {
       setUploadingImage(false)
     }
@@ -152,49 +131,36 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
       return
     }
 
-    console.log("Form submitted - starting handleSubmit")
     setIsSubmitting(true)
 
     try {
-      console.log("Preparing update data...")
       const updateData = {
-        ...formData,
+        name: formData.name,
+        ingredients: formData.ingredients,
+        preparation: formData.preparation,
+        calories: formData.calories ? Number(formData.calories) : null,
+        source_url: formData.source_url || null,
+        video_url: formData.video_url || null,
         categories: selectedCategories.map((id) => Number.parseInt(id)),
       }
-
-      console.log("Making API request to update recipe...")
-      console.log("User ID:", user.id)
-      console.log("Recipe ID:", recipe.id)
-      console.log("Update data:", updateData)
 
       // Add timeout to the fetch request
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 20000) // 20 second timeout
 
       const response = await fetch(`/api/recipes/${recipe.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": user.id,
-        },
-        body: JSON.stringify(updateData),
+        ...buildJsonRequest("PUT", updateData),
         signal: controller.signal,
       })
 
       clearTimeout(timeoutId)
-      console.log("Response status:", response.status)
-
       let responseData
       try {
         const responseText = await response.text()
-        console.log("Raw response:", responseText)
         responseData = JSON.parse(responseText)
-      } catch (parseError) {
-        console.error("Error parsing response:", parseError)
+      } catch {
         throw new Error("Invalid response from server")
       }
-
-      console.log("Parsed response data:", responseData)
 
       if (!response.ok) {
         throw new Error(responseData.error || "Failed to update recipe")
@@ -206,15 +172,12 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
           description: "Receta actualizada correctamente",
         })
 
-        console.log("Redirecting to recipe detail...")
         window.location.href = `/recipes/${recipe.id}`
       } else {
         throw new Error("Update failed")
       }
-    } catch (error: any) {
-      console.error("Error updating recipe:", error)
-
-      if (error.name === "AbortError") {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === "AbortError") {
         toast({
           title: "Error",
           description: "La operación tardó demasiado tiempo. Inténtalo de nuevo.",
@@ -310,11 +273,13 @@ export function EditRecipeForm({ recipe, categories }: EditRecipeFormProps) {
               {imageFile?.name && <span className="text-sm text-muted-foreground">{imageFile.name}</span>}
             </div>
             {uploadingImage && <span className="text-xs text-blue-600">Subiendo imagen...</span>}
-            {formData.image_url && (
-              <div className="mt-2">
-                <img src={formData.image_url} alt="Imagen de la receta" className="max-h-40 rounded" />
-                <div className="text-xs text-gray-500 break-all">{formData.image_url}</div>
-              </div>
+              {formData.image_url && (
+                <div className="mt-2">
+                  <img src={formData.image_url} alt="Imagen de la receta" className="max-h-40 rounded" />
+                  <Button type="button" variant="destructive" size="sm" className="mt-2" onClick={handleRemoveImage} disabled={uploadingImage}>
+                    Retirar imagen
+                  </Button>
+                </div>
             )}
           </div>
 

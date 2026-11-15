@@ -1,16 +1,7 @@
 import { redirect } from "next/navigation"
-
-function getCurrentWeekStartIso() {
-  const today = new Date()
-  const monday = new Date(today)
-  const day = monday.getDay()
-  const diff = monday.getDate() - day + (day === 0 ? -6 : 1)
-  monday.setDate(diff)
-  monday.setHours(0, 0, 0, 0)
-  return monday.toISOString().split("T")[0]
-}
+import { mondayIsoFor } from "@/lib/weekly-menu/weekly-menu-domain"
 
 export default function WeeklyMenuRedirectPage() {
-  const currentWeekStart = getCurrentWeekStartIso()
+  const currentWeekStart = mondayIsoFor(new Date())
   redirect(`/weekly-menu/${currentWeekStart}`)
 }

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { calculateCalories } from "@/lib/calories-calculator"
+import { buildJsonRequest } from "@/lib/recipes/recipe-ui"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -248,26 +249,20 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     setIsSaving(true)
 
     try {
-      const supabase = getSupabaseClient()
       const calories = calculateCalories(suggestion.ingredients)
 
-      const { data: newRecipe, error } = await supabase
-        .from("recipes")
-        .insert({
-          name: suggestion.name,
-          ingredients: suggestion.ingredients,
-          preparation: suggestion.preparation,
-          calories: calories > 0 ? calories : null,
-          is_ai_generated: true,
-          image_url: null,
-          video_url: null,
-          source_url: null,
-          user_id: user.id,
-        })
-        .select()
-        .single()
-
-      if (error) throw error
+      const response = await fetch("/api/recipes", buildJsonRequest("POST", {
+        name: suggestion.name,
+        ingredients: suggestion.ingredients,
+        preparation: suggestion.preparation,
+        calories: calories > 0 ? calories : null,
+        is_ai_generated: true,
+        video_url: null,
+        source_url: null,
+        categories: [],
+      }))
+      const result = await response.json().catch(() => null) as { success?: boolean; recipe_id?: number; error?: string } | null
+      if (!response.ok || !result?.success || !result.recipe_id) throw new Error(result?.error || "No se pudo crear la receta")
 
       setSavedRecipes((prev) => new Set(prev).add(index))
 
@@ -300,7 +295,6 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
     setIsSaving(true)
 
     try {
-      const supabase = getSupabaseClient()
       const calories = calculateCalories(suggestion.ingredients)
 
       console.log("🔄 Creando nueva receta:", suggestion.name)
@@ -310,23 +304,26 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
         description: "Guardando la receta en tu colección...",
       })
 
-      const { data: newRecipe, error } = await supabase
-        .from("recipes")
-        .insert({
-          name: suggestion.name,
-          ingredients: suggestion.ingredients,
-          preparation: suggestion.preparation,
-          calories: calories > 0 ? calories : null,
-          is_ai_generated: true,
-          image_url: null,
-          video_url: null,
-          source_url: null,
-          user_id: user.id,
-        })
-        .select()
-        .single()
+      const response = await fetch("/api/recipes", buildJsonRequest("POST", {
+        name: suggestion.name,
+        ingredients: suggestion.ingredients,
+        preparation: suggestion.preparation,
+        calories: calories > 0 ? calories : null,
+        is_ai_generated: true,
+        video_url: null,
+        source_url: null,
+        categories: [],
+      }))
+      const result = await response.json().catch(() => null) as { success?: boolean; recipe_id?: number; error?: string } | null
+      if (!response.ok || !result?.success || !result.recipe_id) throw new Error(result?.error || "No se pudo crear la receta")
 
-      if (error) throw error
+      const newRecipe = {
+        id: String(result.recipe_id),
+        name: suggestion.name,
+        ingredients: suggestion.ingredients.split("\n").filter(Boolean),
+        instructions: suggestion.preparation.split("\n").filter(Boolean),
+        calories_per_serving: calories > 0 ? calories : undefined,
+      } as Recipe
 
       console.log("✅ Receta creada exitosamente:", newRecipe)
 
@@ -337,7 +334,7 @@ export function AiRecipeSuggestion({ onRecipeCreated, mealType, dishOrder, dayNa
 
       // Llamar al callback INMEDIATAMENTE con la nueva receta
       console.log("📞 Llamando callback onRecipeCreated...")
-      onRecipeCreated(newRecipe as Recipe)
+      onRecipeCreated(newRecipe)
 
       // Cerrar el modal y limpiar
       setIsOpen(false)

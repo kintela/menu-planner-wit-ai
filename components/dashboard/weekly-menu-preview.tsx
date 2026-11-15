@@ -18,7 +18,7 @@ export async function WeeklyMenuPreview({ userId }: WeeklyMenuPreviewProps) {
     .from("weekly_menus")
     .select(`
       id,
-      week_start_date,
+      start_date,
       name,
       menu_items (
         meal_type,
@@ -29,7 +29,7 @@ export async function WeeklyMenuPreview({ userId }: WeeklyMenuPreviewProps) {
       )
     `)
     .eq("user_id", userId)
-    .order("week_start_date", { ascending: false })
+    .order("start_date", { ascending: false })
     .limit(1)
     .single()
 
@@ -52,7 +52,7 @@ export async function WeeklyMenuPreview({ userId }: WeeklyMenuPreviewProps) {
             <div>
               <h3 className="font-medium">{latestMenu.name}</h3>
               <p className="text-sm text-muted-foreground">
-                Semana del <ClientOnlyDate date={latestMenu.week_start_date} />
+                Semana del <ClientOnlyDate date={latestMenu.start_date} />
               </p>
             </div>
 

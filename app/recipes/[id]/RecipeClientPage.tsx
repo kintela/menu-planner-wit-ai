@@ -3,37 +3,16 @@ import { useAuth } from '@/components/auth/auth-provider'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, User, Edit, ExternalLink, Share2 } from "lucide-react"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { RecipeImage } from "@/components/recipe-image"
 import { VideoEmbed } from "@/components/video-embed"
 import { useToast } from "@/hooks/use-toast"
-
-interface Recipe {
-  id: number
-  name: string
-  ingredients: string
-  preparation: string
-  image_url: string | null
-  is_ai_generated: boolean | null
-  video_url: string | null
-  source_url: string | null
-  calories: number | null
-  created_at: string
-  user_id: string | null
-}
-
-interface UserProfile {
-  id: string
-  email: string
-  full_name: string | null
-  alias: string | null
-  avatar_url: string | null
-}
+import { Badge } from "@/components/ui/badge"
+import type { PublicRecipe } from "@/lib/recipes/recipe-domain"
+import { StarRating } from "@/components/star-rating"
 
 interface RecipeClientPageProps {
   params: { id: string }
-  recipe: Recipe | null
-  user: UserProfile | null
+  recipe: PublicRecipe | null
   error: string | null
 }
 
@@ -50,39 +29,20 @@ function processText(text: string | null | undefined): string[] {
 }
 
 // Componente para mostrar información del usuario
-function UserInfo({ user }: { user: UserProfile | null }) {
-  if (!user) return null
-
-  const displayName = user.alias || user.full_name || user.email
-
+function UserInfo({ alias }: { alias: string }) {
   return (
     <div className="flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-sm text-gray-700 shadow-sm">
-      {user.avatar_url ? (
-        <img
-          src={user.avatar_url || "/placeholder.svg"}
-          alt={displayName}
-          className="w-6 h-6 rounded-full object-cover"
-        />
-      ) : (
-        <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center">
-          <User className="w-4 h-4 text-gray-600" />
-        </div>
-      )}
-      <span className="truncate max-w-32">{displayName}</span>
+      <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center">
+        <User className="w-4 h-4 text-gray-600" />
+      </div>
+      <span className="truncate max-w-32">{alias || "Usuario"}</span>
     </div>
   )
 }
 
-export default function RecipeClientPage({ params, recipe, user, error }: RecipeClientPageProps) {
+export default function RecipeClientPage({ params, recipe, error }: RecipeClientPageProps) {
   const { user: sessionUser } = useAuth()
   const { toast } = useToast()
-
-  console.log("🔍 DEBUG - RecipeClientPage iniciado con:", {
-    id: params.id,
-    hasRecipe: !!recipe,
-    hasUser: !!user,
-    error,
-  })
 
   // Manejar errores
   if (error === "invalid_id") {
@@ -159,45 +119,17 @@ export default function RecipeClientPage({ params, recipe, user, error }: Recipe
             </Link>
           </Button>
           {(() => {
-            const isOwner = !!(sessionUser && recipe && recipe.user_id === sessionUser.id)
+            const canEdit = recipe?.can_edit === true
             const editId = (recipe?.id != null ? String(recipe.id) : params.id)
             if (!editId || editId === 'undefined') return null
-            const tooltipMsg = !sessionUser
-              ? "Inicia sesión para editar. Solo puedes editar tus propias recetas"
-              : !isOwner
-                ? "Solo puedes editar tus propias recetas"
-                : "Editar receta"
-            return (
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    {isOwner ? (
+            return canEdit ? (
                       <Button asChild variant="outline" size="sm">
                         <Link href={`/recipes/${editId}/edit`} className="flex items-center gap-2">
                           <Edit className="h-4 w-4" />
                           Editar
                         </Link>
                       </Button>
-                    ) : (
-                      <button
-                        type="button"
-                        aria-disabled="true"
-                        className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-gray-100 text-gray-500 text-sm font-medium h-9 px-3 opacity-80 cursor-not-allowed select-none"
-                        onClick={(e) => e.preventDefault()}
-                      >
-                        <Edit className="h-4 w-4" />
-                        Editar
-                      </button>
-                    )}
-                  </TooltipTrigger>
-                  {!isOwner && (
-                    <TooltipContent side="bottom">
-                      <p className="max-w-[240px] text-center leading-snug">{tooltipMsg}</p>
-                    </TooltipContent>
-                  )}
-                </Tooltip>
-              </TooltipProvider>
-            )
+            ) : null
           })()}
         </div>
       </div>
@@ -220,7 +152,14 @@ export default function RecipeClientPage({ params, recipe, user, error }: Recipe
                     🔥 {recipe.calories} calorías
                   </p>
                 )}
-                <UserInfo user={user} />
+                <UserInfo alias={recipe.author_alias} />
+                <StarRating
+                  recipeId={recipe.id}
+                  average={recipe.rating_average}
+                  count={recipe.rating_count}
+                  myRating={recipe.my_rating}
+                  canRate={Boolean(sessionUser && recipe.is_owner === false)}
+                />
                 {recipe.source_url && (
                   <Button asChild variant="outline" size="sm" className="rounded-full">
                     <a href={recipe.source_url} target="_blank" rel="noreferrer noopener">
@@ -242,6 +181,11 @@ export default function RecipeClientPage({ params, recipe, user, error }: Recipe
               </div>
             )}
           </div>
+          {recipe.categories.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {recipe.categories.map((category) => <Badge key={category.id} variant="outline">{category.name}</Badge>)}
+            </div>
+          )}
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[minmax(260px,0.7fr)_minmax(0,1.5fr)]">

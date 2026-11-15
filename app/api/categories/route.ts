@@ -1,42 +1,24 @@
-import { createClient } from "@supabase/supabase-js"
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
+import { cookies } from "next/headers"
+import { createClient } from "@/lib/supabase/server"
+import { createCategory, readPublicCategories } from "@/lib/recipes/recipe-server-operations"
 
 export const dynamic = "force-dynamic"
 
 export async function GET() {
+  const supabase = createClient(await cookies())
+  const result = await readPublicCategories(supabase)
+  return NextResponse.json(result.body, { status: result.status })
+}
+
+export async function POST(request: NextRequest) {
+  let body: Record<string, unknown>
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({ error: "Supabase no está configurado" }, { status: 500 })
-    }
-
-    const supabase = createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
-
-    const { data, error } = await supabase
-      .from("categories")
-      .select("id, name, created_at")
-      .order("name")
-
-    if (error) {
-      console.error("[api/categories] Error obteniendo categorías:", error)
-      return NextResponse.json({ error: error.message, details: error }, { status: 500 })
-    }
-
-    const categories = (data ?? []).map((cat) => ({
-      ...cat,
-      id: cat.id != null ? String(cat.id) : "",
-    }))
-
-    return NextResponse.json({ categories })
-  } catch (error) {
-    console.error("[api/categories] Error inesperado:", error)
-    return NextResponse.json({ error: (error as Error).message ?? "Error interno del servidor" }, { status: 500 })
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 })
   }
+  const supabase = createClient(await cookies())
+  const result = await createCategory(supabase, body)
+  return NextResponse.json(result.body, { status: result.status })
 }

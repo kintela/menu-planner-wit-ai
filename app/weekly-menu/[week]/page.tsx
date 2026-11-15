@@ -1,139 +1,54 @@
-"use client"
-
-import { Suspense, useEffect, useState, use } from "react"
-import { useRouter } from "next/navigation"
-import { useAuth } from "@/components/auth/auth-provider"
+import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 import { SimpleNavigation } from "@/components/simple-navigation"
 import { WeeklyMenuView } from "@/components/weekly-menu-view"
-import { LoginForm } from "@/components/auth/login-form"
-import { supabase } from "@/lib/supabase/client"
-import type { Recipe as RecipeType } from "@/lib/types"
+import { createClient } from "@/lib/supabase/server"
+import { mondayIsoFor, normalizeWeekStart } from "@/lib/weekly-menu/weekly-menu-domain"
+import { readWeeklyMenu } from "@/lib/weekly-menu/weekly-menu-server-operations"
 
-function getCurrentWeekStartIso() {
-  const today = new Date()
-  const monday = new Date(today)
-  const day = monday.getDay()
-  const diff = monday.getDate() - day + (day === 0 ? -6 : 1)
-  monday.setDate(diff)
-  monday.setHours(0, 0, 0, 0)
-  return monday.toISOString().split("T")[0]
-}
+export default async function WeeklyMenuPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ week: string }>
+  searchParams: Promise<{ target?: string | string[] }>
+}) {
+  const now = new Date()
+  const [{ week }, query, cookieStore] = await Promise.all([params, searchParams, cookies()])
+  const supabase = createClient(cookieStore)
+  const { data: { user }, error: sessionError } = await supabase.auth.getUser()
+  if (sessionError || !user) redirect("/login")
 
-async function getRecipes(): Promise<RecipeType[]> {
+  let canonicalWeek: string
   try {
-    const { data: recipes, error } = await supabase
-      .from("recipes")
-      .select(`
-        id,
-        name,
-        calories,
-        image_url,
-        user_profiles (
-          id,
-          full_name,
-          first_name,
-          last_name,
-          alias,
-          avatar_url,
-          email
-        )
-      `)
-      .order("name")
-
-    if (error) {
-      console.error("Error cargando recetas:", error)
-      return []
-    }
-
-    return recipes || []
-  } catch (error) {
-    console.error("Error en getRecipes:", error)
-    return []
+    canonicalWeek = normalizeWeekStart(week, now)
+  } catch {
+    redirect(`/weekly-menu/${mondayIsoFor(now)}`)
   }
-}
+  if (canonicalWeek !== week) redirect(`/weekly-menu/${canonicalWeek}`)
+  if (Array.isArray(query.target)) redirect(`/weekly-menu/${canonicalWeek}`)
 
-function normalizeWeekParam(weekParam?: string) {
-  if (!weekParam) return { value: getCurrentWeekStartIso(), isValid: false }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(weekParam)) {
-    console.warn("[WeeklyMenu] Parámetro de semana inválido:", weekParam)
-    return { value: getCurrentWeekStartIso(), isValid: false }
-  }
-  const parsed = new Date(`${weekParam}T00:00:00`)
-  if (Number.isNaN(parsed.getTime())) {
-    console.warn("[WeeklyMenu] Parámetro de semana inválido:", weekParam)
-    return { value: getCurrentWeekStartIso(), isValid: false }
-  }
-  return { value: weekParam, isValid: true }
-}
-
-export default function WeeklyMenuPage({ params }: { params: Promise<{ week: string }> }) {
-  const resolvedParams = use(params)
-  const router = useRouter()
-  const [recipes, setRecipes] = useState<RecipeType[]>([])
-  const { user, loading: authLoading } = useAuth()
-  const [mounted, setMounted] = useState(false)
-
-  const { value: initialWeekStart, isValid: isWeekParamValid } = normalizeWeekParam(resolvedParams?.week)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  useEffect(() => {
-    if (!mounted || isWeekParamValid) return
-    router.replace(`/weekly-menu/${initialWeekStart}`)
-  }, [initialWeekStart, isWeekParamValid, mounted, router])
-
-  useEffect(() => {
-    const fetchRecipes = async () => {
-      const recipesData = await getRecipes()
-      setRecipes(recipesData)
-    }
-
-    void fetchRecipes()
-  }, [])
-
-  if (!mounted || authLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <SimpleNavigation />
-        <div className="flex items-center justify-center min-h-[70vh]">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-        </div>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <SimpleNavigation />
-        <div className="container mx-auto px-4 py-8">
-          <div className="max-w-md mx-auto">
-            <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold mb-4">Necesitas iniciar sesión</h1>
-              <p className="text-gray-600">Para acceder al planificador de menús necesitas tener una cuenta.</p>
-            </div>
-            <LoginForm />
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const input: { week: string; target?: string } = { week: canonicalWeek }
+  if (query.target) input.target = query.target
+  const result = await readWeeklyMenu(supabase, input, now)
+  if (result.status === 401) redirect("/login")
 
   return (
     <div className="min-h-screen bg-gray-50">
       <SimpleNavigation />
-      <div className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Planificador Semanal</h1>
-          <p className="text-gray-600 mt-2">Organiza tus comidas para toda la semana</p>
+          <p className="mt-2 text-gray-600">Organiza tus comidas para toda la semana</p>
         </div>
-
-        <Suspense fallback={<div className="text-center py-8">Cargando planificador...</div>}>
-          <WeeklyMenuView initialRecipes={recipes} userId={user.id} initialWeekStart={initialWeekStart} />
-        </Suspense>
-      </div>
+        {result.status === 200 && !("error" in result.body) ? (
+          <WeeklyMenuView initialMenu={result.body} />
+        ) : (
+          <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-red-700">
+            {"error" in result.body ? result.body.error : "No se pudo cargar el menú semanal"}
+          </p>
+        )}
+      </main>
     </div>
   )
 }

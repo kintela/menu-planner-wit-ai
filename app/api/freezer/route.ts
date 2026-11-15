@@ -1,50 +1,28 @@
 import { NextResponse } from "next/server"
+
 import {
+  FREEZER_ACCESS_ERRORS,
   createFreezerAdminClient,
-  ensureFreezerOwnerMembership,
-  getAccessibleFreezerForUser,
-  resolveAuthenticatedFreezerUserId,
+  createFreezerSessionClient,
+  handleFreezerGet,
 } from "@/lib/freezer-access"
 
 export const dynamic = "force-dynamic"
 
-export async function GET(request: Request) {
+// GET /api/freezer (RF-1–RF-4, RF-24, RF-27): la identidad procede
+// exclusivamente de la sesión de cookies del route handler y se exige perfil
+// vigente antes de cualquier acceso a datos. La lógica autoritativa (resolución
+// del singleton existente con fallback del propietario histórico, sin
+// auto-creación) vive en la capa de acceso; aquí solo se adaptan los clientes
+// de servidor y la respuesta NextResponse.
+export async function GET() {
   try {
-    const resolvedUserId = await resolveAuthenticatedFreezerUserId(request)
-
-    if (!resolvedUserId) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
-    }
-
-    const supabaseAdmin = createFreezerAdminClient()
-    let accessibleFreezer = await getAccessibleFreezerForUser(supabaseAdmin, resolvedUserId)
-
-    if (!accessibleFreezer) {
-      const { data: created, error: createError } = await supabaseAdmin
-        .from("congeladores")
-        .insert({ usuario_id: resolvedUserId })
-        .select("id, usuario_id, nombre, descripcion")
-        .single()
-
-      if (createError) {
-        console.error("[api/freezer] Error creating freezer:", createError)
-        return NextResponse.json({ error: createError.message }, { status: 500 })
-      }
-
-      await ensureFreezerOwnerMembership(supabaseAdmin, created.id, resolvedUserId)
-      accessibleFreezer = {
-        freezer: { ...created, cajones_congelador: [] },
-        accessRole: "owner",
-      }
-    }
-
-    return NextResponse.json({
-      freezer: accessibleFreezer.freezer,
-      accessRole: accessibleFreezer.accessRole,
-      isOwner: accessibleFreezer.accessRole === "owner",
-    })
+    const sessionClient = await createFreezerSessionClient()
+    const adminClient = createFreezerAdminClient()
+    const outcome = await handleFreezerGet({ sessionClient, adminClient })
+    return NextResponse.json(outcome.body, { status: outcome.status })
   } catch (error) {
-    console.error("[api/freezer] Unexpected error:", error)
-    return NextResponse.json({ error: (error as Error).message ?? "Unexpected error" }, { status: 500 })
+    console.error("[api/freezer] Error inesperado:", error)
+    return NextResponse.json({ error: FREEZER_ACCESS_ERRORS.internal.message }, { status: 500 })
   }
 }

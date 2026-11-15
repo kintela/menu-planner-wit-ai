@@ -6,89 +6,45 @@ import { Home, BookOpen, Calendar, LogOut, Menu, Snowflake, User, X, Sprout } fr
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth/auth-provider"
 import { useEffect, useState } from "react"
-import { getSupabaseClient } from "@/lib/supabase/client"
+import { requestWeeklyMenuExit } from "@/lib/weekly-menu/weekly-menu-unsaved-guard"
+import { useToast } from "@/hooks/use-toast"
 
 export function SimpleNavigation() {
   const pathname = usePathname()
   const { user, profile, loading, signOut } = useAuth()
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const { toast } = useToast()
+  const [avatarFailed, setAvatarFailed] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [freezerAvailable, setFreezerAvailable] = useState(false)
+  const avatarUrl = avatarFailed ? null : profile?.avatar_url ?? null
 
   useEffect(() => {
-    async function loadUserAvatar() {
-      if (!user) {
-        setAvatarUrl(null)
-        return
-      }
+    setAvatarFailed(false)
+  }, [user, profile?.avatar_url])
 
-      try {
-        const supabase = getSupabaseClient()
+  useEffect(() => {
+    let active = true
 
-        const resolveFromStorage = (path: string | null | undefined) => {
-          if (!path) return null
-
-          const trimmed = path.trim()
-          if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-            return trimmed
-          }
-
-          let normalizedPath = trimmed.replace(/^\/+/, "")
-
-          if (normalizedPath.startsWith("avatars/")) {
-            normalizedPath = normalizedPath.slice("avatars/".length)
-          }
-
-          if (!normalizedPath.startsWith(`${user.id}/`)) {
-            normalizedPath = `${user.id}/${normalizedPath}`.replace(/^\/+/, "")
-          }
-          const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(normalizedPath)
-          return urlData?.publicUrl || null
-        }
-
-        const fromProfile = resolveFromStorage(profile?.avatar_url)
-        if (fromProfile) {
-          const urlWithCacheBuster = fromProfile.includes("?")
-            ? `${fromProfile}&_=${Date.now()}`
-            : `${fromProfile}?_=${Date.now()}`
-          setAvatarUrl(urlWithCacheBuster)
-          return
-        }
-
-        // Buscar archivos en la carpeta del usuario en el bucket avatars
-        const { data: files } = await supabase.storage.from("avatars").list(user.id, {
-          limit: 10,
-          sortBy: { column: "created_at", order: "desc" },
-        })
-
-        if (files && files.length > 0) {
-          // Tomar el primer archivo (más reciente)
-          const avatarFile = files[0]
-
-          // Construir la ruta completa del archivo
-          const filePath = `${user.id}/${avatarFile.name}`
-
-          // Obtener la URL pública
-          const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath)
-
-          if (urlData?.publicUrl) {
-            const urlWithCacheBuster = urlData.publicUrl.includes("?")
-              ? `${urlData.publicUrl}&_=${Date.now()}`
-              : `${urlData.publicUrl}?_=${Date.now()}`
-            setAvatarUrl(urlWithCacheBuster)
-          } else {
-            setAvatarUrl(null)
-          }
-        } else {
-          setAvatarUrl(null)
-        }
-      } catch (error) {
-        console.error("Error loading user avatar:", error)
-        setAvatarUrl(null)
+    if (loading || !user) {
+      setFreezerAvailable(false)
+      return () => {
+        active = false
       }
     }
 
-    loadUserAvatar()
-  }, [user, profile?.avatar_url])
+    fetch("/api/freezer", { method: "GET", credentials: "include", cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}))
+        if (active) setFreezerAvailable(response.ok && payload?.isOwner === true)
+      })
+      .catch(() => {
+        if (active) setFreezerAvailable(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [loading, user])
 
   const getInitials = () => {
     if (profile?.full_name) {
@@ -120,7 +76,7 @@ export function SimpleNavigation() {
     { href: "/", label: "Inicio", icon: Home },
     { href: "/recipes", label: "Recetas", icon: BookOpen },
     { href: "/weekly-menu", label: "Planificar", icon: Calendar },
-    { href: "/freezer", label: "Congelador", icon: Snowflake },
+    ...(freezerAvailable ? [{ href: "/freezer", label: "Congelador", icon: Snowflake }] : []),
     { href: "/seasonal-products", label: "Temporada", icon: Sprout },
   ]
 
@@ -128,6 +84,20 @@ export function SimpleNavigation() {
     // Cerrar el menú móvil al cambiar de ruta
     setIsMobileMenuOpen(false)
   }, [pathname])
+
+  const handleSignOut = async () => {
+    if (!requestWeeklyMenuExit()) return
+    setIsMobileMenuOpen(false)
+    setAvatarFailed(false)
+    const signedOut = await signOut()
+    if (!signedOut) {
+      toast({
+        variant: "destructive",
+        title: "No se pudo cerrar la sesión",
+        description: "Inténtalo de nuevo.",
+      })
+    }
+  }
 
   return (
     <nav className="sticky top-0 z-50 bg-white border-b shadow-sm">
@@ -170,7 +140,7 @@ export function SimpleNavigation() {
                     src={avatarUrl}
                     alt="Avatar"
                     className="h-8 w-8 rounded-full object-cover"
-                    onError={() => setAvatarUrl(null)}
+                    onError={() => setAvatarFailed(true)}
                   />
                 ) : (
                   <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 text-xs font-medium flex items-center justify-center">
@@ -180,10 +150,7 @@ export function SimpleNavigation() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={async () => {
-                    setAvatarUrl(null)
-                    await signOut()
-                  }}
+                  onClick={handleSignOut}
                   className="flex items-center space-x-2 bg-transparent"
                 >
                   <LogOut className="h-4 w-4" />
@@ -213,7 +180,7 @@ export function SimpleNavigation() {
                       src={avatarUrl}
                       alt="Avatar"
                       className="h-8 w-8 rounded-full object-cover"
-                      onError={() => setAvatarUrl(null)}
+                      onError={() => setAvatarFailed(true)}
                     />
                   ) : (
                     <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 text-xs font-medium flex items-center justify-center">
@@ -224,11 +191,7 @@ export function SimpleNavigation() {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    onClick={async () => {
-                      setIsMobileMenuOpen(false)
-                      setAvatarUrl(null)
-                      await signOut()
-                    }}
+                    onClick={handleSignOut}
                     aria-label="Cerrar sesión"
                   >
                     <LogOut className="h-5 w-5" />
@@ -286,11 +249,7 @@ export function SimpleNavigation() {
               <Button
                 variant="outline"
                 className="w-full justify-center"
-                onClick={async () => {
-                  setIsMobileMenuOpen(false)
-                  setAvatarUrl(null)
-                  await signOut()
-                }}
+                onClick={handleSignOut}
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Cerrar sesión

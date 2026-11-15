@@ -1,0 +1,18 @@
+# Supabase CLI local project configuration.
+project_id = "menu-planner-wit-ai"
+
+[api]
+port = 54328
+
+[db]
+port = 54329
+shadow_port = 54330
+
+[studio]
+port = 54331
+
+[inbucket]
+port = 54332
+
+[analytics]
+port = 54333

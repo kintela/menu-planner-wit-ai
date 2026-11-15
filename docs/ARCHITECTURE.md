@@ -61,6 +61,26 @@ Los cambios de modelo, prompt, parámetros o formato deben considerar:
 
 Cada usuario puede gestionar sus recetas y valorar recetas de otros usuarios, pero no las propias. Las recetas se utilizan en la planificación de menús semanales.
 
+La lectura pública de recetas atraviesa `get_public_recipes` y se normaliza en
+`lib/recipes/recipe-server-operations.js`. Su DTO contiene los campos públicos de
+receta, categorías, alias seguro y agregados de valoración, pero no identificadores
+de autor, perfiles ni filas individuales de valoraciones. Las escrituras de recetas,
+categorías, valoraciones e imágenes usan Route Handlers con la sesión de cookies; no
+aceptan una identidad del navegador como autorización ni usan service-role.
+
+Las imágenes gestionadas se operan mediante la ruta por receta. El orden estable es
+subir, asociar y después limpiar el objeto anterior; una URL externa o un objeto sin
+metadata acreditada nunca se elimina automáticamente. El endpoint genérico de carga
+y el antiguo endpoint de diagnóstico de Storage permanecen cerrados con `404`.
+Las transiciones de asociación, retirada y borrado de receta son RPCs atómicas con
+sesión; la metadata y la acreditación de limpieza no tienen acceso directo desde el
+cliente. Tras retirar la referencia, la autorización privada permite limpiar el objeto
+incluso si la receta ya no existe y se revoca al confirmar que Storage lo eliminó.
+
+El detalle autenticado añade capacidades de edición/borrado sin publicar identidad de
+autor. Solo el listado de administrador añade una clave opaca efímera de agrupación y
+una etiqueta desambiguada para filtrar autores con el mismo alias.
+
 `app/recipes/page.tsx` carga desde Supabase una relación denominada `menu_items` y la transforma en `menu_ids` antes de entregar los datos a:
 
 ```text
@@ -68,6 +88,30 @@ components/recipes-page-client.tsx
 ```
 
 `menu_ids` es el contrato consumido por la capa cliente. Cambiar la consulta o la transformación exige revisar toda la cadena de consumidores.
+
+El borrado de recetas falla si existe cualquier `menu_item`; no existe borrado
+forzado ni cascada desde recetas hacia elementos de menú.
+
+El planificador semanal usa una frontera SSR y Route Handlers bajo
+`/api/weekly-menu`. El navegador mantiene por separado el snapshot persistido y el
+borrador, pero no consulta ni escribe `weekly_menus` o `menu_items` directamente. El
+servidor deriva actor y capacidad administrativa de la sesión de cookies y delega el
+reemplazo o vaciado completo a RPCs transaccionales sujetas a RLS, sin service-role.
+Antes de cualquier operación propia o administrativa, servidor y persistencia exigen un
+perfil vigente con uno de los tres roles admitidos por el planificador.
+La comprobación parametrizada usada por RLS reside en un esquema privado no expuesto por
+PostgREST; la capacidad pública del actor no acepta UUID ni otro argumento del cliente.
+
+`lib/weekly-menu/weekly-menu-domain.js` centraliza las semanas civiles de lunes a
+domingo en `Europe/Madrid`, los 21 huecos y la comparación canónica del borrador. La
+copia obtiene un snapshot de otra semana y solo modifica el borrador; no escribe el
+destino hasta Guardar. Las semanas pasadas son de solo lectura. El guard de cambios
+pendientes cubre acciones del planificador, enlaces de ruta, atrás/adelante,
+recarga/cierre y cierre de sesión; el aviso de recarga/cierre queda controlado por el
+navegador.
+
+La marca «sacado del congelador» es únicamente un booleano de `menu_items`: el flujo
+semanal no llama al inventario ni crea fechas, reservas o movimientos.
 
 ### Inventario de congeladores
 

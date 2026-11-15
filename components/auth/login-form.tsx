@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { createClient } from "@/lib/supabase/client"
 
-export function LoginForm() {
+export function LoginForm({ notice = null }: { notice?: string | null }) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -107,6 +107,12 @@ export function LoginForm() {
                 required
               />
             </div>
+
+            {notice && !error && !message && (
+              <Alert variant="destructive">
+                <AlertDescription>{notice}</AlertDescription>
+              </Alert>
+            )}
 
             {error && (
               <Alert variant="destructive">

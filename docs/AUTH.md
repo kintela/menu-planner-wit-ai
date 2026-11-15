@@ -54,11 +54,50 @@ No confiar únicamente en redirecciones, elementos ocultos de la interfaz o dato
 
 ### Recetas
 
-- Cada usuario puede crear y gestionar sus propias recetas.
+- Cualquier usuario autenticado con rol `user_restricted`, `user_full` o `admin`
+  puede crear recetas y categorías globales.
+- El propietario puede gestionar su receta y un administrador puede gestionar
+  cualquier receta; editar, eliminar o fusionar categorías se reserva al administrador.
 - Un usuario puede valorar recetas de otros usuarios.
 - Un usuario no puede valorar sus propias recetas.
 
-La prohibición de autoevaluación debe validarse en una capa de confianza, no sólo en el componente de interfaz.
+Las rutas derivan la identidad de `auth.getUser()` mediante el cliente SSR de cookies.
+No aceptan `user_id`, `x-user-id`, bearer artesanal ni opciones de borrado forzado
+como autoridad. La propiedad, los roles y la prohibición de autoevaluación se validan
+en servidor y se refuerzan mediante RLS, funciones acotadas y restricciones de base
+de datos. La lectura anónima utiliza una proyección mínima que publica solo alias o
+`Usuario` y agregados de valoración.
+
+La API de detalle calcula `can_edit` y `can_delete` con la sesión de cookies; no entrega
+el identificador del propietario. El filtro por autor exclusivo de administrador usa
+claves opacas generadas en servidor y no amplía el DTO anónimo. Las tablas privadas de
+metadata y limpieza de imágenes no conceden acceso directo a `authenticated`: las
+transiciones `SECURITY DEFINER` vuelven a validar actor, propietario o administrador.
+
+### Menús semanales
+
+- `user_restricted`, `user_full` y `admin` pueden leer sus semanas y modificar solo la
+  semana actual o futuras.
+- Un administrador puede leer cualquier semana y modificar semanas actuales o futuras
+  de otro propietario usando una referencia opaca específica del planificador.
+- Una referencia opaca enviada por el cliente no concede acceso: el servidor vuelve a
+  comprobar sesión y rol y la persistencia resuelve internamente al propietario.
+- Las rutas semanales usan el cliente SSR de cookies y RPCs autenticadas; no aceptan
+  UUID de propietario, identidad ni rol del navegador y no usan service-role.
+- Tanto la frontera SSR como RLS y las RPCs exigen un perfil persistente vigente cuyo
+  rol sea exactamente `user_restricted`, `user_full` o `admin`. Una sesión sin perfil,
+  con rol nulo o con un rol distinto queda denegada también para su propio menú; los
+  objetivos administrativos se filtran y resuelven con la misma allowlist.
+- El único helper semanal público de capacidad no acepta argumentos y comprueba al actor
+  de sesión. La comprobación parametrizada que necesitan las policies vive en el esquema
+  `private`, no expuesto por PostgREST; no existe una RPC pública para sondear UUID.
+- El selector administrativo devuelve únicamente `ref` y una etiqueta segura basada
+  en alias con fragmento opaco de desambiguación; no devuelve UUID interno, correo,
+  teléfono, nombres, avatar ni perfil.
+
+El acceso anónimo a tablas y RPCs semanales está revocado. Las tablas no conceden
+escritura directa a usuarios autenticados; el guardado y vaciado pasan por funciones
+acotadas que repiten autorización, validación temporal e integridad.
 
 ### Congeladores
 

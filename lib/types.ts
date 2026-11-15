@@ -44,11 +44,14 @@ export interface MenuItem {
 export interface UserProfile {
   id: string
   email: string
-  full_name?: string
-  first_name?: string
-  last_name?: string
-  alias?: string
-  avatar_url?: string
+  full_name?: string | null
+  first_name?: string | null
+  last_name?: string | null
+  alias?: string | null
+  phone?: string | null
+  /** Short-lived presentation URL from the protected profile API. */
+  avatar_url?: string | null
+  has_custom_avatar?: boolean
   role: "admin" | "user_full" | "user_restricted"
   created_at: string
   updated_at: string

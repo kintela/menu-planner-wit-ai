@@ -6,49 +6,16 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ChefHat, Flame, User, Video, Eye, X, ArrowRight, Edit, Share2 } from "lucide-react"
 import Link from "next/link"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import Image from "next/image"
-import { useAuth } from "@/components/auth/auth-provider"
 import { DeleteRecipeButton } from "./delete-recipe-button"
-import { StarRating } from "./star-rating"
 import { useToast } from "@/hooks/use-toast"
-
-interface Recipe {
-  id: number
-  name: string
-  ingredients: string
-  preparation: string
-  image_url?: string
-  calories?: number
-  user_id: string
-  is_ai_generated?: boolean
-  video_url?: string
-  source_url?: string
-  created_at: string
-  menu_ids?: number[] | null // <-- Añadido para asegurar que el campo existe
-  user_profiles?: {
-    id: string
-    full_name?: string
-    first_name?: string
-    last_name?: string
-    alias?: string
-    avatar_url?: string
-    email?: string
-  }
-  recipe_categories?: Array<{
-    categories: {
-      id: number
-      name: string
-    }
-  }>
-}
+import type { PublicRecipe as Recipe } from "@/lib/recipes/recipe-domain"
 
 interface RecipeCardProps {
   recipe: Recipe
 }
 
 export function RecipeCard({ recipe }: RecipeCardProps) {
-  const { user } = useAuth()
   const { toast } = useToast()
   const [showVideoModal, setShowVideoModal] = useState(false)
   const [showSourceModal, setShowSourceModal] = useState(false)
@@ -67,28 +34,8 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
   }
 
   const getCreatorName = () => {
-    if (!recipe.user_profiles) return "Usuario anónimo"
-
-    const profile = recipe.user_profiles
-    return (
-      profile.alias ||
-      profile.full_name ||
-      (profile.first_name && profile.last_name ? `${profile.first_name} ${profile.last_name}` : profile.first_name) ||
-      profile.email ||
-      "Usuario anónimo"
-    )
+    return recipe.author_alias || "Usuario"
   }
-
-  // Solo el propietario puede editar (requisito actualizado)
-  const canEdit = !!(user && recipe.user_id === user.id)
-
-  const editTooltip = !user
-    ? "Inicia sesión para poder editar. Solo puedes editar tus propias recetas"
-    : !canEdit
-      ? "Solo puedes editar tus propias recetas"
-      : "Editar receta"
-
-  // DEBUG opcional: se eliminó logging admin
 
   const handleShareRecipe = async () => {
     const recipeUrl = typeof window !== "undefined" ? `${window.location.origin}/recipes/${recipe.id}` : ""
@@ -174,32 +121,17 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
           {recipe.is_ai_generated && <Badge className="absolute top-12 right-2 bg-purple-600 text-white">🤖 IA</Badge>}
 
           {/* Creator info overlay */}
-          {recipe.user_profiles && (
-            <div className="absolute bottom-2 right-2 flex items-center gap-1 text-xs bg-black/60 text-white backdrop-blur-sm rounded px-2 py-1">
-              {recipe.user_profiles.avatar_url ? (
-                <Image
-                  src={recipe.user_profiles.avatar_url || "/placeholder.svg"}
-                  alt="Avatar"
-                  width={12}
-                  height={12}
-                  className="h-3 w-3 rounded-full object-cover"
-                />
-              ) : (
-                <User className="h-3 w-3" />
-              )}
+          <div className="absolute bottom-2 right-2 flex items-center gap-1 text-xs bg-black/60 text-white backdrop-blur-sm rounded px-2 py-1">
+              <User className="h-3 w-3" />
               <span>{getCreatorName()}</span>
-            </div>
-          )}
+          </div>
 
           {/* Icono flotante de eliminar receta: siempre visible (deshabilitado con tooltip si no tiene permisos) */}
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20">
-            <DeleteRecipeButton
-              recipeId={String(recipe.id)}
-              recipeUserId={recipe.user_id}
-              recipeName={recipe.name}
-              iconOnly
-            />
-          </div>
+          {recipe.can_delete && (
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20">
+              <DeleteRecipeButton recipeId={String(recipe.id)} recipeName={recipe.name} iconOnly />
+            </div>
+          )}
 
         </div>
 
@@ -211,19 +143,21 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
           </CardTitle>
 
           {/* Mostrar rating debajo del nombre */}
-          <StarRating recipeId={Number(recipe.id)} creatorId={recipe.user_id} />
+          <div className="text-sm text-amber-700" aria-label={`${recipe.rating_count} valoraciones`}>
+            {recipe.rating_count > 0 ? `★ ${recipe.rating_average?.toFixed(1)} (${recipe.rating_count})` : "Sin valoraciones"}
+          </div>
 
           {/* Categories */}
-          {recipe.recipe_categories && recipe.recipe_categories.length > 0 && (
+          {recipe.categories.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
-              {recipe.recipe_categories.slice(0, 3).map((rc, index) => (
-                <Badge key={index} variant="outline" className="text-xs">
-                  {rc.categories.name}
+              {recipe.categories.slice(0, 3).map((category) => (
+                <Badge key={category.id} variant="outline" className="text-xs">
+                  {category.name}
                 </Badge>
               ))}
-              {recipe.recipe_categories.length > 3 && (
+              {recipe.categories.length > 3 && (
                 <Badge variant="outline" className="text-xs">
-                  +{recipe.recipe_categories.length - 3}
+                  +{recipe.categories.length - 3}
                 </Badge>
               )}
             </div>
@@ -253,36 +187,14 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
               </Button>
             </Link>
 
-            {/* Edit button - always visible but disabled with tooltip if no permiso */}
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  {canEdit ? (
+                  {recipe.can_edit === true && (
                     <Link href={`/recipes/${recipe.id}/edit`} className="flex-1">
                       <Button size="sm" className="w-full bg-green-600 hover:bg-green-700 text-white border-0">
                         Editar
                         <Edit className="h-4 w-4 ml-2" />
                       </Button>
                     </Link>
-                  ) : (
-                    <button
-                      type="button"
-                      aria-disabled="true"
-                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-md bg-gray-200 text-gray-500 text-sm font-medium h-9 px-3 opacity-80 cursor-not-allowed select-none"
-                      onClick={(e) => e.preventDefault()}
-                    >
-                      Editar
-                      <Edit className="h-4 w-4" />
-                    </button>
                   )}
-                </TooltipTrigger>
-                {!canEdit && (
-                  <TooltipContent side="top">
-                    <p className="max-w-[220px] text-center leading-snug">{editTooltip}</p>
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            </TooltipProvider>
           </div>
         </CardContent>
       </Card>
@@ -316,7 +228,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="font-semibold text-lg">Fuente: {recipe.name}</h3>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => window.open(recipe.source_url, "_blank")}>
+                <Button variant="outline" size="sm" onClick={() => window.open(recipe.source_url!, "_blank")}>
                   Abrir en nueva pestaña
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowSourceModal(false)}>
@@ -339,7 +251,7 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
                   <p className="text-sm text-gray-600 mb-2">
                     Si no se carga el contenido, algunos sitios web bloquean la visualización en marcos.
                   </p>
-                  <Button variant="default" size="sm" onClick={() => window.open(recipe.source_url, "_blank")}>
+                  <Button variant="default" size="sm" onClick={() => window.open(recipe.source_url!, "_blank")}>
                     Ver en nueva pestaña
                   </Button>
                 </div>

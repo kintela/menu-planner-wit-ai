@@ -9,35 +9,7 @@ import Link from "next/link"
 import { RecipeCard as RawRecipeCard } from "@/components/recipe-card"
 import { SimpleNavigation } from "@/components/simple-navigation"
 import { useAuth } from "@/components/auth/auth-provider"
-
-interface Recipe {
-  id: number
-  name: string
-  ingredients: string
-  preparation: string
-  image_url?: string
-  calories?: number
-  user_id: string
-  is_ai_generated?: boolean
-  video_url?: string
-  source_url?: string
-  created_at: string
-  user_profiles?: {
-    id: string
-    full_name?: string
-    first_name?: string
-    last_name?: string
-    alias?: string
-    avatar_url?: string
-    email?: string
-  }
-  recipe_categories?: Array<{
-    categories: {
-      id: number
-      name: string
-    }
-  }>
-}
+import type { PublicRecipe as Recipe } from "@/lib/recipes/recipe-domain"
 
 interface Category {
   id: number
@@ -47,14 +19,13 @@ interface Category {
 interface RecipesPageClientProps {
   initialRecipes?: Recipe[]
   initialCategories?: Category[]
-  userProfiles?: any[]
 }
 
 // Memo del RecipeCard para evitar re-renders masivos durante la escritura
 const RecipeCard = memo(RawRecipeCard)
 RecipeCard.displayName = 'RecipeCardMemo'
 
-export function RecipesPageClient({ initialRecipes, initialCategories, userProfiles = [] }: RecipesPageClientProps) {
+export function RecipesPageClient({ initialRecipes, initialCategories }: RecipesPageClientProps) {
   // Asegurar que siempre tengamos arrays válidos
   const recipes = Array.isArray(initialRecipes) ? initialRecipes : []
   const categories = Array.isArray(initialCategories) ? initialCategories : []
@@ -74,11 +45,12 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
 
   // Obtener usuarios únicos con recetas
   const usersWithRecipes = useMemo(() => {
-    const map = new Map();
+    const map = new Map<string, { id: string; alias: string }>();
     recipes.forEach((r) => {
-      if (r.user_profiles && r.user_profiles.id) {
-        map.set(r.user_profiles.id, r.user_profiles);
-      }
+      if (r.author_filter_key) map.set(r.author_filter_key, {
+        id: r.author_filter_key,
+        alias: r.author_filter_label || r.author_alias,
+      });
     });
     return Array.from(map.values());
   }, [recipes]);
@@ -98,15 +70,14 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
 
       const matchesCategory =
         !selectedCategory ||
-        (recipe.recipe_categories &&
-          recipe.recipe_categories.some((rc) => rc.categories.id.toString() === selectedCategory))
+        recipe.categories.some((category) => category.id.toString() === selectedCategory)
 
       const matchesOwner =
-        ownerFilter === "all" || (user && recipe.user_id === user.id)
+        ownerFilter === "all" || (user && recipe.is_owner === true)
 
       const matchesIa = !iaOnly || recipe.is_ai_generated
 
-      const matchesUser = !selectedUserId || (recipe.user_profiles && recipe.user_profiles.id === selectedUserId);
+      const matchesUser = !selectedUserId || recipe.author_filter_key === selectedUserId;
 
       return matchesSearch && matchesCategory && matchesOwner && matchesIa && matchesUser
     })
@@ -240,7 +211,7 @@ export function RecipesPageClient({ initialRecipes, initialCategories, userProfi
                   <option value="">Todos</option>
                   {usersWithRecipes.map(u => (
                     <option key={u.id} value={u.id}>
-                      {u.alias || u.full_name || u.email || u.id}
+                      {u.alias || "Usuario"}
                     </option>
                   ))}
                 </select>

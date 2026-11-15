@@ -1,55 +1,38 @@
 import { NextResponse } from "next/server"
+
 import {
+  FREEZER_ACCESS_ERRORS,
   createFreezerAdminClient,
-  resolveAuthenticatedFreezerUserId,
-  resolveFreezerAccess,
+  createFreezerSessionClient,
+  handleFreezerDrawersPost,
 } from "@/lib/freezer-access"
 
+export const dynamic = "force-dynamic"
+
+// POST /api/freezer/drawers (RF-5–RF-8, RF-23–RF-24, RF-27): contrato
+// `{ freezerId, totalCajones }` (número objetivo). La identidad procede
+// exclusivamente de la sesión de cookies del route handler y se exige perfil
+// vigente antes de cualquier acceso a datos. Solo el propietario admin puede
+// ampliar el singleton. La lógica (resolución de acceso y rol con fallback,
+// validación del objetivo 1–5, rechazo de reducción, no-op cuando el valor
+// coincide y cálculo en servidor de nombres y posiciones automáticos) vive en
+// la capa de acceso; aquí solo se adaptan los clientes de servidor y la
+// respuesta NextResponse.
 export async function POST(request: Request) {
   try {
-    const { freezerId, drawers } = await request.json()
+    const body = await request.json().catch(() => null)
 
-    if (!freezerId || !Array.isArray(drawers)) {
-      return NextResponse.json({ error: "Payload inválido" }, { status: 400 })
-    }
-
-    const userId = await resolveAuthenticatedFreezerUserId(request)
-
-    if (!userId) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
-    }
-
-    const supabase = createFreezerAdminClient()
-    const access = await resolveFreezerAccess(supabase, freezerId, userId)
-
-    if (!access.hasAccess) {
-      return NextResponse.json({ error: "No tienes permisos sobre ese congelador." }, { status: 403 })
-    }
-
-    if (access.accessRole === "viewer") {
-      return NextResponse.json({ error: "Tu acceso a este congelador es de solo lectura." }, { status: 403 })
-    }
-
-    const payload = drawers.map((drawer: any, index: number) => ({
-      nombre: drawer.nombre ?? `Cajón ${index + 1}`,
-      posicion: drawer.posicion ?? index + 1,
-      descripcion: drawer.descripcion ?? null,
-      congelador_id: freezerId,
-    }))
-
-    const { data, error } = await supabase
-      .from("cajones_congelador")
-      .insert(payload)
-      .select("id, nombre, posicion, descripcion, creado_en")
-
-    if (error) {
-      console.error("[api/freezer/drawers] Error inserting drawers:", error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ drawers: data })
+    const sessionClient = await createFreezerSessionClient()
+    const adminClient = createFreezerAdminClient()
+    const outcome = await handleFreezerDrawersPost({
+      sessionClient,
+      adminClient,
+      freezerId: body?.freezerId,
+      totalCajones: body?.totalCajones,
+    })
+    return NextResponse.json(outcome.body, { status: outcome.status })
   } catch (error) {
-    console.error("[api/freezer/drawers] Unexpected error:", error)
-    return NextResponse.json({ error: (error as Error).message ?? "Unexpected error" }, { status: 500 })
+    console.error("[api/freezer/drawers] Error inesperado:", error)
+    return NextResponse.json({ error: FREEZER_ACCESS_ERRORS.internal.message }, { status: 500 })
   }
 }

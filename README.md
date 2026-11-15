@@ -8,8 +8,7 @@ Aplicación web desarrollada con Next.js 16 y React 19 para gestionar recetas, m
 - Creación y gestión de recetas
 - Valoración de recetas de otros usuarios
 - Planificación de menús semanales
-- Inventario de congeladores
-- Compartición de congeladores con permisos owner/editor/viewer
+- Inventario de un congelador único global, gestionado por el administrador
 - Alertas automáticas mediante Vercel Cron
 - Generación de menús mediante OpenAI
 

@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const isProduction = process.env.NODE_ENV === "production"
+const configuredSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") ?? ""
+const localSupabaseConnectOrigin = !isProduction &&
+  /^http:\/\/(?:localhost|127\.0\.0\.1):\d+$/.test(configuredSupabaseUrl)
+  ? ` ${configuredSupabaseUrl}`
+  : ""
 
 const nextConfig = {
   eslint: {
@@ -25,7 +30,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https: blob:",
               "font-src 'self' data:",
-              "connect-src 'self' https: wss:",
+              `connect-src 'self' https: wss:${localSupabaseConnectOrigin}`,
               "media-src 'self' https: blob:",
               "frame-src 'self' https://www.instagram.com https://www.youtube.com https://player.vimeo.com",
               "object-src 'none'",

@@ -1,26 +1,15 @@
 "use client"
 
-import { useAuth } from "@/components/auth/auth-provider"
 import { RecipeCard } from "@/components/recipe-card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { PlusCircle, X } from "lucide-react"
 import { useEffect, useState } from "react"
-
-interface Recipe {
-  id: number
-  name: string
-  user_id: string
-  ingredients?: string
-  preparation?: string
-  categories?: Array<{ id: number; name: string }>
-  creator?: { full_name?: string; email?: string } | null
-  [key: string]: any
-}
+import type { PublicRecipe } from "@/lib/recipes/recipe-domain"
 
 interface RecipesClientFilterProps {
-  recipes: Recipe[]
+  recipes: PublicRecipe[]
   showOnlyMyRecipes: boolean
   totalRecipesCount: number
   searchTerm: string
@@ -36,8 +25,7 @@ export function RecipesClientFilter({
   selectedCategories,
   onClearFilters,
 }: RecipesClientFilterProps) {
-  const { user } = useAuth()
-  const [filteredRecipes, setFilteredRecipes] = useState<Recipe[]>(recipes)
+  const [filteredRecipes, setFilteredRecipes] = useState<PublicRecipe[]>(recipes)
 
   useEffect(() => {
     // Aplicar todos los filtros secuencialmente sobre el conjunto completo de recetas
@@ -68,11 +56,7 @@ export function RecipesClientFilter({
     }
 
     // Filtrar por "mis recetas"
-    if (showOnlyMyRecipes && user?.id) {
-      filtered = filtered.filter((recipe) => {
-        return recipe.user_id === user.id || recipe.user_id === user.email
-      })
-    }
+    if (showOnlyMyRecipes) filtered = filtered.filter((recipe) => recipe.is_owner === true)
 
     console.log("Filtering results:", {
       originalCount: recipes.length,
@@ -86,7 +70,7 @@ export function RecipesClientFilter({
 
     setFilteredRecipes(filtered)
 
-  }, [recipes, searchTerm, selectedCategories, showOnlyMyRecipes, user?.id, user?.email])
+  }, [recipes, searchTerm, selectedCategories, showOnlyMyRecipes])
 
   const hasActiveFilters = searchTerm || selectedCategories.length > 0
 

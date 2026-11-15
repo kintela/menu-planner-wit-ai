@@ -1,7 +1,12 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
-import { cookies } from "next/headers"
+import { classifyCallbackFailure } from "@/lib/auth-flow/auth-flow"
 
+// Callback de autenticación (Spec 001 RF-6, RF-10, RF-11).
+// - Las cookies de sesión se escriben en la MISMA respuesta de redirección que
+//   se devuelve, para que la sesión de recuperación llegue al navegador.
+// - /login solo recibe un código de error; el texto mostrado es fijo en la app.
+// - Nunca se registran la URL, tokens, email ni metadatos del usuario.
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
@@ -9,120 +14,59 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get("type")
   const error = searchParams.get("error")
   const errorCode = searchParams.get("error_code")
-  const errorDescription = searchParams.get("error_description")
   const next = searchParams.get("next") ?? "/"
 
-  console.log("Auth callback params:", {
-    code: code ? "present" : "missing",
-    tokenHash: tokenHash ? "present" : "missing",
-    type,
-    error,
-    errorCode,
-    url: request.url,
-  })
-
-  // Si hay un error específico de OTP expirado para recovery
-  if (error === "access_denied" && errorCode === "otp_expired" && type === "recovery") {
-    console.log("OTP expired for password recovery")
-    return NextResponse.redirect(
-      `${origin}/login?error=recovery_expired&message=El enlace de recuperación ha expirado. Solicita uno nuevo.`,
+  const failureRedirect = (failureCode: string | null) =>
+    NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent(classifyCallbackFailure({ type, errorCode: failureCode }))}`,
     )
-  }
 
-  // Si hay un error en los parámetros, redirigir con el error
+  // Error devuelto por el proveedor en los parámetros (p. ej. OTP expirado).
   if (error) {
-    const errorParams = new URLSearchParams()
-    errorParams.set("error", error)
-    if (errorCode) errorParams.set("error_code", errorCode)
-    if (errorDescription) errorParams.set("error_description", errorDescription)
-
-    return NextResponse.redirect(`${origin}/login?${errorParams.toString()}`)
+    return failureRedirect(errorCode)
   }
 
   // Para recovery, podemos usar tanto code como token_hash
   const authCode = code || tokenHash
 
-  if (authCode) {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll: async () => {
-            const cookieStore = await cookies();
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            let response: NextResponse
-
-            // Si es una recuperación de contraseña, redirigir a la página de reset
-            if (type === "recovery") {
-              response = NextResponse.redirect(`${origin}/auth/reset-password`)
-            } else {
-              response = NextResponse.redirect(`${origin}${next}`)
-            }
-
-            cookiesToSet.forEach(({ name, value, options }) => {
-              response.cookies.set(name, value, options)
-            })
-            return response
-          },
-        },
-      },
-    )
-
-    try {
-      let authResult
-
-      if (type === "recovery" && tokenHash) {
-        // Para recovery con token_hash, usar verifyOtp
-        authResult = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: "recovery",
-        })
-      } else {
-        // Para otros casos, usar exchangeCodeForSession
-        authResult = await supabase.auth.exchangeCodeForSession(authCode)
-      }
-
-      console.log("User data from auth:", {
-        userId: authResult?.data?.user?.id,
-        email: authResult?.data?.user?.email,
-        emailVerified: authResult?.data?.user?.email_confirmed_at,
-        userMetadata: authResult?.data?.user?.user_metadata,
-      })
-
-      if (authResult.error) {
-        console.error("Error in auth process:", authResult.error)
-
-        // Si es un error de recovery, redirigir con mensaje específico
-        if (type === "recovery") {
-          return NextResponse.redirect(
-            `${origin}/login?error=recovery_error&message=${encodeURIComponent("Error en la recuperación de contraseña. Solicita un nuevo enlace.")}`,
-          )
-        }
-
-        return NextResponse.redirect(
-          `${origin}/login?error=auth_error&error_description=${encodeURIComponent(authResult.error.message)}`,
-        )
-      }
-
-      // Si es una recuperación de contraseña, redirigir a la página de reset
-      if (type === "recovery") {
-        return NextResponse.redirect(`${origin}/auth/reset-password`)
-      }
-
-      // Si es un login normal, redirigir a la página solicitada
-      return NextResponse.redirect(`${origin}${next}`)
-    } catch (error: any) {
-      console.error("Unexpected error in auth callback:", error)
-      return NextResponse.redirect(
-        `${origin}/login?error=unexpected_error&error_description=${encodeURIComponent(error.message)}`,
-      )
-    }
+  if (!authCode) {
+    return failureRedirect(null)
   }
 
-  // Si no hay código ni token_hash, redirigir al login con error
-  console.log("No code or token_hash found in callback")
-  return NextResponse.redirect(`${origin}/login?error=missing_code&message=No se encontró el código de autenticación`)
+  const destination = type === "recovery" ? `${origin}/auth/reset-password` : `${origin}${next}`
+  const response = NextResponse.redirect(destination)
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options)
+          })
+        },
+      },
+    },
+  )
+
+  try {
+    const authResult =
+      type === "recovery" && tokenHash
+        ? await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" })
+        : await supabase.auth.exchangeCodeForSession(authCode)
+
+    if (authResult.error) {
+      console.error("[auth/callback] Auth provider error:", authResult.error.code ?? authResult.error.status)
+      return failureRedirect(authResult.error.code ?? null)
+    }
+
+    return response
+  } catch {
+    console.error("[auth/callback] Unexpected callback error")
+    return failureRedirect(null)
+  }
 }

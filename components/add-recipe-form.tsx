@@ -3,11 +3,9 @@
 import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { Loader2, Upload, X, Calculator } from "lucide-react"
 import Image from "next/image"
 
-import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/components/auth/auth-provider"
 import type { Category } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -16,29 +14,25 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CategorySelector } from "@/components/category-selector"
 import { calculateCalories } from "@/lib/calories-calculator"
+import { buildJsonRequest, imageResultMessage } from "@/lib/recipes/recipe-ui"
 
 interface AddRecipeFormProps {
   categories: Category[]
 }
 
 export function AddRecipeForm({ categories }: AddRecipeFormProps) {
-  const router = useRouter()
   const { toast } = useToast()
   const { user } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [selectedCategories, setSelectedCategories] = useState<number[]>([])
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [imageUrl, setImageUrl] = useState<string>("")
-  const [imageTab, setImageTab] = useState<string>("url")
   const [ingredients, setIngredients] = useState<string>("")
   const [estimatedCalories, setEstimatedCalories] = useState<number | null>(null)
   const [manualCalories, setManualCalories] = useState<string>("")
   const [useManualCalories, setUseManualCalories] = useState(false)
-  const [sendEmailNotification, setSendEmailNotification] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -47,13 +41,10 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
     setSelectedCategories([])
     setImageFile(null)
     setImagePreview(null)
-    setImageUrl("")
-    setImageTab("url")
     setIngredients("")
     setEstimatedCalories(null)
     setManualCalories("")
     setUseManualCalories(false)
-    setSendEmailNotification(true)
 
     if (formRef.current) {
       formRef.current.reset()
@@ -93,8 +84,6 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
     }
 
     setImageFile(file)
-    setImageUrl("")
-
     const reader = new FileReader()
     reader.onloadend = () => {
       setImagePreview(reader.result as string)
@@ -105,16 +94,9 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
   const handleRemoveImage = () => {
     setImageFile(null)
     setImagePreview(null)
-    setImageUrl("")
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
-  }
-
-  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setImageUrl(e.target.value)
-    setImageFile(null)
-    setImagePreview(e.target.value)
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -151,54 +133,6 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
         return
       }
 
-      console.log("Iniciando guardado de receta:", { name, user: user.id })
-
-      // Determinar la URL de la imagen
-      let finalImageUrl = null
-
-      // Si hay una imagen anterior subida al bucket y se va a subir una nueva, eliminar la anterior
-      if (imageTab === "upload" && imageFile && imagePreview && imageUrl && imageUrl.includes("/storage/v1/object/public/recipe-images/")) {
-        try {
-          const supabase = createClient();
-          // Extraer el path relativo del bucket
-          const urlParts = imageUrl.split("/recipe-images/");
-          if (urlParts.length === 2) {
-            const oldPath = urlParts[1];
-            await supabase.storage.from("recipe-images").remove([oldPath]);
-          }
-        } catch (removeError) {
-          console.warn("No se pudo eliminar la imagen anterior del bucket:", removeError);
-        }
-      }
-
-      if (imageTab === "url" && imageUrl) {
-        finalImageUrl = imageUrl
-      } else if (imageTab === "upload" && imageFile) {
-        try {
-          const uploadFormData = new FormData()
-          uploadFormData.append("file", imageFile)
-
-          const response = await fetch("/api/upload-image", {
-            method: "POST",
-            body: uploadFormData,
-          })
-
-          if (!response.ok) {
-            throw new Error(`Error al subir la imagen: ${response.statusText}`)
-          }
-
-          const data = await response.json()
-          finalImageUrl = data.url
-        } catch (uploadError) {
-          console.error("Error uploading image:", uploadError)
-          toast({
-            title: "Error al subir la imagen",
-            description: "No se pudo subir la imagen. La receta se guardará sin imagen.",
-            variant: "destructive",
-          })
-        }
-      }
-
       // Determinar las calorías finales
       let finalCalories = null
       if (useManualCalories && manualCalories) {
@@ -212,51 +146,47 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
         name: name.trim(),
         ingredients: ingredients.trim() || "",
         preparation: preparation?.trim() || "",
-        image_url: finalImageUrl,
         video_url: video_url,
         source_url: source_url,
         calories: finalCalories,
         is_ai_generated: false,
-        user_id: user.id,
       }
 
-      console.log("Datos de la receta a insertar:", recipeData)
-
-      // Inserción vía API server-side (usa service key) para evitar bloqueos en el cliente
-      console.log('Llamando POST /api/recipes ...')
-      const t0 = performance.now()
       const resp = await fetch('/api/recipes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        ...buildJsonRequest('POST', {
           ...recipeData,
           categories: selectedCategories,
-          user_id: user.id,
-          send_email_notification: sendEmailNotification,
         }),
       })
-      const elapsed = performance.now() - t0
-      console.log('Respuesta /api/recipes en', elapsed.toFixed(0), 'ms status', resp.status)
-      let apiJson: any = null
+      let apiJson: { success?: boolean; recipe_id?: number; error?: string } | null = null
       try { apiJson = await resp.json() } catch { throw new Error('Respuesta inválida del servidor') }
-      if (!resp.ok || !apiJson?.success) {
+      if (!resp.ok || !apiJson?.success || !apiJson.recipe_id) {
         throw new Error(apiJson?.error || 'Error creando la receta (API)')
       }
-      console.log('Receta creada ID=', apiJson.recipe_id)
 
-      // Mostrar toast de éxito
+      let imageNotice: string | null = null
+      let imagePartial = false
+      if (imageFile) {
+        try {
+          const uploadFormData = new FormData()
+          uploadFormData.append("image", imageFile)
+          const imageResponse = await fetch(`/api/recipes/${apiJson.recipe_id}/image`, { method: "POST", body: uploadFormData })
+          const imagePayload = await imageResponse.json().catch(() => ({ image: { state: "failed" } }))
+          imageNotice = imageResultMessage(imagePayload.image)
+          imagePartial = !imageResponse.ok || imagePayload.image?.state !== "complete"
+        } catch {
+          imageNotice = "La receta se creó, pero no se pudo completar la carga de la imagen. La receta permanece guardada."
+          imagePartial = true
+        }
+      }
+
       toast({
-        title: "¡Éxito!",
-        description: "La receta se ha añadido correctamente.",
+        title: imagePartial ? "Receta creada con aviso" : "¡Éxito!",
+        description: imageNotice ? `La receta se ha creado. ${imageNotice}` : "La receta se ha añadido correctamente.",
+        variant: imagePartial ? "destructive" : undefined,
       })
-
-      console.log("Proceso completado, redirigiendo...")
-
-      // Redirigir después de un breve delay
-  setTimeout(() => { window.location.href = `/recipes/${apiJson.recipe_id}` }, 1200)
+      setTimeout(() => { window.location.href = `/recipes/${apiJson.recipe_id}` }, 1200)
     } catch (error) {
-      console.error("Error completo en handleSubmit:", error)
-
       let errorMessage = "Error desconocido"
       if (error instanceof Error) {
         errorMessage = error.message
@@ -268,7 +198,6 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
         variant: "destructive",
       })
     } finally {
-      console.log("Finalizando proceso, setIsLoading(false)")
       setIsLoading(false)
     }
   }
@@ -358,95 +287,48 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
 
         <div className="space-y-2">
           <Label>Imagen del plato</Label>
-          <Tabs value={imageTab} onValueChange={setImageTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="url">URL de imagen</TabsTrigger>
-              <TabsTrigger value="upload">Subir imagen</TabsTrigger>
-            </TabsList>
-            <TabsContent value="url" className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="image_url">URL de la imagen</Label>
-                <Input
-                  id="image_url"
-                  type="url"
-                  placeholder="https://ejemplo.com/imagen.jpg"
-                  value={imageUrl}
-                  onChange={handleUrlChange}
+          {imagePreview ? (
+            <div className="relative w-full aspect-video mb-4">
+              <Image
+                src={imagePreview || "/placeholder.svg"}
+                alt="Vista previa"
+                fill
+                className="object-cover rounded-md"
+              />
+              <Button
+                type="button"
+                variant="destructive"
+                size="icon"
+                className="absolute top-2 right-2"
+                onClick={handleRemoveImage}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center w-full">
+              <label
+                htmlFor="image"
+                className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted"
+              >
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  <Upload className="w-8 h-8 mb-4 text-muted-foreground" />
+                  <p className="mb-2 text-sm text-muted-foreground">
+                    <span className="font-semibold">Haz clic para subir</span> o arrastra y suelta
+                  </p>
+                  <p className="text-xs text-muted-foreground">PNG, JPG o GIF (máx. 5MB)</p>
+                </div>
+                <input
+                  id="image"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageChange}
                 />
-              </div>
-              {imageUrl && (
-                <div className="relative w-full aspect-video">
-                  <Image
-                    src={imageUrl || "/placeholder.svg"}
-                    alt="Vista previa"
-                    fill
-                    className="object-cover rounded-md"
-                    onError={() => {
-                      toast({
-                        title: "Error al cargar la imagen",
-                        description: "La URL proporcionada no es válida o no es accesible.",
-                        variant: "destructive",
-                      })
-                      setImagePreview(null)
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2"
-                    onClick={handleRemoveImage}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-            </TabsContent>
-            <TabsContent value="upload">
-              {imagePreview && imageTab === "upload" ? (
-                <div className="relative w-full aspect-video mb-4">
-                  <Image
-                    src={imagePreview || "/placeholder.svg"}
-                    alt="Vista previa"
-                    fill
-                    className="object-cover rounded-md"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2"
-                    onClick={handleRemoveImage}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center w-full">
-                  <label
-                    htmlFor="image"
-                    className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-muted/50 hover:bg-muted"
-                  >
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <Upload className="w-8 h-8 mb-4 text-muted-foreground" />
-                      <p className="mb-2 text-sm text-muted-foreground">
-                        <span className="font-semibold">Haz clic para subir</span> o arrastra y suelta
-                      </p>
-                      <p className="text-xs text-muted-foreground">PNG, JPG o GIF (máx. 5MB)</p>
-                    </div>
-                    <input
-                      id="image"
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleImageChange}
-                    />
-                  </label>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+              </label>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -470,19 +352,6 @@ export function AddRecipeForm({ categories }: AddRecipeFormProps) {
           selectedCategories={selectedCategories}
           onCategoriesChange={setSelectedCategories}
         />
-
-        <div className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            id="send-email-notification"
-            checked={sendEmailNotification}
-            onChange={(e) => setSendEmailNotification(e.target.checked)}
-            className="rounded"
-          />
-          <Label htmlFor="send-email-notification" className="cursor-pointer">
-            Aviso por mail
-          </Label>
-        </div>
 
         <div className="text-sm text-muted-foreground mb-4">* Solo el nombre es obligatorio</div>
 

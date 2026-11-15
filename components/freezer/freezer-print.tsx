@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, FileText, Loader2, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/components/auth/auth-provider"
-import { getSupabaseClient } from "@/lib/supabase/client"
+import { buildPresentacionImpresion } from "@/lib/freezer/freezer-presentation"
 
 interface FreezerItem {
   id: string
@@ -64,45 +64,18 @@ const normalizeDrawer = (rawDrawer: any): FreezerDrawer => ({
     : [],
 })
 
-const formatDate = (dateString?: string | null) => {
-  if (!dateString) return "—"
-  try {
-    const parsed = new Date(dateString)
-    if (Number.isNaN(parsed.getTime())) {
-      return dateString
-    }
-    return parsed.toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "2-digit" })
-  } catch {
-    return dateString
-  }
-}
-
-const getApiHeaders = async (supabase: ReturnType<typeof getSupabaseClient>) => {
-  const headers: Record<string, string> = { "Content-Type": "application/json" }
-
-  try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-
-    if (session?.access_token) {
-      headers.Authorization = `Bearer ${session.access_token}`
-    }
-  } catch {
-    /* fallback to cookie auth */
-  }
-
-  return headers
-}
+// La identidad viaja exclusivamente por la sesión de cookies (Spec 005, T3):
+// las peticiones no envían el token de la sesión como autorización.
+const getApiHeaders = () => ({ "Content-Type": "application/json" } as Record<string, string>)
 
 export function FreezerPrintView() {
   const { user, loading: authLoading } = useAuth()
   const { toast } = useToast()
-  const supabase = useMemo(() => getSupabaseClient(), [])
   const [freezerName, setFreezerName] = useState("")
   const [drawers, setDrawers] = useState<FreezerDrawer[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [isAuthorized, setIsAuthorized] = useState(false)
   const [generatedAt, setGeneratedAt] = useState<Date | null>(null)
   const titleRef = useRef("")
 
@@ -138,6 +111,7 @@ export function FreezerPrintView() {
     if (!user) {
       setFreezerName("")
       setDrawers([])
+      setIsAuthorized(false)
       setLoading(false)
       return
     }
@@ -148,11 +122,12 @@ export function FreezerPrintView() {
       }
       setLoading(true)
       setErrorMessage(null)
+      setIsAuthorized(false)
       try {
         const response = await fetch("/api/freezer", {
           method: "GET",
           credentials: "include",
-          headers: await getApiHeaders(supabase),
+          headers: getApiHeaders(),
           cache: "no-store",
         })
         const payload = await response.json().catch(() => ({}))
@@ -160,7 +135,14 @@ export function FreezerPrintView() {
         if (!isActive) return
 
         if (!response.ok) {
-          throw new Error(payload?.error || `Error ${response.status}`)
+          throw new Error("No tienes acceso al inventario del congelador.")
+        }
+
+        // `isOwner` es una decisión de la API, no una identidad o rol
+        // aportado por el navegador. Nunca se presenta una respuesta sin esa
+        // autorización explícita, aunque el endpoint devolviera 200.
+        if (payload?.isOwner !== true) {
+          throw new Error("No tienes acceso al inventario del congelador.")
         }
 
         const freezerData = payload?.freezer ?? { id: null, nombre: "", cajones_congelador: [] }
@@ -170,11 +152,13 @@ export function FreezerPrintView() {
 
         setFreezerName(freezerData?.nombre ?? "")
         setDrawers(normalizedDrawers)
+        setIsAuthorized(true)
         setGeneratedAt(new Date())
         setLoading(false)
       } catch (error: any) {
         if (!isActive) return
         console.error("[FreezerPrintView] Error loading freezer", error)
+        setIsAuthorized(false)
         setErrorMessage(error?.message ?? "No se pudo cargar el congelador.")
         toast({
           variant: "destructive",
@@ -190,7 +174,7 @@ export function FreezerPrintView() {
     return () => {
       isActive = false
     }
-  }, [authLoading, supabase, toast, user])
+  }, [authLoading, toast, user])
 
   const handlePrint = (mode: "print" | "pdf") => {
     if (typeof window === "undefined") return
@@ -222,16 +206,18 @@ export function FreezerPrintView() {
               <p className="text-xs text-gray-500">Vista optimizada para impresión.</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" onClick={() => handlePrint("print")} className="flex items-center gap-2">
-              <Printer className="h-4 w-4" />
-              Imprimir
-            </Button>
-            <Button type="button" variant="outline" onClick={() => handlePrint("pdf")} className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Guardar PDF
-            </Button>
-          </div>
+          {isAuthorized && !loading && !errorMessage ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" onClick={() => handlePrint("print")} className="flex items-center gap-2">
+                <Printer className="h-4 w-4" />
+                Imprimir
+              </Button>
+              <Button type="button" variant="outline" onClick={() => handlePrint("pdf")} className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                Guardar PDF
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -294,40 +280,43 @@ export function FreezerPrintView() {
                     <table className="w-full min-w-[640px] border-collapse text-left text-sm">
                       <thead>
                         <tr className="text-xs uppercase text-gray-500">
-                          <th className="border-b border-gray-200 px-2 py-2 font-semibold">Nombre</th>
-                          <th className="border-b border-gray-200 px-2 py-2 font-semibold">Cantidad</th>
-                          <th className="border-b border-gray-200 px-2 py-2 font-semibold">Unidad</th>
-                          <th className="border-b border-gray-200 px-2 py-2 font-semibold">Estado</th>
-                          <th className="border-b border-gray-200 px-2 py-2 font-semibold">Categoría</th>
-                          <th className="border-b border-gray-200 px-2 py-2 font-semibold">Fª compra</th>
-                          <th className="border-b border-gray-200 px-2 py-2 font-semibold">Fª congelación</th>
-                          <th className="border-b border-gray-200 px-2 py-2 font-semibold">Fª caducidad</th>
-                          <th className="border-b border-gray-200 px-2 py-2 font-semibold">Notas</th>
+                          <th scope="col" className="border-b border-gray-200 px-2 py-2 font-semibold">Nombre</th>
+                          <th scope="col" className="border-b border-gray-200 px-2 py-2 font-semibold">Cantidad</th>
+                          <th scope="col" className="border-b border-gray-200 px-2 py-2 font-semibold">Unidad</th>
+                          <th scope="col" className="border-b border-gray-200 px-2 py-2 font-semibold">Estado</th>
+                          <th scope="col" className="border-b border-gray-200 px-2 py-2 font-semibold">Categoría</th>
+                          <th scope="col" className="border-b border-gray-200 px-2 py-2 font-semibold">Fª compra</th>
+                          <th scope="col" className="border-b border-gray-200 px-2 py-2 font-semibold">Fª congelación</th>
+                          <th scope="col" className="border-b border-gray-200 px-2 py-2 font-semibold">Fª caducidad</th>
+                          <th scope="col" className="border-b border-gray-200 px-2 py-2 font-semibold">Notas</th>
                         </tr>
                       </thead>
                       <tbody className="text-gray-800">
-                        {drawer.items.map((item) => (
+                        {drawer.items.map((item) => {
+                          const printed = buildPresentacionImpresion(item)
+                          return (
                           <tr
                             key={item.id}
-                            className={`align-top ${item.reservado ? "bg-gray-100" : ""}`}
+                            className={`align-top ${printed.reservado ? "border-l-4 border-gray-700 bg-gray-100 print:bg-gray-200" : ""}`}
                           >
                             <td className="border-b border-gray-100 px-2 py-2 font-medium text-gray-900">
-                              {item.nombre || "—"}
+                              {printed.nombre || "—"}
                             </td>
-                            <td className="border-b border-gray-100 px-2 py-2">{item.cantidad ?? "—"}</td>
-                            <td className="border-b border-gray-100 px-2 py-2">{item.unidad || "—"}</td>
-                            <td className="border-b border-gray-100 px-2 py-2">{item.estado || "—"}</td>
-                            <td className="border-b border-gray-100 px-2 py-2">{item.categoria || "—"}</td>
-                            <td className="border-b border-gray-100 px-2 py-2">{formatDate(item.fecha_compra)}</td>
+                            <td className="border-b border-gray-100 px-2 py-2">{printed.cantidad || "—"}</td>
+                            <td className="border-b border-gray-100 px-2 py-2">{printed.unidad || "—"}</td>
+                            <td className="border-b border-gray-100 px-2 py-2">{printed.estado || "—"}</td>
+                            <td className="border-b border-gray-100 px-2 py-2">{printed.categoria || "—"}</td>
+                            <td className="border-b border-gray-100 px-2 py-2">{printed.fechaCompra || "—"}</td>
                             <td className="border-b border-gray-100 px-2 py-2">
-                              {formatDate(item.fecha_congelacion)}
+                              {printed.fechaCongelacion || "—"}
                             </td>
                             <td className="border-b border-gray-100 px-2 py-2">
-                              {formatDate(item.fecha_caducidad)}
+                              {printed.fechaCaducidad || "—"}
                             </td>
-                            <td className="border-b border-gray-100 px-2 py-2">{item.notas || "—"}</td>
+                            <td className="border-b border-gray-100 px-2 py-2">{printed.notas || "—"}</td>
                           </tr>
-                        ))}
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>

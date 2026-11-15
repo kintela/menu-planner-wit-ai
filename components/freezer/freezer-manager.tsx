@@ -1,6 +1,6 @@
 "use client"
 
-import { type FormEvent, useEffect, useMemo, useState } from "react"
+import { type FormEvent, useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,14 +8,22 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
-import { getSupabaseClient } from "@/lib/supabase/client"
 import { Loader2, Plus, Boxes, Snowflake, Trash2, Search, Pencil, Printer, Bookmark } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
+import { buildRepresentacionMostrada } from "@/lib/freezer/freezer-domain"
+import {
+  buildItemFormState,
+  buildItemPayload,
+  buildItemUpdates,
+  buildNewItemForm,
+  buildPresentacionAcceso,
+  buildVistaCajon,
+  debeOfrecerVaciado,
+} from "@/lib/freezer/freezer-presentation"
 
 const ITEM_STATES = ["fresco", "abierto", "bajo", "agotado"] as const
 const DRAWER_OPTIONS = [1, 2, 3, 4, 5] as const
-const QUANTITY_OPTIONS = [1, 2, 3, 4, 5] as const
 
 type ItemState = (typeof ITEM_STATES)[number]
 
@@ -59,7 +67,7 @@ interface ItemFormState {
   unidad: string
   notas: string
   categoria: string
-  estado: ItemState
+  estado: string
   fecha_compra: string
   fecha_congelacion: string
   fecha_caducidad: string
@@ -84,15 +92,6 @@ const EMPTY_ITEM_FORM: ItemFormState = {
   fecha_caducidad: "",
 }
 
-const buildNewItemForm = (): ItemFormState => {
-  const today = getTodayISO()
-  return {
-    ...EMPTY_ITEM_FORM,
-    fecha_compra: today,
-    fecha_congelacion: today,
-  }
-}
-
 const maybeRandomId = () => {
   try {
     return crypto.randomUUID()
@@ -100,29 +99,6 @@ const maybeRandomId = () => {
     return `${Date.now()}-${Math.random()}`
   }
 }
-
-type DrawerPayload = {
-  nombre: string
-  posicion: number
-  descripcion?: string | null
-  congelador_id: string
-}
-
-type ItemPayload = {
-  cajon_id: string
-  nombre: string
-  estado: ItemState
-  cantidad?: number | null
-  unidad?: string | null
-  notas?: string | null
-  categoria?: string | null
-  fecha_compra?: string | null
-  fecha_congelacion?: string | null
-  fecha_caducidad?: string | null
-  reservado?: boolean | null
-}
-
-type ItemUpdatePayload = Partial<ItemPayload>
 
 const normalizeItem = (rawItem: any): FreezerItem => ({
   id: rawItem?.id ? String(rawItem.id) : maybeRandomId(),
@@ -156,19 +132,6 @@ const normalizeDrawer = (rawDrawer: any): FreezerDrawer => ({
     : [],
 })
 
-const formatDate = (dateString?: string | null) => {
-  if (!dateString) return ""
-  try {
-    const parsed = new Date(dateString)
-    if (Number.isNaN(parsed.getTime())) {
-      return dateString
-    }
-    return parsed.toLocaleDateString("es-ES", { year: "numeric", month: "short", day: "2-digit" })
-  } catch {
-    return dateString
-  }
-}
-
 const sortItemsByName = (items: FreezerItem[]) =>
   [...items].sort((a, b) => {
     const nameA = a.nombre.toLocaleLowerCase("es")
@@ -176,61 +139,17 @@ const sortItemsByName = (items: FreezerItem[]) =>
     return nameA.localeCompare(nameB, "es")
   })
 
-const itemMatchesSearch = (item: FreezerItem, search: string) => {
-  if (!search) return true
-  const haystack: string[] = []
-  if (item.nombre) haystack.push(item.nombre)
-  if (item.categoria) haystack.push(item.categoria)
-  if (item.notas) haystack.push(item.notas)
-  if (item.unidad) haystack.push(item.unidad)
-  if (item.estado) haystack.push(item.estado)
-  if (item.fecha_compra) haystack.push(item.fecha_compra)
-  if (item.fecha_congelacion) haystack.push(item.fecha_congelacion)
-  if (item.fecha_caducidad) haystack.push(item.fecha_caducidad)
-  if (item.cantidad !== null && item.cantidad !== undefined) {
-    haystack.push(String(item.cantidad))
-  }
-  return haystack.some((value) => value.toLowerCase().includes(search))
-}
-
-const buildItemFormState = (item: FreezerItem): ItemFormState => ({
-  cajon_id: item.cajon_id ?? "",
-  nombre: item.nombre ?? "",
-  cantidad: item.cantidad === null || item.cantidad === undefined ? "" : String(item.cantidad),
-  unidad: item.unidad ?? "",
-  notas: item.notas ?? "",
-  categoria: item.categoria ?? "",
-  estado: item.estado ?? "fresco",
-  fecha_compra: item.fecha_compra ?? "",
-  fecha_congelacion: item.fecha_congelacion ?? "",
-  fecha_caducidad: item.fecha_caducidad ?? "",
-})
-
-const getApiHeaders = async (supabase: ReturnType<typeof getSupabaseClient>) => {
-  const headers: Record<string, string> = { "Content-Type": "application/json" }
-
-  try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-
-    if (session?.access_token) {
-      headers.Authorization = `Bearer ${session.access_token}`
-    }
-  } catch {
-    /* fallback to cookie auth */
-  }
-
-  return headers
-}
+// La identidad viaja exclusivamente por la sesión de cookies (Spec 005, T3):
+// las peticiones no envían el token de la sesión como autorización.
+const getApiHeaders = () => ({ "Content-Type": "application/json" } as Record<string, string>)
 
 export function FreezerManager() {
   const { user, loading: authLoading } = useAuth()
   const { toast } = useToast()
-  const supabase = useMemo(() => getSupabaseClient(), [])
-
   const [freezer, setFreezer] = useState<Freezer | null>(null)
-  const [accessRole, setAccessRole] = useState<"owner" | "editor" | "viewer" | null>(null)
+  // Proyección de la autorización ya resuelta por el servidor/API. La
+  // identidad o el rol del cliente nunca constituyen autorización.
+  const [serverAccess, setServerAccess] = useState<boolean | null>(null)
   const [drawers, setDrawers] = useState<FreezerDrawer[]>([])
   const [drawerCountValue, setDrawerCountValue] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
@@ -252,8 +171,9 @@ export function FreezerManager() {
     itemCount: number
   } | null>(null)
 
-  const normalizedSearchTerm = searchTerm.trim().toLowerCase()
-  const isSearching = normalizedSearchTerm.length > 0
+  const presentacionAcceso = buildPresentacionAcceso(serverAccess)
+  const canWrite = presentacionAcceso.puedeEscribir
+  const isSearching = searchTerm.trim().length > 0
 
   useEffect(() => {
     let isActive = true
@@ -264,7 +184,7 @@ export function FreezerManager() {
 
     if (!user) {
       setFreezer(null)
-      setAccessRole(null)
+      setServerAccess(false)
       setDrawers([])
       setDrawerCountValue("")
       setSearchTerm("")
@@ -287,7 +207,7 @@ export function FreezerManager() {
         const response = await fetch("/api/freezer", {
           method: "GET",
           credentials: "include",
-          headers: await getApiHeaders(supabase),
+          headers: getApiHeaders(),
           cache: "no-store",
         })
         const payload = await response.json().catch(() => ({}))
@@ -304,7 +224,14 @@ export function FreezerManager() {
           ? freezerData.cajones_congelador.map(normalizeDrawer).sort((a, b) => a.posicion - b.posicion)
           : []
 
-        setAccessRole(payload?.accessRole ?? null)
+        const authorizedByServer = payload?.isOwner === true
+        setServerAccess(authorizedByServer)
+        if (!authorizedByServer) {
+          setFreezer(null)
+          setDrawers([])
+          setLoading(false)
+          return
+        }
         setFreezer(
           freezerData?.id
             ? { id: String(freezerData.id), nombre: freezerData.nombre, descripcion: freezerData.descripcion }
@@ -315,7 +242,7 @@ export function FreezerManager() {
         setItemForms((prev) => {
           const next: Record<string, ItemFormState> = {}
           normalizedDrawers.forEach((drawer) => {
-            next[drawer.id] = prev[drawer.id] ?? buildNewItemForm()
+            next[drawer.id] = prev[drawer.id] ?? buildNewItemForm(getTodayISO())
           })
           return next
         })
@@ -337,7 +264,7 @@ export function FreezerManager() {
       } catch (error: any) {
         if (!isActive) return
         console.error("[FreezerManager] Error loading freezer", error)
-        setAccessRole(null)
+        setServerAccess(false)
         toast({
           variant: "destructive",
           title: "No se pudo cargar el congelador",
@@ -354,7 +281,7 @@ export function FreezerManager() {
     return () => {
       isActive = false
     }
-  }, [supabase, toast, user, authLoading])
+  }, [toast, user, authLoading])
 
   const handleDrawerCountSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -399,25 +326,16 @@ export function FreezerManager() {
       return
     }
 
-    const toCreate = targetCount - currentCount
-    if (toCreate <= 0) return
-
-    const maxPosition = drawers.reduce((max, drawer) => Math.max(max, drawer.posicion), -1)
-
     setCreatingDrawers(true)
     try {
-      const payload: DrawerPayload[] = Array.from({ length: toCreate }).map((_, index) => ({
-        nombre: `Cajón ${currentCount + index + 1}`,
-        posicion: maxPosition + index + 1,
-        descripcion: null,
-        congelador_id: freezer.id,
-      }))
-
+      // Contrato `{ freezerId, totalCajones }`: el objetivo completo decide el
+      // servidor, que calcula nombres y posiciones automáticas y crea solo los
+      // cajones nuevos (el valor igual llega como no-op y no duplica).
       const response = await fetch("/api/freezer/drawers", {
         method: "POST",
         credentials: "include",
-        headers: await getApiHeaders(supabase),
-        body: JSON.stringify({ freezerId: freezer.id, drawers: payload }),
+        headers: getApiHeaders(),
+        body: JSON.stringify({ freezerId: freezer.id, totalCajones: targetCount }),
       })
 
       if (!response.ok) {
@@ -438,7 +356,7 @@ export function FreezerManager() {
         setItemForms((forms) => {
           const updated = { ...forms }
           normalized.forEach((drawer) => {
-            updated[drawer.id] = buildNewItemForm()
+            updated[drawer.id] = buildNewItemForm(getTodayISO())
           })
           return updated
         })
@@ -452,7 +370,10 @@ export function FreezerManager() {
         return next
       })
 
-      toast({ title: "Cajones creados", description: `Se añadieron ${toCreate} nuevo(s) cajón(es).` })
+      toast({
+        title: "Cajones creados",
+        description: `Se añadieron ${normalized.length} nuevo(s) cajón(es).`,
+      })
     } catch (error: any) {
       console.error("[FreezerManager] Error creating drawers", error)
       toast({
@@ -470,7 +391,7 @@ export function FreezerManager() {
     setItemForms((prev) => ({
       ...prev,
       [drawerId]: {
-        ...(prev[drawerId] ?? buildNewItemForm()),
+        ...(prev[drawerId] ?? buildNewItemForm(getTodayISO())),
         ...changes,
       },
     }))
@@ -489,40 +410,25 @@ export function FreezerManager() {
       return
     }
 
-    const formState = itemForms[drawerId] ?? buildNewItemForm()
+    const formState = itemForms[drawerId] ?? buildNewItemForm(getTodayISO())
 
-    if (!formState.nombre.trim()) {
-      toast({ variant: "destructive", description: "El nombre del elemento es obligatorio." })
+    let payload
+    try {
+      // RF-10/RF-27: la cantidad libre (vacío, 0, enteros, decimales con , o .)
+      // se valida con el dominio antes de viajar al contrato HTTP de T6.
+      payload = buildItemPayload(formState, drawerId)
+    } catch (error: any) {
+      toast({ variant: "destructive", description: error?.message ?? "Datos del elemento inválidos." })
       return
     }
 
     setAddingItems((prev) => ({ ...prev, [drawerId]: true }))
 
     try {
-      const payload: ItemPayload = {
-        cajon_id: drawerId,
-        nombre: formState.nombre.trim(),
-        estado: formState.estado,
-      }
-
-      if (formState.cantidad) {
-        const parsedQuantity = Number(formState.cantidad.replace(",", "."))
-        if (!Number.isNaN(parsedQuantity)) {
-          payload.cantidad = parsedQuantity
-        }
-      }
-
-      if (formState.unidad) payload.unidad = formState.unidad.trim()
-      if (formState.notas) payload.notas = formState.notas.trim()
-      if (formState.categoria) payload.categoria = formState.categoria.trim()
-      if (formState.fecha_compra) payload.fecha_compra = formState.fecha_compra
-      if (formState.fecha_congelacion) payload.fecha_congelacion = formState.fecha_congelacion
-      if (formState.fecha_caducidad) payload.fecha_caducidad = formState.fecha_caducidad
-
       const response = await fetch("/api/freezer/items", {
         method: "POST",
         credentials: "include",
-        headers: await getApiHeaders(supabase),
+        headers: getApiHeaders(),
         body: JSON.stringify(payload),
       })
 
@@ -544,7 +450,7 @@ export function FreezerManager() {
             : drawer,
         ),
       )
-      setItemForms((prev) => ({ ...prev, [drawerId]: buildNewItemForm() }))
+      setItemForms((prev) => ({ ...prev, [drawerId]: buildNewItemForm(getTodayISO()) }))
       setExpandedAddForms((prev) => ({ ...prev, [drawerId]: false }))
       toast({ title: "Elemento añadido", description: `${normalizedItem.nombre} se guardó en el cajón.` })
     } catch (error: any) {
@@ -619,11 +525,6 @@ export function FreezerManager() {
       return
     }
 
-    if (!formState.nombre.trim()) {
-      toast({ variant: "destructive", description: "El nombre del elemento es obligatorio." })
-      return
-    }
-
     const targetDrawerId = formState.cajon_id || drawerId
     const targetDrawer = drawers.find((drawer) => drawer.id === targetDrawerId)
 
@@ -632,28 +533,14 @@ export function FreezerManager() {
       return
     }
 
-    const rawQuantity = formState.cantidad.trim()
-    let quantityValue: number | null = null
-    if (rawQuantity) {
-      const parsed = Number(rawQuantity.replace(",", "."))
-      if (Number.isNaN(parsed)) {
-        toast({ variant: "destructive", description: "Introduce un número válido en la cantidad." })
-        return
-      }
-      quantityValue = parsed
-    }
-
-    const updates: ItemUpdatePayload = {
-      cajon_id: targetDrawerId,
-      nombre: formState.nombre.trim(),
-      estado: formState.estado,
-      cantidad: rawQuantity ? quantityValue : null,
-      unidad: formState.unidad.trim() || null,
-      notas: formState.notas.trim() || null,
-      categoria: formState.categoria.trim() || null,
-      fecha_compra: formState.fecha_compra || null,
-      fecha_congelacion: formState.fecha_congelacion || null,
-      fecha_caducidad: formState.fecha_caducidad || null,
+    let updates
+    try {
+      // RF-10/RF-15/RF-27: edición completa con cantidad libre validada por el
+      // dominio (vacío viaja como null) y cajón de destino para el movimiento.
+      updates = buildItemUpdates({ ...formState, cajon_id: targetDrawerId })
+    } catch (error: any) {
+      toast({ variant: "destructive", description: error?.message ?? "Datos del elemento inválidos." })
+      return
     }
 
     setSavingEdits((prev) => ({ ...prev, [itemId]: true }))
@@ -662,7 +549,7 @@ export function FreezerManager() {
       const response = await fetch(`/api/freezer/items/${itemId}`, {
         method: "PATCH",
         credentials: "include",
-        headers: await getApiHeaders(supabase),
+        headers: getApiHeaders(),
         body: JSON.stringify({ drawerId, updates }),
       })
 
@@ -726,7 +613,7 @@ export function FreezerManager() {
       const response = await fetch(`/api/freezer/items/${item.id}`, {
         method: "PATCH",
         credentials: "include",
-        headers: await getApiHeaders(supabase),
+        headers: getApiHeaders(),
         body: JSON.stringify({ drawerId, updates: { reservado: !item.reservado } }),
       })
 
@@ -773,11 +660,13 @@ export function FreezerManager() {
     setPendingDeletion({ drawerId, itemId, itemName })
   }
 
-  const promptClearDrawer = (drawerId: string, drawerName: string, itemCount: number) => {
-    if (itemCount === 0) {
+  const promptClearDrawer = (drawer: FreezerDrawer) => {
+    // RF-18: el vaciado no se ofrece en un cajón vacío; RF-19: el vaciado
+    // existe únicamente por cajón, nunca para el congelador entero.
+    if (!debeOfrecerVaciado(drawer)) {
       return
     }
-    setPendingDrawerClear({ drawerId, drawerName, itemCount })
+    setPendingDrawerClear({ drawerId: drawer.id, drawerName: drawer.nombre, itemCount: drawer.items.length })
   }
 
   const deleteItem = async ({ drawerId, itemId, itemName }: { drawerId: string; itemId: string; itemName: string }) => {
@@ -787,7 +676,7 @@ export function FreezerManager() {
       const response = await fetch(`/api/freezer/items/${itemId}`, {
         method: "DELETE",
         credentials: "include",
-        headers: await getApiHeaders(supabase),
+        headers: getApiHeaders(),
         body: JSON.stringify({ drawerId }),
       })
 
@@ -860,7 +749,7 @@ export function FreezerManager() {
       const response = await fetch(`/api/freezer/drawers/${drawerId}/items`, {
         method: "DELETE",
         credentials: "include",
-        headers: await getApiHeaders(supabase),
+        headers: getApiHeaders(),
       })
 
       const payload = await response.json().catch(() => ({}))
@@ -968,9 +857,27 @@ export function FreezerManager() {
     )
   }
 
+  if (serverAccess === null) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center" aria-label="Comprobando acceso">
+        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
+  if (serverAccess === false) {
+    return (
+      <Card className="max-w-lg mx-auto">
+        <CardHeader>
+          <CardTitle>Acceso no disponible</CardTitle>
+          <CardDescription>No tienes acceso al inventario del congelador.</CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
   const freezerName = freezer?.nombre ?? "Tu congelador"
   const freezerDescription = freezer?.descripcion
-  const isSharedAccess = accessRole !== null && accessRole !== "owner"
 
   return (
     <div className="space-y-8">
@@ -984,9 +891,6 @@ export function FreezerManager() {
             <p className="text-gray-600">
               {freezerDescription || "Define tus cajones y controla el contenido de cada uno."}
             </p>
-            {isSharedAccess ? (
-              <p className="mt-1 text-sm text-blue-700">Este congelador está compartido contigo.</p>
-            ) : null}
           </div>
         </div>
 
@@ -998,39 +902,43 @@ export function FreezerManager() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form
-              className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end md:flex-nowrap md:gap-3"
-              onSubmit={handleDrawerCountSubmit}
-            >
-              <div className="w-full sm:w-44">
-                <Label htmlFor="drawer-count">Número de cajones</Label>
-                <select
-                  id="drawer-count"
-                  value={drawerCountValue}
-                  onChange={(event) => setDrawerCountValue(event.target.value)}
-                  className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end md:flex-nowrap md:gap-3">
+              {canWrite ? (
+                <form
+                  className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end md:flex-nowrap md:gap-3"
+                  onSubmit={handleDrawerCountSubmit}
                 >
-                  <option value="">Selecciona...</option>
-                  {DRAWER_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <Button type="submit" disabled={creatingDrawers} className="sm:w-auto">
-                {creatingDrawers ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Guardando...
-                  </>
-                ) : (
-                  <>
-                    <Snowflake className="mr-2 h-4 w-4" />
-                    Actualizar cajones
-                  </>
-                )}
-              </Button>
+                  <div className="w-full sm:w-44">
+                    <Label htmlFor="drawer-count">Número de cajones</Label>
+                    <select
+                      id="drawer-count"
+                      value={drawerCountValue}
+                      onChange={(event) => setDrawerCountValue(event.target.value)}
+                      className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Selecciona...</option>
+                      {DRAWER_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <Button type="submit" disabled={creatingDrawers} className="sm:w-auto">
+                    {creatingDrawers ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <Snowflake className="mr-2 h-4 w-4" />
+                        Actualizar cajones
+                      </>
+                    )}
+                  </Button>
+                </form>
+              ) : null}
               <div className="w-full sm:flex-1 md:w-64 md:flex-none">
                 <Label htmlFor="drawer-search">Buscar elementos</Label>
                 <div className="relative mt-1">
@@ -1052,7 +960,7 @@ export function FreezerManager() {
                   <span className="text-sm font-medium">Imprimir</span>
                 </Link>
               </Button>
-            </form>
+            </div>
           </CardContent>
         </Card>
       </section>
@@ -1077,47 +985,52 @@ export function FreezerManager() {
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
             {drawers.map((drawer) => {
-              const formState = itemForms[drawer.id] ?? buildNewItemForm()
+              // RF-20: la búsqueda filtra solo el contenido mostrado; los
+              // cajones permanecen siempre visibles.
+              const vista = buildVistaCajon(drawer, searchTerm)
+              const visibleItems = vista.visibles
+              const formState = itemForms[drawer.id] ?? buildNewItemForm(getTodayISO())
               const isAddFormOpen = Boolean(expandedAddForms[drawer.id])
-              const visibleItems = isSearching
-                ? drawer.items.filter((item) => itemMatchesSearch(item, normalizedSearchTerm))
-                : drawer.items
-              const hasItems = drawer.items.length > 0
+              const hasItems = vista.total > 0
               const hasVisibleItems = visibleItems.length > 0
               return (
                 <Card key={drawer.id} className="flex flex-col">
                   <CardHeader className="relative">
                     <div className="absolute right-4 top-4 flex items-center gap-1">
-                      <Button
-                        type="button"
-                        variant={isAddFormOpen ? "secondary" : "ghost"}
-                        size="icon"
-                        onClick={() => handleToggleAddItemForm(drawer.id)}
-                        disabled={Boolean(addingItems[drawer.id])}
-                        aria-pressed={isAddFormOpen}
-                        aria-label={
-                          isAddFormOpen
-                            ? `Ocultar formulario para añadir en ${drawer.nombre}`
-                            : `Añadir elemento a ${drawer.nombre}`
-                        }
-                        title={isAddFormOpen ? "Ocultar formulario" : "Añadir elemento"}
-                      >
-                        <Plus className={`h-4 w-4 transition-transform ${isAddFormOpen ? "rotate-45" : ""}`} />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => promptClearDrawer(drawer.id, drawer.nombre, drawer.items.length)}
-                        disabled={!hasItems || Boolean(clearingDrawers[drawer.id])}
-                        aria-label={`Vaciar ${drawer.nombre}`}
-                      >
-                        {clearingDrawers[drawer.id] ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                      </Button>
+                      {canWrite ? (
+                        <>
+                          <Button
+                            type="button"
+                            variant={isAddFormOpen ? "secondary" : "ghost"}
+                            size="icon"
+                            onClick={() => handleToggleAddItemForm(drawer.id)}
+                            disabled={Boolean(addingItems[drawer.id])}
+                            aria-pressed={isAddFormOpen}
+                            aria-label={
+                              isAddFormOpen
+                                ? `Ocultar formulario para añadir en ${drawer.nombre}`
+                                : `Añadir elemento a ${drawer.nombre}`
+                            }
+                            title={isAddFormOpen ? "Ocultar formulario" : "Añadir elemento"}
+                          >
+                            <Plus className={`h-4 w-4 transition-transform ${isAddFormOpen ? "rotate-45" : ""}`} />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => promptClearDrawer(drawer)}
+                            disabled={!hasItems || Boolean(clearingDrawers[drawer.id])}
+                            aria-label={`Vaciar ${drawer.nombre}`}
+                          >
+                            {clearingDrawers[drawer.id] ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </>
+                      ) : null}
                     </div>
                     <CardTitle className="flex items-center gap-2 pr-24">
                       <Snowflake className="h-5 w-5 text-blue-500" />
@@ -1146,6 +1059,10 @@ export function FreezerManager() {
                           {visibleItems.map((item) => {
                             const isEditing = Boolean(editingItems[item.id])
                             const editFormState = editForms[item.id] ?? buildItemFormState(item)
+                            // RF-20: los campos se muestran exactamente como los
+                            // formatea el dominio, que es la misma representación
+                            // que consulta la búsqueda.
+                            const representacion = buildRepresentacionMostrada(item)
                             const isSavingEdit = Boolean(savingEdits[item.id])
                             const isDeletingItem = Boolean(deletingItems[item.id])
                             const isReservingItem = Boolean(reservingItems[item.id])
@@ -1164,21 +1081,25 @@ export function FreezerManager() {
                                   <div>
                                     <p className="font-medium text-gray-900">{item.nombre}</p>
                                     <div className="mt-1 space-y-1 text-sm text-gray-600">
-                                      {item.estado && <p>Estado: {item.estado}</p>}
-                                      {item.cantidad != null && item.cantidad !== undefined && (
-                                        <p>
-                                          Cantidad: {item.cantidad}
-                                          {item.unidad ? ` ${item.unidad}` : ""}
-                                        </p>
+                                      {representacion.estado && <p>Estado: {representacion.estado}</p>}
+                                      {representacion.cantidadMostrada && (
+                                        <p>Cantidad: {representacion.cantidadMostrada}</p>
                                       )}
-                                      {item.categoria && <p>Categoría: {item.categoria}</p>}
-                                      {item.fecha_compra && <p>Comprado: {formatDate(item.fecha_compra)}</p>}
-                                      {item.fecha_congelacion && <p>Congelado: {formatDate(item.fecha_congelacion)}</p>}
-                                      {item.fecha_caducidad && <p>Caduca: {formatDate(item.fecha_caducidad)}</p>}
-                                      {item.notas && <p>Notas: {item.notas}</p>}
+                                      {representacion.categoria && <p>Categoría: {representacion.categoria}</p>}
+                                      {representacion.fechaCompraMostrada && (
+                                        <p>Comprado: {representacion.fechaCompraMostrada}</p>
+                                      )}
+                                      {representacion.fechaCongelacionMostrada && (
+                                        <p>Congelado: {representacion.fechaCongelacionMostrada}</p>
+                                      )}
+                                      {representacion.fechaCaducidadMostrada && (
+                                        <p>Caduca: {representacion.fechaCaducidadMostrada}</p>
+                                      )}
+                                      {representacion.notas && <p>Notas: {representacion.notas}</p>}
                                     </div>
                                   </div>
-                                  <div className="flex gap-1">
+                                  {canWrite ? (
+                                    <div className="flex gap-1">
                                     <Button
                                       variant="ghost"
                                       size="icon"
@@ -1219,7 +1140,8 @@ export function FreezerManager() {
                                         <Trash2 className="h-4 w-4" />
                                       )}
                                     </Button>
-                                  </div>
+                                    </div>
+                                  ) : null}
                                 </div>
 
                                 {isEditing && (
@@ -1237,21 +1159,16 @@ export function FreezerManager() {
                                     <div className="flex flex-col gap-3 sm:flex-row">
                                       <div className="sm:w-24">
                                         <Label htmlFor={fieldId("cantidad")}>Cantidad</Label>
-                                        <select
+                                        <Input
                                           id={fieldId("cantidad")}
+                                          type="text"
+                                          inputMode="decimal"
                                           value={editFormState.cantidad}
                                           onChange={(event) =>
                                             handleEditInputChange(item.id, { cantidad: event.target.value })
                                           }
-                                          className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        >
-                                          <option value="">Sin cantidad</option>
-                                          {QUANTITY_OPTIONS.map((quantity) => (
-                                            <option key={quantity} value={quantity}>
-                                              {quantity}
-                                            </option>
-                                          ))}
-                                        </select>
+                                          placeholder="Ej. 1,5"
+                                        />
                                       </div>
                                       <div className="sm:flex-1">
                                         <Label htmlFor={fieldId("unidad")}>Unidad</Label>
@@ -1402,19 +1319,14 @@ export function FreezerManager() {
                           <div className="flex flex-col gap-3 sm:flex-row">
                             <div className="sm:w-24">
                               <Label htmlFor={`item-cantidad-${drawer.id}`}>Cantidad</Label>
-                              <select
+                              <Input
                                 id={`item-cantidad-${drawer.id}`}
+                                type="text"
+                                inputMode="decimal"
                                 value={formState.cantidad}
                                 onChange={(event) => handleItemInputChange(drawer.id, { cantidad: event.target.value })}
-                                className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              >
-                                <option value="">Selecciona</option>
-                                {QUANTITY_OPTIONS.map((quantity) => (
-                                  <option key={quantity} value={quantity}>
-                                    {quantity}
-                                  </option>
-                                ))}
-                              </select>
+                                placeholder="Ej. 1,5"
+                              />
                             </div>
                             <div className="sm:flex-1">
                               <Label htmlFor={`item-unidad-${drawer.id}`}>Unidad</Label>

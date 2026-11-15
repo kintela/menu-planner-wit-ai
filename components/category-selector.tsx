@@ -7,7 +7,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Plus, X } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import type { Category } from "@/lib/types"
 
@@ -36,14 +35,13 @@ export function CategorySelector({ categories, selectedCategories, onCategoriesC
 
     setIsCreating(true)
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("categories")
-        .insert({ name: newCategoryName.trim() })
-        .select()
-        .single()
-
-      if (error) throw error
+      const response = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newCategoryName }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || "No se pudo crear la categoría")
 
       toast({
         title: "Categoría creada",
@@ -57,10 +55,9 @@ export function CategorySelector({ categories, selectedCategories, onCategoriesC
       // Refresh the page to show the new category
       window.location.reload()
     } catch (error) {
-      console.error("Error creating category:", error)
       toast({
         title: "Error",
-        description: "No se pudo crear la categoría.",
+        description: error instanceof Error ? error.message : "No se pudo crear la categoría.",
         variant: "destructive",
       })
     } finally {

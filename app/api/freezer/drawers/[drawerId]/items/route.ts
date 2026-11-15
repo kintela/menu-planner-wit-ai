@@ -1,56 +1,35 @@
 import { NextResponse } from "next/server"
+
 import {
+  FREEZER_ACCESS_ERRORS,
   createFreezerAdminClient,
-  resolveAuthenticatedFreezerUserId,
-  resolveFreezerAccess,
+  createFreezerSessionClient,
+  handleFreezerDrawerItemsDelete,
 } from "@/lib/freezer-access"
 
+export const dynamic = "force-dynamic"
+
+// DELETE /api/freezer/drawers/[drawerId]/items (RF-18–RF-19, RF-23–RF-27):
+// adaptador fino. La identidad procede exclusivamente de la sesión de cookies
+// del route handler, se exige perfil vigente y la autorización (acceso/rol con
+// fallback de propietarios antiguos, 404 uniforme, 403 de solo lectura) vive en
+// el manejador puro de la capa de acceso. El vaciado es definitivo, persistente
+// e inclusivo de reservados, dejando el cajón existente y vacío; el vaciado
+// solo existe por cajón. La confirmación previa es presentación (T8): esta ruta no lee
+// cuerpo y ejecuta la operación autorizada sin confirmación.
 export async function DELETE(
-  request: Request,
+  _request: Request,
   context: { params: Promise<{ drawerId: string }> },
 ) {
-  const { drawerId } = await context.params
+  try {
+    const { drawerId } = await context.params
 
-  if (!drawerId) {
-    return NextResponse.json({ error: "Falta el identificador del cajón." }, { status: 400 })
+    const sessionClient = await createFreezerSessionClient()
+    const adminClient = createFreezerAdminClient()
+    const outcome = await handleFreezerDrawerItemsDelete({ sessionClient, adminClient, drawerId })
+    return NextResponse.json(outcome.body, { status: outcome.status })
+  } catch (error) {
+    console.error("[api/freezer/drawers/[drawerId]/items] Error inesperado:", error)
+    return NextResponse.json({ error: FREEZER_ACCESS_ERRORS.internal.message }, { status: 500 })
   }
-
-  const userId = await resolveAuthenticatedFreezerUserId(request)
-  if (!userId) {
-    return NextResponse.json({ error: "Debes iniciar sesión." }, { status: 401 })
-  }
-
-  const supabase = createFreezerAdminClient()
-  const { data: drawer, error: drawerError } = await supabase
-    .from("cajones_congelador")
-    .select("id, congelador_id")
-    .eq("id", drawerId)
-    .maybeSingle()
-
-  if (drawerError) {
-    console.error("[api/freezer/drawers/[drawerId]/items] Error fetching drawer", drawerError)
-    return NextResponse.json({ error: "No se pudo validar el cajón." }, { status: 500 })
-  }
-
-  if (!drawer?.congelador_id) {
-    return NextResponse.json({ error: "El cajón indicado no existe." }, { status: 404 })
-  }
-
-  const access = await resolveFreezerAccess(supabase, drawer.congelador_id, userId)
-  if (!access.hasAccess) {
-    return NextResponse.json({ error: "No tienes permisos para vaciar ese cajón." }, { status: 403 })
-  }
-
-  if (access.accessRole === "viewer") {
-    return NextResponse.json({ error: "Tu acceso a este congelador es de solo lectura." }, { status: 403 })
-  }
-
-  const { error: deleteError } = await supabase.from("elementos_cajon").delete().eq("cajon_id", drawerId)
-
-  if (deleteError) {
-    console.error("[api/freezer/drawers/[drawerId]/items] Error clearing drawer", deleteError)
-    return NextResponse.json({ error: deleteError.message ?? "No se pudo vaciar el cajón." }, { status: 500 })
-  }
-
-  return NextResponse.json({ success: true })
 }

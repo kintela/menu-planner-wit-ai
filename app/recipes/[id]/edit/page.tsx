@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { EditRecipeForm } from "@/components/edit-recipe-form"
-import type { Category, Recipe } from "@/lib/types"
+import type { Category } from "@/lib/types"
+import type { PublicRecipe } from "@/lib/recipes/recipe-domain"
 
 import { Loader2, AlertCircle, ArrowLeft } from "lucide-react"
 
@@ -15,7 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export default function EditRecipePage() {
   const params = useParams()
   const { user, loading: authLoading } = useAuth()
-  const [recipe, setRecipe] = useState<Recipe | null>(null)
+  const [recipe, setRecipe] = useState<PublicRecipe | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,26 +71,25 @@ export default function EditRecipePage() {
           return
         }
 
-        const recipeData = await recipeResponse.json()
+        const recipePayload = await recipeResponse.json()
+        const recipeData = recipePayload?.recipe as PublicRecipe | undefined
+        if (!recipeData) {
+          setError("Receta no encontrada")
+          return
+        }
         setRecipe(recipeData)
 
-        // Solo el autor puede editar (alineado con el resto de la app)
-        const hasPermission = recipeData.user_id === user.id
+        // La capacidad procede del servidor; no se infiere mediante IDs de usuario.
+        const hasPermission = recipeData.can_edit === true
         setCanEdit(hasPermission)
         //console.log("[DEBUG] isAuthor:", isAuthor, "isAdmin:", isAdmin, "hasPermission:", hasPermission)
 
         // Si tiene permisos, cargar categorías
         if (hasPermission) {
-          const recipeCategories = Array.isArray(recipeData?.recipe_categories)
-            ? recipeData.recipe_categories
+          const categoryIds = Array.isArray(recipeData.categories)
+            ? recipeData.categories.map((category) => Number(category.id))
             : []
-
-          const categoryIds = recipeCategories
-            .map((rc: any) => rc.category_id || rc.categories?.id)
-            .filter((id: any) => id !== undefined && id !== null)
-            .map((id: any) => Number(id))
           setSelectedCategoryIds(categoryIds)
-          console.log("[DEBUG] recipeCategories:", recipeCategories)
 
           // Obtener todas las categorías vía API (evita RLS en el cliente)
           const categoriesResponse = await withTimeout(
@@ -108,7 +108,6 @@ export default function EditRecipePage() {
             const payload = await categoriesResponse.json()
             const categoriesData = Array.isArray(payload?.categories) ? payload.categories : []
             setCategories(categoriesData)
-            console.log("[DEBUG] categoriesData:", categoriesData)
           }
         }
         clearTimeout(slowTimer)

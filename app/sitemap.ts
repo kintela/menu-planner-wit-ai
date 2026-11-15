@@ -1,10 +1,10 @@
 import type { MetadataRoute } from "next"
 import { createClient } from "@supabase/supabase-js"
+import { readPublicRecipes } from "@/lib/recipes/recipe-server-operations"
 
 type RecipeSitemapRow = {
   id: number
   created_at?: string | null
-  updated_at?: string | null
 }
 
 function getBaseUrl() {
@@ -20,29 +20,23 @@ function getBaseUrl() {
 
 async function getRecipeEntries(baseUrl: string): Promise<MetadataRoute.Sitemap> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  if (!supabaseUrl || !serviceKey) {
+  if (!supabaseUrl || !anonKey) {
     return []
   }
 
-  const supabase = createClient(supabaseUrl, serviceKey, {
+  const supabase = createClient(supabaseUrl, anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
 
-  const { data, error } = await supabase
-    .from("recipes")
-    .select("id, created_at, updated_at")
-    .order("id", { ascending: true })
-
-  if (error || !data) {
-    console.error("[sitemap] Error obteniendo recetas:", error)
-    return []
-  }
+  const result = await readPublicRecipes(supabase)
+  if (result.status !== 200 || !("recipes" in result.body)) return []
+  const data = result.body.recipes
 
   return (data as RecipeSitemapRow[]).map((recipe) => ({
     url: `${baseUrl}/recipes/${recipe.id}`,
-    lastModified: recipe.updated_at || recipe.created_at || undefined,
+    lastModified: recipe.created_at || undefined,
     changeFrequency: "weekly",
     priority: 0.7,
   }))

@@ -38,7 +38,7 @@ async function run() {
   const password = process.argv[3]
 
   if (!email || !password) {
-    console.error("Usage: node scripts/test-supabase-cors.js <email> <password>")
+    console.error("Usage: node scripts/check-supabase-cors.js <email> <password>")
     process.exit(1)
   }
 

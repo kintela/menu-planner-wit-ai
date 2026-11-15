@@ -11,17 +11,9 @@ import { AiRecipeSuggestion } from "@/components/ai-recipe-suggestion"
 interface Recipe {
   id: number
   name: string
-  calories?: number
-  image_url?: string
-  user_profiles?: {
-    id?: string
-    full_name?: string
-    first_name?: string
-    last_name?: string
-    alias?: string
-    avatar_url?: string
-    email?: string
-  }
+  calories?: number | null
+  image_url?: string | null
+  author_alias?: string | null
 }
 
 interface RecipeSelectorProps {
@@ -31,9 +23,10 @@ interface RecipeSelectorProps {
   onSelect: (recipeId: number, recipeObj?: Recipe) => void // Cambiado: acepta receta completa
   onCancel: () => void
   onClose?: () => void // NUEVO: para cerrar el selector desde IA
+  allowAiSuggestion?: boolean
 }
 
-export function RecipeSelector({ recipes, day, mealType, onSelect, onCancel, onClose }: RecipeSelectorProps) {
+export function RecipeSelector({ recipes, day, mealType, onSelect, onCancel, onClose, allowAiSuggestion = true }: RecipeSelectorProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [isOpen, setIsOpen] = useState(false)
 
@@ -82,17 +75,23 @@ export function RecipeSelector({ recipes, day, mealType, onSelect, onCancel, onC
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Botón para generar receta por IA */}
-        <div className="flex justify-center mb-2">
+        {allowAiSuggestion && <div className="flex justify-center mb-2">
           <AiRecipeSuggestion
             mealType={mealType.startsWith("comida") ? "comida" : "cena"}
             dishOrder={mealType.endsWith("1") ? 1 : mealType.endsWith("2") ? 2 : undefined}
             dayName={day}
             onRecipeCreated={(recipe) => {
-              onSelect(recipe.id, recipe)
+              onSelect(Number(recipe.id), {
+                id: Number(recipe.id),
+                name: recipe.name,
+                calories: recipe.calories_per_serving,
+                image_url: recipe.image_url,
+                author_alias: "Usuario",
+              })
               if (onClose) onClose()
             }}
           />
-        </div>
+        </div>}
         {/* Caja de búsqueda */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -139,17 +138,9 @@ export function RecipeSelector({ recipes, day, mealType, onSelect, onCancel, onC
                         {recipe.calories && (
                           <span>{recipe.calories} cal</span>
                         )}
-                        {recipe.user_profiles && (
-                          <span>
-                            • {recipe.user_profiles.alias || 
-                               recipe.user_profiles.full_name || 
-                               (recipe.user_profiles.first_name && recipe.user_profiles.last_name 
-                                 ? `${recipe.user_profiles.first_name} ${recipe.user_profiles.last_name}` 
-                                 : recipe.user_profiles.first_name) ||
-                               recipe.user_profiles.email ||
-                               'Usuario'}
-                          </span>
-                        )}
+                         <span>
+                             • {recipe.author_alias?.trim() || "Usuario"}
+                         </span>
                       </div>
                     </div>
                   </div>
