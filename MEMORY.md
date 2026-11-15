@@ -53,9 +53,8 @@ Actualmente la aplicación permite:
 
 ### Migraciones
 
-- Local: aplicadas `20261024000000` a `20261025100000`.
-- Remoto: según captura de `supabase migration list` aportada por el usuario, coinciden con local hasta `20261025090000` (incluye 001–004). No hubo validación remota independiente.
-- Pendiente en remoto: `20261025100000_enforce_global_freezer_singleton.sql` (spec 005), aplicación manual del usuario.
+- Local y remoto: **al día y coincidentes**, las 13 migraciones de `20261024000000` a `20261025100000` (salida de `supabase migration list --linked` aportada por el usuario el 2026-11-15). No quedan migraciones pendientes de aplicar.
+- El singleton de congeladores (`20261025100000`) está vigente también en producción: antes de aplicarlo se comprobó en remoto, en solo lectura, que había un único congelador y que su propietario tenía rol `admin`, las dos guardas de la migración.
 
 ## Decisiones vigentes
 
@@ -96,8 +95,6 @@ Actualmente la aplicación permite:
 ## Decisiones pendientes
 
 - Redactar spec 007 (alertas del congelador sobre el singleton).
-- Aplicar en remoto `20261025100000` (manual, usuario).
-- Commitear el trabajo de `feature/specs`.
 - Corregir la configuración de Jest.
 - Revisar la duplicación de helpers de roles y permisos entre `lib/auth.ts` y `lib/auth-client.ts`.
 - Revisar las tres rutas que concentran lógica (`admin/recipe-notifications`, `weekly-menu/share`, `cron/freezer-alerts`), anotadas como excepciones al principio 3 de `docs/constitution.md`.
