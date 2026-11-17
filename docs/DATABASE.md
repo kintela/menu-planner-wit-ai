@@ -152,6 +152,7 @@ Las entidades principales conocidas usan nombres en castellano:
 - `cajones_congelador`: cajones pertenecientes a un congelador.
 - `elementos_cajon`: elementos almacenados en un cajón.
 - `congeladores_usuarios`: asociación de usuarios, congeladores y permisos de compartición.
+- `avisos_elementos_cajon` (migración `20261117000000`, Spec 007): fecha del último aviso enviado por elemento. Clave primaria y clave foránea `elemento_id` hacia `elementos_cajon(id)` con borrado en cascada. RLS habilitado sin políticas y acceso únicamente para `service_role`: ningún rol de navegador la lee ni la escribe.
 
 No deben renombrarse tablas o columnas sin una migración explícita y una revisión de todos los consumidores.
 

@@ -12,7 +12,9 @@ Vercel la ejecuta a diario (`0 8 * * *` en `vercel.json`).
 
 - **No la ejecutes manualmente, ni la modifiques ni la pruebes sin revisar antes sus efectos secundarios.**
 - No ejecutes endpoints con efectos secundarios contra producción sin autorización explícita.
-- No está adaptada al modelo de congelador único de la spec 005; ese trabajo pertenece a la **spec 007**, aún sin redactar.
+- Su comportamiento está definido en la **spec 007** (`specs/007-alertas-congelador/`) y documentado en `docs/ARCHITECTURE.md`: trabaja solo sobre el congelador único, avisa una vez por elemento con recordatorio a los 30 días y reclama los elementos antes de enviar para no duplicar.
+- **Se autoriza con `CRON_SECRET`** (`Authorization: Bearer`), no con el user-agent ni con `x-vercel-cron`. Sin la variable el cron recibe `403`.
+- La lógica vive en `lib/freezer/freezer-alerts-*.js`, con tests; la ruta es solo un adaptador. Para probar el envío usa un receptor SMTP local, nunca el SMTP real.
 
 Variables de correo, todas sensibles: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`.
 

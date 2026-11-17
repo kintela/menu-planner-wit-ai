@@ -1,131 +1,23 @@
+import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import nodemailer from "nodemailer"
-import { format, subMonths } from "date-fns"
 import { isAdmin } from "@/lib/auth"
+import { decidirAutorizacion, RESPUESTA_NO_AUTORIZADO } from "@/lib/freezer/freezer-alerts-authorization"
+import {
+  ejecutarAlertas,
+  leerConfiguracionAlertas,
+  type DependenciasAlertas,
+  type ReclamoAvisos,
+} from "@/lib/freezer/freezer-alerts-server-operations"
+
+// Spec 007: adaptador fino. Aquí solo se acredita la petición, se leen
+// variables de entorno y se conectan Supabase y el correo; las reglas de
+// elegibilidad, aviso y recordatorio y la redacción del correo viven en
+// lib/freezer/ y están cubiertas por tests. Esta ruta envía correo real.
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-
-const APP_NAME = "MenuPlanner"
-const DEFAULT_RECIPIENTS = ["roberto.quintela@protonmail.com", "soniamuga@yahoo.es"]
-
-type RawDrawer = {
-  id?: string | null
-  nombre?: string | null
-  posicion?: number | null
-  congelador_id?: string | null
-  congeladores?: { id?: string | null; usuario_id?: string | null } | { id?: string | null; usuario_id?: string | null }[] | null
-}
-
-type RawItem = {
-  id: string
-  nombre: string
-  cantidad?: number | null
-  unidad?: string | null
-  categoria?: string | null
-  estado?: string | null
-  fecha_congelacion?: string | null
-  fecha_caducidad?: string | null
-  cajon_id?: string | null
-  cajones_congelador?: RawDrawer | null
-}
-
-type AlertItem = {
-  id: string
-  nombre: string
-  cantidad?: number | null
-  unidad?: string | null
-  categoria?: string | null
-  estado?: string | null
-  fecha_congelacion?: string | null
-  fecha_caducidad?: string | null
-  cajon?: {
-    id?: string | null
-    nombre?: string | null
-    posicion?: number | null
-    congelador_id?: string | null
-    usuario_id?: string | null
-  } | null
-}
-
-const isTruthyHeader = (value: string | null) => {
-  if (!value) return false
-  const normalized = value.trim().toLowerCase()
-  return normalized === "1" || normalized === "true" || normalized === "yes"
-}
-
-const isCronRequest = (req: NextRequest) => {
-  if (isTruthyHeader(req.headers.get("x-vercel-cron"))) return true
-  if (isTruthyHeader(req.headers.get("X-Vercel-Cron"))) return true
-  const userAgent = req.headers.get("user-agent") ?? ""
-  return userAgent.toLowerCase().includes("vercel cron")
-}
-
-const parseRecipients = () => {
-  const raw = process.env.FREEZER_ALERT_RECIPIENTS
-  const list = (raw ? raw.split(",") : DEFAULT_RECIPIENTS)
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean)
-  return Array.from(new Set(list))
-}
-
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
-
-const formatHumanDate = (value?: string | null) => {
-  if (!value) return "-"
-  try {
-    return new Intl.DateTimeFormat("es-ES", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }).format(new Date(`${value}T00:00:00`))
-  } catch {
-    return value
-  }
-}
-
-const getOwnerId = (drawer?: RawDrawer | null) => {
-  if (!drawer?.congeladores) return null
-  const data = drawer.congeladores
-  if (Array.isArray(data)) {
-    return data[0]?.usuario_id ?? null
-  }
-  return data.usuario_id ?? null
-}
-
-const normalizeItem = (item: RawItem): AlertItem => ({
-  id: item.id,
-  nombre: item.nombre,
-  cantidad: item.cantidad ?? null,
-  unidad: item.unidad ?? null,
-  categoria: item.categoria ?? null,
-  estado: item.estado ?? null,
-  fecha_congelacion: item.fecha_congelacion ?? null,
-  fecha_caducidad: item.fecha_caducidad ?? null,
-  cajon: item.cajones_congelador
-    ? {
-        id: item.cajones_congelador.id ?? null,
-        nombre: item.cajones_congelador.nombre ?? null,
-        posicion: item.cajones_congelador.posicion ?? null,
-        congelador_id: item.cajones_congelador.congelador_id ?? null,
-        usuario_id: getOwnerId(item.cajones_congelador),
-      }
-    : null,
-})
-
-const formatQuantity = (cantidad?: number | null, unidad?: string | null) => {
-  if (cantidad === null || cantidad === undefined) return "-"
-  const qty = Number.isFinite(cantidad) ? `${cantidad}` : String(cantidad)
-  const unit = unidad ? ` ${unidad}` : ""
-  return `${qty}${unit}`.trim()
-}
 
 const resolveBaseUrl = (req: NextRequest) => {
   const requestUrl = new URL(req.url)
@@ -133,281 +25,169 @@ const resolveBaseUrl = (req: NextRequest) => {
   return envBase && envBase.length > 0 ? envBase : `${requestUrl.protocol}//${requestUrl.host}`
 }
 
-const buildEmailContent = (items: AlertItem[], thresholdDate: string, months: number, baseUrl: string) => {
-  const title = `Elementos congelados ${months} meses o mas`
-  const intro = `Se encontraron ${items.length} elementos que llevan ${months} meses o mas congelados.`
-  const safeBaseUrl = baseUrl?.trim() ? baseUrl.trim().replace(/\/$/, "") : ""
+// Solo se registra un código identificativo: nunca el mensaje ni el objeto del
+// error, que en SMTP o SQL pueden contener credenciales o detalles internos.
+const registrarError: NonNullable<DependenciasAlertas["registrarError"]> = (contexto, error) => {
+  const codigo = (error as { code?: unknown } | null)?.code
+  const nombre = (error as { name?: unknown } | null)?.name
+  console.error(`[freezer-alerts] fallo en ${contexto}:`, typeof codigo === "string" ? codigo : typeof nombre === "string" ? nombre : "desconocido")
+}
 
-  const lines = items.map((item) => {
-    const drawerLabel = item.cajon?.nombre
-      ? `Cajon: ${item.cajon.nombre}${item.cajon.posicion ? ` (pos. ${item.cajon.posicion})` : ""}`
-      : "Cajon: -"
-    const qtyLabel = `Cantidad: ${formatQuantity(item.cantidad, item.unidad)}`
-    const dateLabel = `Congelado: ${formatHumanDate(item.fecha_congelacion)}`
-    const categoryLabel = item.categoria ? `Categoria: ${item.categoria}` : "Categoria: -"
-    return `- ${item.nombre} | ${dateLabel} | ${drawerLabel} | ${qtyLabel} | ${categoryLabel}`
-  })
+function crearSupabase(): SupabaseClient {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const clave = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !clave) {
+    throw Object.assign(new Error("Supabase no configurado"), { code: "SUPABASE_NO_CONFIGURADO" })
+  }
+  return createClient(url, clave, { auth: { persistSession: false, autoRefreshToken: false } })
+}
 
-  const footerText = safeBaseUrl ? `\n\n${APP_NAME}: ${safeBaseUrl}` : ""
-  const text = `${APP_NAME}\n${title}\n${intro}\n\n${lines.join("\n")}${footerText}`
+function crearDependencias(): DependenciasAlertas {
+  let cliente: SupabaseClient | null = null
+  const supabase = () => (cliente ??= crearSupabase())
+  const avisos = () => supabase().from("avisos_elementos_cajon")
 
-  const rows = items
-    .map((item) => {
-      const drawerLabel = item.cajon?.nombre
-        ? `${item.cajon.nombre}${item.cajon.posicion ? ` (pos. ${item.cajon.posicion})` : ""}`
-        : "-"
-      return `<tr>
-        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">${escapeHtml(item.nombre)}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">${escapeHtml(formatHumanDate(item.fecha_congelacion))}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">${escapeHtml(drawerLabel)}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">${escapeHtml(formatQuantity(item.cantidad, item.unidad))}</td>
-        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;">${escapeHtml(item.categoria ?? "-")}</td>
-      </tr>`
-    })
-    .join("")
-
-  const headerLink = safeBaseUrl || "#"
-  const html = `
-    <div style="font-family:Arial, sans-serif; background:#f3f4f6; padding:24px;">
-      <div style="max-width:720px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; border:1px solid #e5e7eb;">
-        <div style="background:#111827; padding:16px 24px;">
-          <a href="${escapeHtml(headerLink)}" style="color:#ffffff; font-size:20px; font-weight:700; text-decoration:none;">${escapeHtml(APP_NAME)}</a>
-        </div>
-        <div style="padding:20px 24px; color:#111827;">
-          <h2 style="margin:0 0 8px;">${escapeHtml(title)}</h2>
-          <p style="margin:0 0 16px;">${escapeHtml(intro)}</p>
-          <table style="width:100%; border-collapse:collapse; font-size:14px;">
-            <thead>
-              <tr style="background:#f3f4f6; text-align:left;">
-                <th style="padding:8px 10px;">Producto</th>
-                <th style="padding:8px 10px;">Fecha congelacion</th>
-                <th style="padding:8px 10px;">Cajon</th>
-                <th style="padding:8px 10px;">Cantidad</th>
-                <th style="padding:8px 10px;">Categoria</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
-        <div style="padding:12px 24px; border-top:1px solid #e5e7eb; text-align:center; font-size:12px; color:#6b7280;">
-          <a href="${escapeHtml(headerLink)}" style="color:#2563eb; text-decoration:none;">${escapeHtml(APP_NAME)}</a>
-        </div>
-      </div>
-    </div>
-  `
+  // Deshace un reclamo propio. Solo toca filas que siguen marcadas con el
+  // instante de esta ejecución, de modo que nunca pisa el reclamo de otra.
+  const liberar = async (reclamo: ReclamoAvisos, instante: string) => {
+    let primerError: unknown = null
+    if (reclamo.nuevos.length > 0) {
+      const { error } = await avisos().delete().in("elemento_id", reclamo.nuevos).eq("avisado_en", instante)
+      if (error) primerError ??= error
+    }
+    for (const r of reclamo.recordatorios) {
+      const { error } = await avisos().update({ avisado_en: r.anterior }).eq("elemento_id", r.id).eq("avisado_en", instante)
+      if (error) primerError ??= error
+    }
+    if (primerError) throw primerError
+  }
 
   return {
-    subject: `[Congelador] ${items.length} elementos con ${months}+ meses`,
-    text,
-    html,
-  }
-}
-
-const buildTestEmailContent = (baseUrl: string) => {
-  const checkedAt = new Date().toISOString()
-  const subject = "[Congelador] Email de prueba"
-  const safeBaseUrl = baseUrl?.trim() ? baseUrl.trim().replace(/\/$/, "") : ""
-  const footerText = safeBaseUrl ? `\n\n${APP_NAME}: ${safeBaseUrl}` : ""
-  const text = `${APP_NAME}\nEmail de prueba enviado correctamente.\nHora: ${checkedAt}${footerText}`
-  const html = `
-    <div style="font-family:Arial, sans-serif; background:#f3f4f6; padding:24px;">
-      <div style="max-width:640px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; border:1px solid #e5e7eb;">
-        <div style="background:#111827; padding:16px 24px;">
-          <a href="${escapeHtml(safeBaseUrl || "#")}" style="color:#ffffff; font-size:20px; font-weight:700; text-decoration:none;">${escapeHtml(APP_NAME)}</a>
-        </div>
-        <div style="padding:20px 24px; color:#111827;">
-          <h2 style="margin:0 0 8px;">Email de prueba</h2>
-          <p style="margin:0;">Si ves este mensaje, la configuracion SMTP funciona.</p>
-          <p style="margin:12px 0 0; color:#6b7280; font-size:12px;">Hora: ${escapeHtml(checkedAt)}</p>
-        </div>
-        <div style="padding:12px 24px; border-top:1px solid #e5e7eb; text-align:center; font-size:12px; color:#6b7280;">
-          <a href="${escapeHtml(safeBaseUrl || "#")}" style="color:#2563eb; text-decoration:none;">${escapeHtml(APP_NAME)}</a>
-        </div>
-      </div>
-    </div>
-  `
-  return { subject, text, html }
-}
-
-async function handleRequest(
-  req: NextRequest,
-  { dryRun, testEmail }: { dryRun: boolean; testEmail: boolean },
-) {
-  const cron = isCronRequest(req)
-  const admin = await isAdmin()
-
-  if (!cron && !admin) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 403 })
-  }
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  const monthsEnv = Number(process.env.FREEZER_ALERT_MONTHS ?? 2)
-  const alertMonths = Number.isFinite(monthsEnv) && monthsEnv > 0 ? monthsEnv : 2
-  const thresholdDate = format(subMonths(new Date(), alertMonths), "yyyy-MM-dd")
-  const baseUrl = resolveBaseUrl(req)
-
-  const recipients = parseRecipients()
-
-  if (recipients.length === 0) {
-    return NextResponse.json({ error: "No hay destinatarios configurados" }, { status: 500 })
-  }
-
-  const smtpHost = process.env.SMTP_HOST
-  const smtpPort = Number(process.env.SMTP_PORT ?? 587)
-  const smtpUser = process.env.SMTP_USER
-  const smtpPassword = process.env.SMTP_PASSWORD
-  const smtpFrom = process.env.SMTP_FROM_EMAIL || smtpUser
-
-  const basePayload = {
-    ok: true,
-    checkedAt: new Date().toISOString(),
-    thresholdDate,
-    alertMonths,
-    sent: false,
-    dryRun,
-    recipients,
-    items: [] as AlertItem[],
-  }
-
-  if (testEmail) {
-    if (dryRun) {
-      return NextResponse.json({ ...basePayload, message: "Prueba preparada (sin envio)." })
-    }
-
-    if (!smtpHost || !smtpUser || !smtpPassword || !smtpFrom) {
-      return NextResponse.json(
-        {
-          ...basePayload,
-          error: "SMTP no configurado. Define SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD y SMTP_FROM_EMAIL.",
-        },
-        { status: 500 },
-      )
-    }
-
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpPort === 465,
-      auth: { user: smtpUser, pass: smtpPassword },
-    })
-
-    const { subject, text, html } = buildTestEmailContent(baseUrl)
-
-    await transporter.sendMail({
-      from: smtpFrom,
-      to: recipients.join(", "),
-      subject,
-      text,
-      html,
-    })
-
-    return NextResponse.json({ ...basePayload, sent: true, message: "Email de prueba enviado correctamente." })
-  }
-
-  if (!supabaseUrl || !serviceKey) {
-    return NextResponse.json({ error: "Configuracion de Supabase incompleta" }, { status: 500 })
-  }
-
-  const supabase = createClient(supabaseUrl, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-
-  const { data, error } = await supabase
-    .from("elementos_cajon")
-    .select(
-      `
-        id,
-        nombre,
-        cantidad,
-        unidad,
-        categoria,
-        estado,
-        fecha_congelacion,
-        fecha_caducidad,
-        cajon_id,
-        cajones_congelador (
-          id,
-          nombre,
-          posicion,
-          congelador_id,
-          congeladores (
-            id,
-            usuario_id
-          )
+    // Spec 005: existe como mucho un congelador (índice único). Si por algún
+    // motivo hubiera más de uno no se elige ninguno: ambigüedad = fallo.
+    resolverCongelador: async () => {
+      const { data, error } = await supabase().from("congeladores").select("id").limit(2)
+      if (error) throw error
+      if (!data || data.length === 0) return null
+      if (data.length > 1) {
+        throw Object.assign(new Error("Hay más de un congelador"), { code: "CONGELADOR_AMBIGUO" })
+      }
+      return data[0].id as string
+    },
+    leerElementos: async (fechaUmbral, congeladorId) => {
+      const { data, error } = await supabase()
+        .from("elementos_cajon")
+        .select(
+          "id, nombre, cantidad, unidad, categoria, estado, fecha_congelacion, fecha_caducidad, cajon_id, cajones_congelador!inner (id, nombre, posicion, congelador_id)",
         )
-      `,
-    )
-    .not("fecha_congelacion", "is", null)
-    .lte("fecha_congelacion", thresholdDate)
-    .order("fecha_congelacion", { ascending: true })
-
-  if (error) {
-    console.error("[freezer-alerts] Error fetching items:", error)
-    return NextResponse.json({ error: "No se pudo obtener los elementos del congelador" }, { status: 500 })
+        .eq("cajones_congelador.congelador_id", congeladorId)
+        .not("fecha_congelacion", "is", null)
+        .lte("fecha_congelacion", fechaUmbral)
+        .order("fecha_congelacion", { ascending: true })
+      if (error) throw error
+      return data ?? []
+    },
+    leerAvisos: async () => {
+      const { data, error } = await avisos().select("elemento_id, avisado_en")
+      if (error) throw error
+      return data ?? []
+    },
+    // Reclamo atómico: los nuevos se insertan solo si no existen y cada
+    // recordatorio se actualiza solo si su fecha sigue siendo la leída.
+    reclamarAvisos: async (reclamo, instante) => {
+      const ganados: string[] = []
+      try {
+        if (reclamo.nuevos.length > 0) {
+          const { data, error } = await avisos()
+            .upsert(
+              reclamo.nuevos.map((id) => ({ elemento_id: id, avisado_en: instante })),
+              { onConflict: "elemento_id", ignoreDuplicates: true },
+            )
+            .select("elemento_id")
+          if (error) throw error
+          ganados.push(...(data ?? []).map((fila) => fila.elemento_id as string))
+        }
+        for (const r of reclamo.recordatorios) {
+          const { data, error } = await avisos()
+            .update({ avisado_en: instante })
+            .eq("elemento_id", r.id)
+            .eq("avisado_en", r.anterior)
+            .select("elemento_id")
+          if (error) throw error
+          if (data && data.length > 0) ganados.push(r.id)
+        }
+        return ganados
+      } catch (error) {
+        // Un fallo a mitad no deja reclamos huérfanos: se deshace lo ya ganado.
+        try {
+          await liberar(
+            {
+              nuevos: reclamo.nuevos.filter((id) => ganados.includes(id)),
+              recordatorios: reclamo.recordatorios.filter((r) => ganados.includes(r.id)),
+            },
+            instante,
+          )
+        } catch (errorLiberar) {
+          registrarError("registro", errorLiberar)
+        }
+        throw error
+      }
+    },
+    liberarAvisos: liberar,
+    descartarAvisos: async (ids) => {
+      const { error } = await avisos().delete().in("elemento_id", ids)
+      if (error) throw error
+    },
+    enviarCorreo: async ({ to, subject, text, html, smtp }) => {
+      const transporte = nodemailer.createTransport({
+        host: smtp.host,
+        port: smtp.port,
+        secure: smtp.secure,
+        auth: { user: smtp.user, pass: smtp.password },
+      })
+      await transporte.sendMail({ from: smtp.from, to, subject, text, html })
+    },
+    registrarError,
   }
+}
 
-  const items = (data ?? []).map((item) => normalizeItem(item as RawItem))
-  const payload = {
-    ...basePayload,
-    totalItems: (data ?? []).length,
-    eligibleItems: items.length,
-    items,
-  }
-
-  if (items.length === 0) {
-    return NextResponse.json({ ...payload, message: "Sin elementos que superen el umbral." })
-  }
-
-  if (dryRun) {
-    return NextResponse.json({ ...payload, message: "Ejecucion en modo prueba (sin envio)." })
-  }
-
-  if (!smtpHost || !smtpUser || !smtpPassword || !smtpFrom) {
-    return NextResponse.json(
-      {
-        ...payload,
-        error: "SMTP no configurado. Define SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD y SMTP_FROM_EMAIL.",
-      },
-      { status: 500 },
-    )
-  }
-
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    auth: { user: smtpUser, pass: smtpPassword },
+async function handleRequest(req: NextRequest, modo: { dryRun: boolean; testEmail: boolean }) {
+  // RF-1/RF-2: el programador se acredita con el secreto compartido
+  // (Authorization: Bearer <CRON_SECRET>, que Vercel envía solo si la variable
+  // existe) y una persona, con sesión de rol admin. Ninguna cabecera que un
+  // cliente pueda falsificar autoriza nada.
+  const decision = await decidirAutorizacion({
+    cabeceraAuthorization: req.headers.get("authorization"),
+    secretoCron: process.env.CRON_SECRET,
+    comprobarAdmin: async () => isAdmin(await cookies()),
   })
 
-  const { subject, text, html } = buildEmailContent(items, thresholdDate, alertMonths, baseUrl)
+  if (!decision.autorizado) {
+    return NextResponse.json(RESPUESTA_NO_AUTORIZADO.cuerpo, { status: RESPUESTA_NO_AUTORIZADO.estado })
+  }
 
-  await transporter.sendMail({
-    from: smtpFrom,
-    to: recipients.join(", "),
-    subject,
-    text,
-    html,
+  const { estadoHttp, cuerpo } = await ejecutarAlertas({
+    config: leerConfiguracionAlertas(process.env),
+    modo,
+    hoy: new Date(),
+    baseUrl: resolveBaseUrl(req),
+    deps: crearDependencias(),
   })
-
-  return NextResponse.json({ ...payload, sent: true, message: "Email enviado correctamente." })
+  return NextResponse.json(cuerpo, { status: estadoHttp })
 }
 
 export async function GET(req: NextRequest) {
-  const dryRunParam = new URL(req.url).searchParams.get("dryRun")
-  const testParam = new URL(req.url).searchParams.get("testEmail")
-  const dryRun = dryRunParam === "1" || dryRunParam === "true"
-  const testEmail = testParam === "1" || testParam === "true"
-  return handleRequest(req, { dryRun, testEmail })
+  const parametros = new URL(req.url).searchParams
+  const activo = (valor: string | null) => valor === "1" || valor === "true"
+  return handleRequest(req, { dryRun: activo(parametros.get("dryRun")), testEmail: activo(parametros.get("testEmail")) })
 }
 
 export async function POST(req: NextRequest) {
-  let body: { dryRun?: boolean; testEmail?: boolean } = {}
+  let cuerpo: { dryRun?: boolean; testEmail?: boolean } = {}
   try {
-    body = await req.json()
+    cuerpo = await req.json()
   } catch {
-    body = {}
+    cuerpo = {}
   }
-  return handleRequest(req, { dryRun: Boolean(body.dryRun), testEmail: Boolean(body.testEmail) })
+  return handleRequest(req, { dryRun: Boolean(cuerpo.dryRun), testEmail: Boolean(cuerpo.testEmail) })
 }

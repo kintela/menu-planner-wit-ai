@@ -141,14 +141,24 @@ La programación definida en `vercel.json` es:
 
 La ruta puede consultar inventario y enviar correos reales mediante SMTP. Cualquier cambio debe revisar idempotencia, destinatarios, zona horaria, manejo de fallos y riesgo de envíos duplicados. No debe ejecutarse manualmente contra producción como forma de prueba.
 
-Variables de correo utilizadas:
+Comportamiento vigente (Spec 007, `specs/007-alertas-congelador/`):
+
+- **Autorización.** El programador se acredita con `Authorization: Bearer <CRON_SECRET>`, que Vercel envía solo si la variable existe y que se compara en tiempo constante; una persona, con sesión de rol `admin` (la usa `/admin`). Sin `CRON_SECRET` la vía del programador queda cerrada. Ninguna cabecera falsificable, como el user-agent, autoriza nada, y todo rechazo devuelve el mismo `403`.
+- **Criterio.** Avisa de los elementos del congelador único cuya `fecha_congelacion` supera el umbral (2 meses por defecto). No usa `fecha_caducidad`.
+- **Un aviso, no uno diario.** Cada elemento se avisa al cruzar el umbral y se recuerda pasados 30 días naturales. El estado vive en `avisos_elementos_cajon`.
+- **Sin duplicados.** Los elementos se reclaman antes de enviar (inserción condicional para los nuevos; actualización condicional sobre la fecha leída para los recordatorios) y se liberan solo los propios si el envío falla. Cubre ejecuciones solapadas, el botón de `/admin` y la posible doble entrega del cron.
+- **Estructura.** La ruta es un adaptador; la lógica está en `lib/freezer/freezer-alerts-*.js` (dominio, autorización, presentación y operaciones con dependencias inyectadas).
+- **Resultado.** El cuerpo incluye `resultado`: `sin_novedades`, `aviso_enviado`, `fallo`, y `comprobacion` / `prueba_enviada` en los modos manuales (`dryRun`, `testEmail`).
+
+Variables utilizadas, todas solo de servidor:
 
 ```text
-SMTP_HOST
-SMTP_PORT
-SMTP_USER
-SMTP_PASSWORD
-SMTP_FROM_EMAIL
+SMTP_HOST            SMTP_PORT           SMTP_USER
+SMTP_PASSWORD        SMTP_FROM_EMAIL
+CRON_SECRET                       (obligatoria para que el cron autorice)
+FREEZER_ALERT_RECIPIENTS          (obligatoria: no existe lista por defecto)
+FREEZER_ALERT_MONTHS              (opcional, 2 por defecto)
+FREEZER_ALERT_REMINDER_DAYS       (opcional, 30 por defecto)
 ```
 
 ## Configuración y despliegue

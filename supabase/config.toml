@@ -7,6 +7,9 @@ port = 54328
 [db]
 port = 54329
 shadow_port = 54330
+# Los datos del volumen local se inicializaron con PostgreSQL 17; fijarlo evita
+# que la CLI arranque una imagen 15.x incompatible con ellos.
+major_version = 17
 
 [studio]
 port = 54331

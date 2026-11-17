@@ -22,5 +22,5 @@ Principios innegociables de Menu Planner. Prevalecen sobre cualquier otra instru
 
 Deuda heredada, identificada y acotada; no son permisos para crear nuevas:
 
-- **Principio 3:** `app/api/admin/recipe-notifications/route.ts`, `app/api/weekly-menu/share/route.ts` y `app/api/cron/freezer-alerts/route.ts` concentran lógica en la ruta. Las dos primeras son código heredado sin spec; la tercera corresponde a la spec 007.
+- **Principio 3:** `app/api/admin/recipe-notifications/route.ts` y `app/api/weekly-menu/share/route.ts` concentran lógica en la ruta. Son código heredado sin spec. (`app/api/cron/freezer-alerts/route.ts` dejó de serlo con la spec 007.)
 - **Principio 4:** la suite Jest no arranca, por lo que su cobertura no cuenta como verificación.

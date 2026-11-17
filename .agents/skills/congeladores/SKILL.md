@@ -34,4 +34,4 @@ La página de impresión es un adaptador fino: impresión completa e independien
 
 ## No confundir con las alertas
 
-El cron `/api/cron/freezer-alerts` **no está adaptado** a este modelo y su ajuste pertenece a la spec 007, aún sin redactar. No lo toques desde una tarea de inventario: ver la skill `openai-cron`.
+El cron `/api/cron/freezer-alerts` ya trabaja solo sobre el congelador único (spec 007) y registra los avisos por elemento en `avisos_elementos_cajon`, que se borran en cascada con el elemento. No lo toques desde una tarea de inventario: ver la skill `openai-cron`.
